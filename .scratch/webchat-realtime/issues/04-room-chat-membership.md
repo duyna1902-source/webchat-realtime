@@ -5,14 +5,14 @@ Chức năng trò chuyện nhóm hoàn chỉnh theo phòng (Room Chat). Người
 
 **Blocked by:** 02: Nhắn tin Trực tiếp 1-1 Thời gian thực & Lưu trữ Lịch sử Tin nhắn
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] API tạo Room Chat mới (`POST /api/rooms`) gán người tạo với vai trò `OWNER` trong bảng `RoomMember`.
-- [ ] API lấy danh sách các Room mà người dùng tham gia (`GET /api/rooms`).
-- [ ] API quản lý thành viên: Thêm thành viên (`POST /api/rooms/:id/members`), xóa thành viên (`DELETE /api/rooms/:id/members/:userId`), đổi quyền (`PATCH /api/rooms/:id/members/:userId/role`), và tự rời phòng (`POST /api/rooms/:id/leave`).
-- [ ] Logic phân quyền kiểm tra chặt chẽ quyền hạn của `OWNER`, `ADMIN`, `MEMBER` trước khi thực hiện thao tác quản trị.
-- [ ] Sự kiện Socket.io `room:join` và `room:leave` đưa socket vào room tương ứng (`socket.join(roomId)`).
-- [ ] Sự kiện Socket.io `room:send` lưu tin nhắn vào bảng `RoomMessage` và phát `room:receive` tới toàn bộ các socket đang tham gia phòng đó.
-- [ ] Sự kiện `room:member_change` thông báo cập nhật danh sách thành viên trong phòng theo thời gian thực.
-- [ ] Giao diện Modal tạo phòng, danh sách phòng chat, bảng xem thành viên với các nút chức năng quản trị tương ứng theo vai trò.
-- [ ] Kiểm thử tích hợp xác nhận đầy đủ các luồng: tạo phòng, thêm/xóa thành viên có phân quyền, và phát tán tin nhắn nhóm.
+- [x] API tạo Room Chat mới (`POST /api/rooms`) gán người tạo với vai trò `OWNER` trong bảng `RoomMember`.
+- [x] API lấy danh sách các Room mà người dùng tham gia (`GET /api/rooms`).
+- [x] API quản lý thành viên: Thêm thành viên (`POST /api/rooms/:id/members`), xóa thành viên (`DELETE /api/rooms/:id/members/:userId`), đổi quyền (`PATCH /api/rooms/:id/members/:userId/role`), và tự rời phòng (`POST /api/rooms/:id/leave`).
+- [x] Logic phân quyền kiểm tra chặt chẽ quyền hạn của `OWNER`, `ADMIN`, `MEMBER` trước khi thực hiện thao tác quản trị.
+- [x] Sự kiện Socket.io `room:join` và `room:leave` đưa socket vào room tương ứng (`socket.join(roomId)`).
+- [x] Sự kiện Socket.io `room:send` lưu tin nhắn vào bảng `RoomMessage` và phát `room:receive` tới toàn bộ các socket đang tham gia phòng đó.
+- [x] Sự kiện `room:member_change` thông báo cập nhật danh sách thành viên trong phòng theo thời gian thực.
+- [x] Giao diện Modal tạo phòng, danh sách phòng chat, bảng xem thành viên với các nút chức năng quản trị tương ứng theo vai trò.
+- [x] Kiểm thử tích hợp xác nhận đầy đủ các luồng: tạo phòng, thêm/xóa thành viên có phân quyền, và phát tán tin nhắn nhóm.

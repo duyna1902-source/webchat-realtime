@@ -3,6 +3,7 @@ import { Server, Socket } from 'socket.io';
 import { verifyToken, JwtPayload } from '../lib/jwt.js';
 import { registerDirectChatHandlers } from './direct.handler.js';
 import { registerRoomHandlers } from './room.handler.js';
+import { handleUserConnect, handleUserDisconnect } from './presence.handler.js';
 
 export interface AuthenticatedSocket extends Socket {
   data: {
@@ -47,8 +48,12 @@ export function setupSocketServer(httpServer: http.Server): Server {
     }
   });
 
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     const authSocket = socket as AuthenticatedSocket;
+
+    // Track user presence
+    await handleUserConnect(io, authSocket);
+
     // Register direct chat events
     registerDirectChatHandlers(io, authSocket);
     // Register room chat events
@@ -56,7 +61,7 @@ export function setupSocketServer(httpServer: http.Server): Server {
 
     // Client is successfully authenticated and connected
     socket.on('disconnect', () => {
-      // Handled in presence module in upcoming tickets
+      handleUserDisconnect(io, authSocket);
     });
   });
 
