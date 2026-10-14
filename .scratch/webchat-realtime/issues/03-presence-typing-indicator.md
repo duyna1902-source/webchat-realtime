@@ -16,18 +16,21 @@ Chức năng cập nhật trạng thái trực tuyến/ngoại tuyến (Online/O
 - [x] Giao diện khung chat hiển thị thông báo "Người dùng đang soạn tin nhắn..." động khi nhận sự kiện typing.
 - [x] Kiểm thử tích hợp xác nhận chuyển đổi trạng thái Presence có grace period và truyền nhận sự kiện typing chính xác.
 
-## Implementation Details
+## Answer
 
-1. **Server Presence Manager (`server/src/socket/presence.handler.ts`)**:
+Ticket 03 has been successfully implemented, fully verified with 50 automated tests (37 server, 13 client), clean production build, and merged into `integration/webchat-realtime`.
+
+### Key Deliverables & Implementation Details:
+1. **Server Presence Manager (`server/src/socket/presence.handler.ts`, `server/src/socket/index.ts`)**:
    - Manages active user socket mapping (`activeUserSockets: Map<string, Set<string>>`).
-   - When user connects first socket: updates `User.isOnline = true` in DB and emits `presence:update` (`{ userId, isOnline: true, lastSeenAt }`) to all clients.
+   - When user connects first socket: updates `User.isOnline = true` in DB and broadcasts `presence:update` (`{ userId, isOnline: true, lastSeenAt }`) to all clients.
    - When socket disconnects: removes socket from user set. If no active sockets remain for user, starts a `Presence Grace Period` timer (5000ms by default, configurable via `setPresenceGracePeriodMs`).
    - If user reconnects before timer fires: cancels grace period timer, maintaining continuous online state without flicker.
    - If timer expires: marks `User.isOnline = false`, updates `User.lastSeenAt = new Date()`, and broadcasts `presence:update` (`{ userId, isOnline: false, lastSeenAt }`).
 
-2. **Typing Indicator Handler (`server/src/socket/direct.handler.ts`)**:
+2. **Direct Chat Typing Indicator Handler (`server/src/socket/direct.handler.ts`)**:
    - Listens to `direct:typing` (`{ directChatId, isTyping }`).
-   - Validates that direct chat exists and caller is a participant.
+   - Validates that direct chat exists and caller is an authorized participant.
    - Forwards `direct:typing` (`{ directChatId, userId, isTyping }`) to each other participant's targeted user room (`user:${recipientId}`).
 
 3. **Client Presence & Typing UI (`client/src/`)**:
@@ -38,7 +41,13 @@ Chức năng cập nhật trạng thái trực tuyến/ngoại tuyến (Online/O
    - ChatArea header displays online status / formatted last seen timestamp ("Last seen today at ...").
    - ChatArea displays animated typing bubble ("Username is typing...") with three bouncing dots.
 
-4. **Integration & Client Tests**:
+4. **Comprehensive Automated Tests**:
    - `server/tests/presence.test.ts`: 4 tests verifying connect broadcast, grace period delay before offline broadcast, cancellation on reconnect within grace window, and multi-tab/device connection handling.
    - `server/tests/typing.test.ts`: 2 tests verifying typing event forwarding and authorization isolation (preventing non-participants from eavesdropping or emitting).
    - `client/src/components/chat/DirectChat.test.tsx`: 8 tests verifying online/offline rendering and typing indicator emit/display.
+   - Total test suite: 50 passing tests (37 server, 13 client).
+
+5. **Merge**:
+   - Merged into `integration/webchat-realtime` in merge commit `79acf50`.
+   - Feature branch commit: `29c3a43`.
+
