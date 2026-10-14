@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   RoomReceiveMessagePayload,
   RoomDetailDto,
@@ -27,6 +27,9 @@ export function useRoomMessages(activeRoomId: string | null) {
   const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  const messagesRef = useRef<RoomReceiveMessagePayload[]>([]);
+  messagesRef.current = messages;
 
   // Fetch room details and member roster
   const fetchRoomDetails = useCallback(async () => {
@@ -94,6 +97,35 @@ export function useRoomMessages(activeRoomId: string | null) {
     };
   }, [token, activeRoomId, fetchRoomDetails]);
 
+  // Catch-up Sync: fetches room messages strictly newer than the latest local message
+  const syncCatchup = useCallback(async () => {
+    if (!token || !activeRoomId) return;
+    const currentMsgs = messagesRef.current;
+    if (currentMsgs.length === 0) return;
+    const latestMessage = currentMsgs[currentMsgs.length - 1];
+
+    try {
+      const res = await fetch(`/api/rooms/${activeRoomId}/messages?after=${latestMessage.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        const data: PaginatedMessagesDto<RoomReceiveMessagePayload> = await res.json();
+        if (data && Array.isArray(data.messages) && data.messages.length > 0) {
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const newItems = data.messages.filter((m) => !existingIds.has(m.id));
+            return [...prev, ...newItems];
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to catch-up sync room messages:', err);
+    }
+  }, [token, activeRoomId]);
+
   // Socket join & leave lifecycle
   useEffect(() => {
     if (!socket || !activeRoomId) return;
@@ -117,15 +149,28 @@ export function useRoomMessages(activeRoomId: string | null) {
       }
     };
 
+    const handleConnect = () => {
+      // Re-join room on socket
+      socket.emit(SOCKET_EVENTS.ROOM_JOIN, { roomId: activeRoomId });
+
+      // If session not recovered, sync missed messages and refresh room details
+      if (!socket.recovered) {
+        syncCatchup();
+        fetchRoomDetails();
+      }
+    };
+
     socket.on(SOCKET_EVENTS.ROOM_RECEIVE, handleRoomReceive);
     socket.on(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, handleMemberChange);
+    socket.on('connect', handleConnect);
 
     return () => {
       socket.emit(SOCKET_EVENTS.ROOM_LEAVE, { roomId: activeRoomId });
       socket.off(SOCKET_EVENTS.ROOM_RECEIVE, handleRoomReceive);
       socket.off(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, handleMemberChange);
+      socket.off('connect', handleConnect);
     };
-  }, [socket, activeRoomId, fetchRoomDetails]);
+  }, [socket, activeRoomId, fetchRoomDetails, syncCatchup]);
 
   const sendMessage = useCallback(
     (content: string, optionsOrType?: MessageType | SendRoomMessageOptions) => {
@@ -264,5 +309,6 @@ export function useRoomMessages(activeRoomId: string | null) {
     leaveRoom,
     deleteRoom,
     refreshRoomDetails: fetchRoomDetails,
+    syncCatchup,
   };
 }

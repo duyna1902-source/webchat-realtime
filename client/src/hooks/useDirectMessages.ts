@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   DirectReceiveMessagePayload,
   PaginatedMessagesDto,
@@ -22,6 +22,9 @@ export function useDirectMessages(activeChatId: string | null) {
   const [messages, setMessages] = useState<DirectReceiveMessagePayload[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  const messagesRef = useRef<DirectReceiveMessagePayload[]>([]);
+  messagesRef.current = messages;
 
   // Fetch initial message history
   useEffect(() => {
@@ -63,7 +66,36 @@ export function useDirectMessages(activeChatId: string | null) {
     };
   }, [token, activeChatId]);
 
-  // Real-time listener for incoming messages
+  // Catch-up Sync: fetches messages strictly newer than the latest local message
+  const syncCatchup = useCallback(async () => {
+    if (!token || !activeChatId) return;
+    const currentMsgs = messagesRef.current;
+    if (currentMsgs.length === 0) return;
+    const latestMessage = currentMsgs[currentMsgs.length - 1];
+
+    try {
+      const res = await fetch(`/api/direct-chats/${activeChatId}/messages?after=${latestMessage.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        const data: PaginatedMessagesDto<DirectReceiveMessagePayload> = await res.json();
+        if (data && Array.isArray(data.messages) && data.messages.length > 0) {
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const newItems = data.messages.filter((m) => !existingIds.has(m.id));
+            return [...prev, ...newItems];
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to catch-up sync direct messages:', err);
+    }
+  }, [token, activeChatId]);
+
+  // Real-time listener for incoming messages and reconnection catch-up sync
   useEffect(() => {
     if (!socket || !activeChatId) return;
 
@@ -78,12 +110,21 @@ export function useDirectMessages(activeChatId: string | null) {
       }
     };
 
+    const handleConnect = () => {
+      // If socket.recovered is false, connection state was unrecovered (or prolonged offline); catch up missed messages
+      if (!socket.recovered) {
+        syncCatchup();
+      }
+    };
+
     socket.on(SOCKET_EVENTS.DIRECT_RECEIVE, handleReceive);
+    socket.on('connect', handleConnect);
 
     return () => {
       socket.off(SOCKET_EVENTS.DIRECT_RECEIVE, handleReceive);
+      socket.off('connect', handleConnect);
     };
-  }, [socket, activeChatId]);
+  }, [socket, activeChatId, syncCatchup]);
 
   const sendMessage = useCallback(
     (content: string, optionsOrType?: MessageType | SendDirectMessageOptions) => {
@@ -124,5 +165,6 @@ export function useDirectMessages(activeChatId: string | null) {
     isLoading,
     error,
     sendMessage,
+    syncCatchup,
   };
 }
