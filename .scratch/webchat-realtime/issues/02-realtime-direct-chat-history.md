@@ -5,7 +5,7 @@ Chức năng trò chuyện trực tiếp 1-1 theo thời gian thực giữa hai 
 
 **Blocked by:** 01: Thiết lập Monorepo, Schema Cơ sở dữ liệu Toàn diện & Xác thực Người dùng (Auth Tracer Bullet)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] API danh sách người dùng (`GET /api/users`) cho phép tìm kiếm và xem danh sách người dùng khả dụng để nhắn tin.
 - [ ] API tạo hoặc lấy Direct Chat giữa hai người dùng (`POST /api/direct-chats`) đảm bảo chỉ có duy nhất một phiên Direct Chat cho một cặp user (ràng buộc unique pair).
