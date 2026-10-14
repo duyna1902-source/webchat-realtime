@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { DirectChatListItemDto, DirectReceiveMessagePayload } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
+import { useTyping } from '../../hooks/useTyping';
 import { Send, MessageSquare, Loader2, Check } from 'lucide-react';
 
 interface ChatAreaProps {
@@ -22,6 +23,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const { isPartnerTyping, handleTyping, stopTyping } = useTyping(activeChat?.id ?? null);
+
   const scrollToBottom = () => {
     if (typeof messagesEndRef.current?.scrollIntoView === 'function') {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -30,12 +33,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isPartnerTyping]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
 
+    stopTyping();
     onSendMessage(inputText);
     setInputText('');
   };
@@ -50,6 +54,22 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const formatMessageTime = (dateStr: string) => {
     const d = new Date(dateStr);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatLastSeen = (dateStr?: string) => {
+    if (!dateStr) return 'Offline';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const isToday =
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (isToday) {
+      return `Last seen today at ${timeStr}`;
+    }
+    return `Last seen ${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
   };
 
   if (!activeChat) {
@@ -76,6 +96,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               {activeChat.partner.username.slice(0, 2).toUpperCase()}
             </div>
             <span
+              data-testid="chat-header-presence-dot"
               className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
                 activeChat.partner.isOnline ? 'bg-emerald-500' : 'bg-gray-300'
               }`}
@@ -83,7 +104,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </div>
           <div>
             <h2 className="text-sm font-bold text-gray-900">{activeChat.partner.username}</h2>
-            <p className="text-xs text-gray-500">{activeChat.partner.email}</p>
+            <p className="text-xs text-gray-500 flex items-center gap-1.5">
+              {activeChat.partner.isOnline ? (
+                <span className="text-emerald-600 font-medium">Online</span>
+              ) : (
+                <span>{formatLastSeen(activeChat.partner.lastSeenAt)}</span>
+              )}
+            </p>
           </div>
         </div>
       </header>
@@ -132,6 +159,24 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             );
           })
         )}
+
+        {/* Animated Typing Indicator */}
+        {isPartnerTyping && (
+          <div
+            data-testid="typing-indicator"
+            className="flex items-center gap-2 text-xs text-gray-500 italic px-2 py-1"
+          >
+            <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-full px-3 py-1.5 shadow-xs">
+              <span className="font-medium text-gray-700">{activeChat.partner.username} is typing</span>
+              <span className="flex gap-0.5 ml-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" />
+              </span>
+            </div>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -142,7 +187,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <textarea
               rows={1}
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={(e) => {
+                setInputText(e.target.value);
+                handleTyping();
+              }}
               onKeyDown={handleKeyDown}
               placeholder={`Message @${activeChat.partner.username}...`}
               className="w-full bg-transparent resize-none outline-none text-sm text-gray-900 placeholder-gray-400 max-h-32"

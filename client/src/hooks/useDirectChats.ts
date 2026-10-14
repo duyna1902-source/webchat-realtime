@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { DirectChatListItemDto, SOCKET_EVENTS, DirectReceiveMessagePayload, UserDto } from '@webchat/shared';
+import {
+  DirectChatListItemDto,
+  SOCKET_EVENTS,
+  DirectReceiveMessagePayload,
+  PresenceUpdatePayload,
+  UserDto,
+} from '@webchat/shared';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 
@@ -63,8 +69,30 @@ export function useDirectChats() {
 
     socket.on(SOCKET_EVENTS.DIRECT_RECEIVE, handleReceive);
 
+    const handlePresence = (presence: PresenceUpdatePayload) => {
+      if (!presence || !presence.userId) return;
+      setChats((prevChats) =>
+        prevChats.map((chat) => {
+          if (chat.partner.id === presence.userId) {
+            return {
+              ...chat,
+              partner: {
+                ...chat.partner,
+                isOnline: presence.isOnline,
+                lastSeenAt: presence.lastSeenAt,
+              },
+            };
+          }
+          return chat;
+        })
+      );
+    };
+
+    socket.on(SOCKET_EVENTS.PRESENCE_UPDATE, handlePresence);
+
     return () => {
       socket.off(SOCKET_EVENTS.DIRECT_RECEIVE, handleReceive);
+      socket.off(SOCKET_EVENTS.PRESENCE_UPDATE, handlePresence);
     };
   }, [socket, fetchChats]);
 

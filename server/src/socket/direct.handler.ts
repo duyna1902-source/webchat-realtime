@@ -5,6 +5,7 @@ import {
   SOCKET_EVENTS,
   DirectSendMessagePayload,
   DirectReceiveMessagePayload,
+  DirectTypingPayload,
   MessageType,
   MessageStatus,
 } from '@webchat/shared';
@@ -105,6 +106,45 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
       if (typeof callback === 'function') {
         callback({ success: false, error: err.message || 'Internal server error' });
       }
+    }
+  });
+
+  socket.on(SOCKET_EVENTS.DIRECT_TYPING, async (payload: { directChatId: string; isTyping: boolean }) => {
+    try {
+      if (!payload || !payload.directChatId || typeof payload.isTyping !== 'boolean') {
+        return;
+      }
+
+      const { directChatId, isTyping } = payload;
+      const prisma = getPrisma();
+
+      // Verify that direct chat exists and sender is a participant
+      const chat = await prisma.directChat.findUnique({
+        where: { id: directChatId },
+        include: {
+          participants: true,
+        },
+      });
+
+      if (!chat) return;
+
+      const isParticipant = chat.participants.some((p) => p.userId === userId);
+      if (!isParticipant) return;
+
+      const typingPayload: DirectTypingPayload = {
+        directChatId,
+        userId,
+        isTyping,
+      };
+
+      // Deliver typing indicator to other participants
+      chat.participants.forEach((p) => {
+        if (p.userId !== userId) {
+          io.to(`user:${p.userId}`).emit(SOCKET_EVENTS.DIRECT_TYPING, typingPayload);
+        }
+      });
+    } catch (err: any) {
+      console.error('Error handling direct:typing:', err);
     }
   });
 }

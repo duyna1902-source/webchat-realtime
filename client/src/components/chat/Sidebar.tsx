@@ -242,9 +242,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {chat.partner.username.slice(0, 2).toUpperCase()}
                   </div>
                   <span
+                    data-testid={`presence-dot-${chat.partner.id}`}
                     className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
                       chat.partner.isOnline ? 'bg-emerald-500' : 'bg-gray-300'
                     }`}
+                    title={chat.partner.isOnline ? 'Online' : 'Offline'}
+                    aria-label={chat.partner.isOnline ? 'Online' : 'Offline'}
                   />
                 </div>
 
