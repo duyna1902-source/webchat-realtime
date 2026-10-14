@@ -9,6 +9,13 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 
+export interface SendDirectMessageOptions {
+  type?: MessageType;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentSize?: number | null;
+}
+
 export function useDirectMessages(activeChatId: string | null) {
   const { token } = useAuth();
   const { socket } = useSocket();
@@ -79,13 +86,32 @@ export function useDirectMessages(activeChatId: string | null) {
   }, [socket, activeChatId]);
 
   const sendMessage = useCallback(
-    (content: string, type: MessageType = MessageType.TEXT) => {
-      if (!socket || !activeChatId || !content.trim()) return;
+    (content: string, optionsOrType?: MessageType | SendDirectMessageOptions) => {
+      if (!socket || !activeChatId) return;
+
+      let msgType = MessageType.TEXT;
+      let attachmentUrl: string | null = null;
+      let attachmentName: string | null = null;
+      let attachmentSize: number | null = null;
+
+      if (typeof optionsOrType === 'string') {
+        msgType = optionsOrType;
+      } else if (optionsOrType) {
+        msgType = optionsOrType.type ?? MessageType.TEXT;
+        attachmentUrl = optionsOrType.attachmentUrl ?? null;
+        attachmentName = optionsOrType.attachmentName ?? null;
+        attachmentSize = optionsOrType.attachmentSize ?? null;
+      }
+
+      if (!content.trim() && !attachmentUrl) return;
 
       const payload: DirectSendMessagePayload = {
         directChatId: activeChatId,
         content: content.trim(),
-        type,
+        type: msgType,
+        attachmentUrl,
+        attachmentName,
+        attachmentSize,
       };
 
       socket.emit(SOCKET_EVENTS.DIRECT_SEND, payload);

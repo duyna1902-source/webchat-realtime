@@ -272,4 +272,68 @@ describe('Room Chat Client Components', () => {
       expect(onChangeRole).toHaveBeenCalledWith('user-member-id', RoomRole.ADMIN);
     });
   });
+
+  it('handles room attachments: paperclip button, 10MB size validation, and rendering IMAGE/DOCUMENT messages', async () => {
+    const onSendMessage = vi.fn();
+    const imageRoomMsg: RoomReceiveMessagePayload = {
+      id: 'rmsg-img-1',
+      roomId: 'room-1',
+      senderId: 'user-admin-id',
+      sender: { id: 'user-admin-id', username: 'bob_admin', avatarUrl: null },
+      content: 'Here is the sprint roadmap image',
+      type: MessageType.IMAGE,
+      attachmentUrl: '/uploads/roadmap.png',
+      attachmentName: 'roadmap.png',
+      attachmentSize: 1024 * 800,
+      createdAt: new Date().toISOString(),
+    };
+
+    const docRoomMsg: RoomReceiveMessagePayload = {
+      id: 'rmsg-doc-1',
+      roomId: 'room-1',
+      senderId: 'user-owner-id',
+      sender: { id: 'user-owner-id', username: 'alice_owner', avatarUrl: null },
+      content: 'Here is the sprint retro notes',
+      type: MessageType.DOCUMENT,
+      attachmentUrl: '/uploads/retro.docx',
+      attachmentName: 'retro.docx',
+      attachmentSize: 1024 * 350,
+      createdAt: new Date().toISOString(),
+    };
+
+    renderWithProviders(
+      <RoomChatArea
+        activeRoom={mockRoom}
+        roomDetails={mockRoomDetail}
+        messages={[imageRoomMsg, docRoomMsg]}
+        isLoadingMessages={false}
+        onSendMessage={onSendMessage}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />
+    );
+
+    // Verify paperclip button
+    expect(screen.getByRole('button', { name: /attach file/i })).toBeInTheDocument();
+
+    // Verify image message rendered with thumbnail
+    const imgThumbnail = screen.getByRole('img', { name: /roadmap\.png|image attachment/i });
+    expect(imgThumbnail).toBeInTheDocument();
+
+    // Verify document message rendered with name and download link
+    expect(screen.getByText('retro.docx')).toBeInTheDocument();
+    const downloadLink = screen.getByRole('link', { name: /download retro\.docx|download file/i });
+    expect(downloadLink).toHaveAttribute('href', '/uploads/retro.docx');
+
+    // Test 10MB limit validation
+    const fileInput = screen.getByTestId('room-file-upload-input');
+    const oversizeFile = new File(['x'], 'too-big.zip', { type: 'application/zip' });
+    Object.defineProperty(oversizeFile, 'size', { value: 12 * 1024 * 1024 });
+
+    fireEvent.change(fileInput, { target: { files: [oversizeFile] } });
+    expect(await screen.findByText(/exceeds 10mb limit/i)).toBeInTheDocument();
+  });
 });

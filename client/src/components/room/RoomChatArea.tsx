@@ -11,14 +11,30 @@ import { useSocket } from '../../context/SocketContext';
 import { RoomMembersModal } from './RoomMembersModal';
 import { EmojiPickerPopover } from '../media/EmojiPickerPopover';
 import { GifSearchModal } from '../media/GifSearchModal';
-import { Hash, Users, Send, Loader2, MessageSquare, Check, Smile, Sparkles } from 'lucide-react';
+import { AttachmentPreview } from '../chat/AttachmentPreview';
+import { MessageItemContent } from '../chat/MessageItemContent';
+import { ImageLightboxModal } from '../chat/ImageLightboxModal';
+import { SendRoomMessageOptions } from '../../hooks/useRoomMessages';
+import {
+  Hash,
+  Users,
+  Send,
+  Loader2,
+  MessageSquare,
+  Check,
+  Smile,
+  Sparkles,
+  Paperclip,
+  AlertCircle,
+  X,
+} from 'lucide-react';
 
 interface RoomChatAreaProps {
   activeRoom: RoomListItemDto | null;
   roomDetails: RoomDetailDto | null;
   messages: RoomReceiveMessagePayload[];
   isLoadingMessages: boolean;
-  onSendMessage: (content: string, type?: MessageType) => void;
+  onSendMessage: (content: string, optionsOrType?: MessageType | SendRoomMessageOptions) => void;
   onAddMember: (userId: string) => Promise<void>;
   onRemoveMember: (userId: string) => Promise<void>;
   onChangeRole: (userId: string, role: RoomRole.ADMIN | RoomRole.MEMBER) => Promise<void>;
@@ -38,13 +54,20 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   onLeaveRoom,
   onDeleteRoom,
 }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, token } = useAuth();
   const { isConnected } = useSocket();
   const [inputText, setInputText] = useState('');
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showGifModal, setShowGifModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; name?: string | null } | null>(null);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -57,12 +80,88 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
     scrollToBottom();
   }, [messages]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputText.trim()) return;
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    onSendMessage(inputText);
-    setInputText('');
+    // Strict client-side 10MB limit check
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMessage('File size exceeds 10MB limit. Please choose a smaller file.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setErrorMessage(null);
+    setSelectedFile(file);
+
+    if (file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    } else {
+      setPreviewUrl(null);
+    }
+  };
+
+  const handleCancelAttachment = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadAttachment = async (file: File): Promise<{ url: string; name: string; size: number }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || 'File upload failed');
+    }
+
+    return res.json();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim() && !selectedFile) return;
+
+    if (selectedFile) {
+      try {
+        setIsUploading(true);
+        const uploaded = await uploadAttachment(selectedFile);
+        const isImage = selectedFile.type.startsWith('image/');
+        const type = isImage ? MessageType.IMAGE : MessageType.DOCUMENT;
+
+        onSendMessage(inputText.trim(), {
+          type,
+          attachmentUrl: uploaded.url,
+          attachmentName: uploaded.name,
+          attachmentSize: uploaded.size,
+        });
+
+        handleCancelAttachment();
+        setInputText('');
+      } catch (err: any) {
+        setErrorMessage(err.message || 'Error uploading file');
+      } finally {
+        setIsUploading(false);
+      }
+    } else {
+      onSendMessage(inputText);
+      setInputText('');
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -179,7 +278,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                   {msg.sender.username.slice(0, 2).toUpperCase()}
                 </div>
 
-                <div className={`flex flex-col max-w-[78%] sm:max-w-md ${isMe ? 'items-end' : 'items-start'}`}>
+                <div className={`flex flex-col max-w-[85%] sm:max-w-md ${isMe ? 'items-end' : 'items-start'}`}>
                   {/* Sender Name (shown above bubble for other users) */}
                   {!isMe && (
                     <span className="text-[11px] font-semibold text-gray-500 mb-1 ml-1">
@@ -188,29 +287,25 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                   )}
 
                   <div
-                    className={`max-w-[78%] sm:max-w-md ${
+                    className={`px-4 py-2.5 rounded-2xl shadow-xs text-sm break-words whitespace-pre-wrap ${
                       isGif
                         ? isMe
                           ? 'bg-indigo-600/95 text-white p-1 rounded-2xl rounded-br-xs shadow-xs'
                           : 'bg-white text-gray-900 border border-gray-200 p-1 rounded-2xl rounded-bl-xs shadow-xs'
                         : isMe
-                        ? 'bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-xs shadow-xs text-sm break-words whitespace-pre-wrap'
-                        : 'bg-white text-gray-900 border border-gray-200 px-4 py-2.5 rounded-2xl rounded-bl-xs shadow-xs text-sm break-words whitespace-pre-wrap'
+                        ? 'bg-indigo-600 text-white rounded-br-xs'
+                        : 'bg-white text-gray-900 border border-gray-200 rounded-bl-xs'
                     }`}
                   >
-                    {isGif ? (
-                      <div className="overflow-hidden rounded-xl">
-                        <img
-                          src={msg.content}
-                          alt="GIF message"
-                          loading="lazy"
-                          className="rounded-xl max-w-full sm:max-w-xs md:max-w-sm max-h-64 object-cover cursor-pointer hover:opacity-95 transition"
-                          onClick={() => window.open(msg.content, '_blank', 'noopener,noreferrer')}
-                        />
-                      </div>
-                    ) : (
-                      <p>{msg.content}</p>
-                    )}
+                    <MessageItemContent
+                      content={msg.content}
+                      type={msg.type}
+                      attachmentUrl={msg.attachmentUrl}
+                      attachmentName={msg.attachmentName}
+                      attachmentSize={msg.attachmentSize}
+                      isMe={isMe}
+                      onImageClick={(url, name) => setLightboxImage({ url, name })}
+                    />
                     <div
                       className={`flex items-center gap-1 text-[10px] mt-1 ${isGif ? 'px-2 pb-1' : ''} ${
                         isMe ? 'text-indigo-200 justify-end' : 'text-gray-400 justify-start'
@@ -230,9 +325,63 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
 
       {/* Message Input Footer */}
       <footer className="p-3 sm:p-4 bg-white border-t border-gray-200">
+        {/* Error Alert */}
+        {errorMessage && (
+          <div
+            data-testid="room-upload-error-alert"
+            className="max-w-4xl mx-auto mb-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center justify-between shadow-xs animate-in fade-in"
+          >
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{errorMessage}</span>
+            </div>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="p-1 hover:bg-rose-100 rounded-lg text-rose-500 hover:text-rose-700 transition cursor-pointer"
+              aria-label="Dismiss error"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Selected Attachment Preview Card */}
+        {selectedFile && (
+          <div className="max-w-4xl mx-auto">
+            <AttachmentPreview
+              file={selectedFile}
+              previewUrl={previewUrl}
+              isUploading={isUploading}
+              onCancel={handleCancelAttachment}
+            />
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="flex items-end gap-2 max-w-4xl mx-auto">
-          {/* Action Buttons: Emoji Picker & GIF Search */}
-          <div className="flex items-center gap-1 pb-1">
+          {/* Action Buttons: Paperclip Attachment, Emoji Picker & GIF Search */}
+          <div className="flex items-center gap-1 pb-1 shrink-0">
+            {/* Hidden File Input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              data-testid="room-file-upload-input"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+
+            {/* Paperclip Button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-xl transition cursor-pointer disabled:opacity-50"
+              title="Attach file"
+              aria-label="Attach file"
+            >
+              <Paperclip className="w-5 h-5" />
+            </button>
+
+            {/* Emoji Button */}
             <div className="relative">
               <button
                 type="button"
@@ -250,6 +399,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
               />
             </div>
 
+            {/* GIF Button */}
             <button
               type="button"
               onClick={() => setShowGifModal(true)}
@@ -269,22 +419,38 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={`Message #${activeRoom.name}...`}
+              placeholder={
+                selectedFile
+                  ? 'Add a caption (optional)...'
+                  : `Message #${activeRoom.name}...`
+              }
               className="w-full bg-transparent resize-none outline-none text-sm text-gray-900 placeholder-gray-400 max-h-32"
             />
           </div>
 
           <button
             type="submit"
-            disabled={!inputText.trim() || !isConnected}
-            className="p-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shrink-0 cursor-pointer shadow-sm"
+            disabled={(!inputText.trim() && !selectedFile) || !isConnected || isUploading}
+            className="p-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shrink-0 cursor-pointer shadow-sm flex items-center justify-center"
             title="Send room message"
             aria-label="Send room message"
           >
-            <Send className="w-4 h-4" />
+            {isUploading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
           </button>
         </form>
       </footer>
+
+      {/* Image Lightbox Modal */}
+      <ImageLightboxModal
+        isOpen={Boolean(lightboxImage)}
+        imageUrl={lightboxImage?.url || ''}
+        imageName={lightboxImage?.name}
+        onClose={() => setLightboxImage(null)}
+      />
 
       {/* GIF Search Modal */}
       <GifSearchModal
