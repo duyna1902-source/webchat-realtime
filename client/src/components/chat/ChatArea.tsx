@@ -3,17 +3,29 @@ import { DirectChatListItemDto, DirectReceiveMessagePayload, MessageType } from 
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { useTyping } from '../../hooks/useTyping';
-import { Send, MessageSquare, Loader2, Check, Paperclip, AlertCircle, X } from 'lucide-react';
+import { EmojiPickerPopover } from '../media/EmojiPickerPopover';
+import { GifSearchModal } from '../media/GifSearchModal';
 import { AttachmentPreview } from './AttachmentPreview';
 import { MessageItemContent } from './MessageItemContent';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { SendDirectMessageOptions } from '../../hooks/useDirectMessages';
+import {
+  Send,
+  MessageSquare,
+  Loader2,
+  Check,
+  Smile,
+  Sparkles,
+  Paperclip,
+  AlertCircle,
+  X,
+} from 'lucide-react';
 
 interface ChatAreaProps {
   activeChat: DirectChatListItemDto | null;
   messages: DirectReceiveMessagePayload[];
   isLoadingMessages: boolean;
-  onSendMessage: (content: string, options?: SendDirectMessageOptions) => void;
+  onSendMessage: (content: string, optionsOrType?: MessageType | SendDirectMessageOptions) => void;
 }
 
 export const ChatArea: React.FC<ChatAreaProps> = ({
@@ -25,12 +37,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const { currentUser, token } = useAuth();
   const { isConnected } = useSocket();
   const [inputText, setInputText] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGifModal, setShowGifModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name?: string | null } | null>(null);
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -139,6 +154,31 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     }
   };
 
+  const handleSelectEmoji = (emoji: string) => {
+    if (!textareaRef.current) {
+      setInputText((prev) => prev + emoji);
+      handleTyping();
+      return;
+    }
+    const textarea = textareaRef.current;
+    const start = textarea.selectionStart ?? inputText.length;
+    const end = textarea.selectionEnd ?? inputText.length;
+    const newText = inputText.substring(0, start) + emoji + inputText.substring(end);
+    setInputText(newText);
+    handleTyping();
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const newPos = start + emoji.length;
+      textarea.setSelectionRange(newPos, newPos);
+    });
+  };
+
+  const handleSelectGif = (gifUrl: string) => {
+    onSendMessage(gifUrl, MessageType.EMOJI_GIF);
+    setShowGifModal(false);
+  };
+
   const formatMessageTime = (dateStr: string) => {
     const d = new Date(dateStr);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -221,16 +261,21 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         ) : (
           messages.map((msg) => {
             const isMe = msg.senderId === currentUser?.id;
+            const isGif = msg.type === MessageType.EMOJI_GIF;
             return (
               <div
                 key={msg.id}
                 className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
               >
                 <div
-                  className={`max-w-[85%] sm:max-w-md px-4 py-2.5 rounded-2xl shadow-xs text-sm break-words whitespace-pre-wrap ${
-                    isMe
-                      ? 'bg-indigo-600 text-white rounded-br-xs'
-                      : 'bg-white text-gray-900 border border-gray-200 rounded-bl-xs'
+                  className={`max-w-[85%] sm:max-w-md ${
+                    isGif
+                      ? isMe
+                        ? 'bg-indigo-600/95 text-white p-1 rounded-2xl rounded-br-xs shadow-xs'
+                        : 'bg-white text-gray-900 border border-gray-200 p-1 rounded-2xl rounded-bl-xs shadow-xs'
+                      : isMe
+                      ? 'bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-xs shadow-xs text-sm break-words whitespace-pre-wrap'
+                      : 'bg-white text-gray-900 border border-gray-200 px-4 py-2.5 rounded-2xl rounded-bl-xs shadow-xs text-sm break-words whitespace-pre-wrap'
                   }`}
                 >
                   <MessageItemContent
@@ -243,7 +288,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     onImageClick={(url, name) => setLightboxImage({ url, name })}
                   />
                   <div
-                    className={`flex items-center gap-1 text-[10px] mt-1 ${
+                    className={`flex items-center gap-1 text-[10px] mt-1 ${isGif ? 'px-2 pb-1' : ''} ${
                       isMe ? 'text-indigo-200 justify-end' : 'text-gray-400 justify-start'
                     }`}
                   >
@@ -311,29 +356,63 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="flex items-end gap-2 max-w-4xl mx-auto">
-          {/* Hidden File Input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            data-testid="file-upload-input"
-            className="hidden"
-            onChange={handleFileSelect}
-          />
+          {/* Action Buttons: Paperclip Attachment, Emoji Picker & GIF Search */}
+          <div className="flex items-center gap-1 pb-1 shrink-0">
+            {/* Hidden File Input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              data-testid="file-upload-input"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
 
-          {/* Paperclip Button */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="p-3 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition cursor-pointer shrink-0 disabled:opacity-50"
-            title="Attach file"
-            aria-label="Attach file"
-          >
-            <Paperclip className="w-5 h-5" />
-          </button>
+            {/* Paperclip Button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-xl transition cursor-pointer disabled:opacity-50"
+              title="Attach file"
+              aria-label="Attach file"
+            >
+              <Paperclip className="w-5 h-5" />
+            </button>
+
+            {/* Emoji Button */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker((prev) => !prev)}
+                className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+                title="Choose emoji"
+                aria-label="Choose emoji"
+              >
+                <Smile className="w-5 h-5" />
+              </button>
+              <EmojiPickerPopover
+                isOpen={showEmojiPicker}
+                onClose={() => setShowEmojiPicker(false)}
+                onSelectEmoji={handleSelectEmoji}
+              />
+            </div>
+
+            {/* GIF Button */}
+            <button
+              type="button"
+              onClick={() => setShowGifModal(true)}
+              className="px-2.5 py-1 text-xs font-bold text-gray-600 hover:text-indigo-600 hover:bg-gray-100 rounded-xl border border-gray-200 transition cursor-pointer flex items-center gap-1 shrink-0"
+              title="Search animated GIFs"
+              aria-label="Search animated GIFs"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+              <span>GIF</span>
+            </button>
+          </div>
 
           <div className="flex-1 bg-gray-50 border border-gray-300 focus-within:border-indigo-500 focus-within:bg-white rounded-2xl transition px-4 py-2">
             <textarea
+              ref={textareaRef}
               rows={1}
               value={inputText}
               onChange={(e) => {
@@ -372,6 +451,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         imageUrl={lightboxImage?.url || ''}
         imageName={lightboxImage?.name}
         onClose={() => setLightboxImage(null)}
+      />
+
+      {/* GIF Search Modal */}
+      <GifSearchModal
+        isOpen={showGifModal}
+        onClose={() => setShowGifModal(false)}
+        onSelectGif={handleSelectGif}
       />
     </main>
   );

@@ -86,17 +86,32 @@ export function useDirectMessages(activeChatId: string | null) {
   }, [socket, activeChatId]);
 
   const sendMessage = useCallback(
-    (content: string, options?: SendDirectMessageOptions) => {
+    (content: string, optionsOrType?: MessageType | SendDirectMessageOptions) => {
       if (!socket || !activeChatId) return;
-      if (!content.trim() && !options?.attachmentUrl) return;
+
+      let msgType = MessageType.TEXT;
+      let attachmentUrl: string | null = null;
+      let attachmentName: string | null = null;
+      let attachmentSize: number | null = null;
+
+      if (typeof optionsOrType === 'string') {
+        msgType = optionsOrType;
+      } else if (optionsOrType) {
+        msgType = optionsOrType.type ?? MessageType.TEXT;
+        attachmentUrl = optionsOrType.attachmentUrl ?? null;
+        attachmentName = optionsOrType.attachmentName ?? null;
+        attachmentSize = optionsOrType.attachmentSize ?? null;
+      }
+
+      if (!content.trim() && !attachmentUrl) return;
 
       const payload: DirectSendMessagePayload = {
         directChatId: activeChatId,
         content: content.trim(),
-        type: options?.type ?? MessageType.TEXT,
-        attachmentUrl: options?.attachmentUrl ?? null,
-        attachmentName: options?.attachmentName ?? null,
-        attachmentSize: options?.attachmentSize ?? null,
+        type: msgType,
+        attachmentUrl,
+        attachmentName,
+        attachmentSize,
       };
 
       socket.emit(SOCKET_EVENTS.DIRECT_SEND, payload);

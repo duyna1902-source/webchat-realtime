@@ -24,6 +24,21 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
 }) => {
   const isImage = type === MessageType.IMAGE;
   const isDocument = type === MessageType.DOCUMENT;
+  const isGif = type === MessageType.EMOJI_GIF;
+
+  if (isGif) {
+    return (
+      <div className="overflow-hidden rounded-xl">
+        <img
+          src={content}
+          alt="GIF message"
+          loading="lazy"
+          className="rounded-xl max-w-full sm:max-w-xs md:max-w-sm max-h-64 object-cover cursor-pointer hover:opacity-95 transition"
+          onClick={() => window.open(content, '_blank', 'noopener,noreferrer')}
+        />
+      </div>
+    );
+  }
 
   if (isImage && attachmentUrl) {
     const hasDistinctContent = content && content.trim() !== '' && content !== attachmentName;
