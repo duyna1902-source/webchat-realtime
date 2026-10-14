@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { DirectChatListItemDto, DirectReceiveMessagePayload, MessageType } from '@webchat/shared';
+import { DirectChatListItemDto, DirectReceiveMessagePayload, MessageType, MessageStatus } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { useTyping } from '../../hooks/useTyping';
@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Loader2,
   Check,
+  CheckCheck,
   Smile,
   Sparkles,
   Paperclip,
@@ -25,6 +26,9 @@ interface ChatAreaProps {
   activeChat: DirectChatListItemDto | null;
   messages: DirectReceiveMessagePayload[];
   isLoadingMessages: boolean;
+  hasMore?: boolean;
+  isLoadingOlder?: boolean;
+  onLoadOlderMessages?: () => Promise<void> | void;
   onSendMessage: (content: string, optionsOrType?: MessageType | SendDirectMessageOptions) => void;
 }
 
@@ -32,6 +36,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   activeChat,
   messages,
   isLoadingMessages,
+  hasMore = false,
+  isLoadingOlder = false,
+  onLoadOlderMessages,
   onSendMessage,
 }) => {
   const { currentUser, token } = useAuth();
@@ -48,6 +55,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isPrependRef = useRef(false);
+  const prevMessagesLengthRef = useRef(messages.length);
 
   const { isPartnerTyping, handleTyping, stopTyping } = useTyping(activeChat?.id ?? null);
 
@@ -58,8 +68,41 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   };
 
   useEffect(() => {
-    scrollToBottom();
+    if (isPrependRef.current) {
+      return;
+    }
+    if (messages.length > prevMessagesLengthRef.current || prevMessagesLengthRef.current === 0) {
+      scrollToBottom();
+    }
+    prevMessagesLengthRef.current = messages.length;
   }, [messages, isPartnerTyping]);
+
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    if (
+      container.scrollTop < 40 &&
+      hasMore &&
+      !isLoadingOlder &&
+      !isLoadingMessages &&
+      typeof onLoadOlderMessages === 'function'
+    ) {
+      const prevScrollHeight = container.scrollHeight;
+      const prevScrollTop = container.scrollTop;
+      isPrependRef.current = true;
+
+      Promise.resolve(onLoadOlderMessages()).finally(() => {
+        requestAnimationFrame(() => {
+          if (scrollContainerRef.current) {
+            const newScrollHeight = scrollContainerRef.current.scrollHeight;
+            scrollContainerRef.current.scrollTop = newScrollHeight - prevScrollHeight + prevScrollTop;
+          }
+          isPrependRef.current = false;
+        });
+      });
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -244,7 +287,19 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       </header>
 
       {/* Message Thread */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        data-testid="chat-messages-container"
+        className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3"
+      >
+        {isLoadingOlder && (
+          <div data-testid="load-older-indicator" className="py-2 flex items-center justify-center gap-1.5 text-xs text-indigo-600">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <span>Loading older messages...</span>
+          </div>
+        )}
+
         {isLoadingMessages ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2">
             <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
@@ -293,7 +348,36 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     }`}
                   >
                     <span>{formatMessageTime(msg.createdAt)}</span>
-                    {isMe && <Check className="w-3 h-3 text-indigo-200" />}
+                    {isMe && (
+                      msg.status === MessageStatus.READ ? (
+                        <span
+                          data-testid="status-read"
+                          title="Đã xem"
+                          aria-label="Đã xem"
+                          className="flex items-center text-sky-400"
+                        >
+                          <CheckCheck className="w-3.5 h-3.5" />
+                        </span>
+                      ) : msg.status === MessageStatus.DELIVERED ? (
+                        <span
+                          data-testid="status-delivered"
+                          title="Delivered"
+                          aria-label="Delivered"
+                          className="flex items-center text-gray-400"
+                        >
+                          <CheckCheck className="w-3.5 h-3.5" />
+                        </span>
+                      ) : (
+                        <span
+                          data-testid="status-sent"
+                          title="Sent"
+                          aria-label="Sent"
+                          className="flex items-center text-gray-400"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </span>
+                      )
+                    )}
                   </div>
                 </div>
               </div>
