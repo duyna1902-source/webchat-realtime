@@ -4,6 +4,7 @@ import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import directChatRoutes from './routes/direct-chat.routes.js';
 import roomRoutes from './routes/room.routes.js';
+import gifRoutes from './routes/gif.routes.js';
 
 export const app = express();
 
@@ -20,3 +21,5 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/direct-chats', directChatRoutes);
 app.use('/api/rooms', roomRoutes);
+app.use('/api/gifs', gifRoutes);
+
