@@ -5,7 +5,7 @@ Khởi tạo nền móng dự án Monorepo và hoàn thiện luồng đăng ký,
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Cấu trúc Monorepo (`client`, `server`, `shared`) được thiết lập với TypeScript và script khởi chạy nhất quán.
 - [ ] Toàn bộ Prisma Schema bao quát cả 3 cấp độ (Direct Chat, Room Chat, Attachments, Roles, Read receipts) được định nghĩa và migrate thành công vào PostgreSQL.
