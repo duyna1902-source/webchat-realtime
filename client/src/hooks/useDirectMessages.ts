@@ -9,6 +9,13 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 
+export interface SendDirectMessageOptions {
+  type?: MessageType;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentSize?: number | null;
+}
+
 export function useDirectMessages(activeChatId: string | null) {
   const { token } = useAuth();
   const { socket } = useSocket();
@@ -79,13 +86,17 @@ export function useDirectMessages(activeChatId: string | null) {
   }, [socket, activeChatId]);
 
   const sendMessage = useCallback(
-    (content: string) => {
-      if (!socket || !activeChatId || !content.trim()) return;
+    (content: string, options?: SendDirectMessageOptions) => {
+      if (!socket || !activeChatId) return;
+      if (!content.trim() && !options?.attachmentUrl) return;
 
       const payload: DirectSendMessagePayload = {
         directChatId: activeChatId,
         content: content.trim(),
-        type: MessageType.TEXT,
+        type: options?.type ?? MessageType.TEXT,
+        attachmentUrl: options?.attachmentUrl ?? null,
+        attachmentName: options?.attachmentName ?? null,
+        attachmentSize: options?.attachmentSize ?? null,
       };
 
       socket.emit(SOCKET_EVENTS.DIRECT_SEND, payload);

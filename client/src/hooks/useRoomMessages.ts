@@ -12,6 +12,13 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 
+export interface SendRoomMessageOptions {
+  type?: MessageType;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentSize?: number | null;
+}
+
 export function useRoomMessages(activeRoomId: string | null) {
   const { token } = useAuth();
   const { socket } = useSocket();
@@ -121,13 +128,17 @@ export function useRoomMessages(activeRoomId: string | null) {
   }, [socket, activeRoomId, fetchRoomDetails]);
 
   const sendMessage = useCallback(
-    (content: string) => {
-      if (!socket || !activeRoomId || !content.trim()) return;
+    (content: string, options?: SendRoomMessageOptions) => {
+      if (!socket || !activeRoomId) return;
+      if (!content.trim() && !options?.attachmentUrl) return;
 
       const payload: RoomSendMessagePayload = {
         roomId: activeRoomId,
         content: content.trim(),
-        type: MessageType.TEXT,
+        type: options?.type ?? MessageType.TEXT,
+        attachmentUrl: options?.attachmentUrl ?? null,
+        attachmentName: options?.attachmentName ?? null,
+        attachmentSize: options?.attachmentSize ?? null,
       };
 
       socket.emit(SOCKET_EVENTS.ROOM_SEND, payload);
