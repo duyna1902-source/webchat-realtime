@@ -2,12 +2,19 @@ import http from 'http';
 import { Server, Socket } from 'socket.io';
 import { verifyToken, JwtPayload } from '../lib/jwt.js';
 import { registerDirectChatHandlers } from './direct.handler.js';
+import { registerRoomHandlers } from './room.handler.js';
 import { handleUserConnect, handleUserDisconnect } from './presence.handler.js';
 
 export interface AuthenticatedSocket extends Socket {
   data: {
     user: JwtPayload;
   };
+}
+
+let ioInstance: Server | null = null;
+
+export function getIO(): Server | null {
+  return ioInstance;
 }
 
 export function setupSocketServer(httpServer: http.Server): Server {
@@ -18,6 +25,7 @@ export function setupSocketServer(httpServer: http.Server): Server {
     },
     transports: ['websocket', 'polling'],
   });
+  ioInstance = io;
 
   // JWT Authentication Middleware for Socket.io
   io.use((socket, next) => {
@@ -48,6 +56,8 @@ export function setupSocketServer(httpServer: http.Server): Server {
 
     // Register direct chat events
     registerDirectChatHandlers(io, authSocket);
+    // Register room chat events
+    registerRoomHandlers(io, authSocket);
 
     // Client is successfully authenticated and connected
     socket.on('disconnect', () => {
