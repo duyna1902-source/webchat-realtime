@@ -1,0 +1,166 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum RoomRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  DOCUMENT
+  EMOJI_GIF
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+model User {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  email        String    @unique
+  passwordHash String
+  avatarUrl    String?
+  isOnline     Boolean   @default(false)
+  lastSeenAt   DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // 1-1 Direct Chat Relations
+  directChatsAsUser1       DirectChat[]            @relation("DirectChatUser1")
+  directChatsAsUser2       DirectChat[]            @relation("DirectChatUser2")
+  directChatParticipants   DirectChatParticipant[]
+  sentDirectMessages       DirectMessage[]         @relation("SentDirectMessages")
+
+  // Room Chat Relations
+  ownedRooms               Room[]                  @relation("OwnedRooms")
+  roomMemberships          RoomMember[]
+  sentRoomMessages         RoomMessage[]           @relation("SentRoomMessages")
+
+  @@index([username])
+  @@index([isOnline])
+}
+
+model DirectChat {
+  id        String   @id @default(uuid())
+  user1Id   String
+  user2Id   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user1        User                    @relation("DirectChatUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2        User                    @relation("DirectChatUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+  participants DirectChatParticipant[]
+  messages     DirectMessage[]
+
+  @@unique([user1Id, user2Id])
+  @@index([user1Id])
+  @@index([user2Id])
+  @@index([updatedAt])
+}
+
+model DirectChatParticipant {
+  id                String   @id @default(uuid())
+  directChatId      String
+  userId            String
+  lastReadMessageId String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  directChat DirectChat @relation(fields: [directChatId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([directChatId, userId])
+  @@index([userId])
+}
+
+model DirectMessage {
+  id             String        @id @default(uuid())
+  directChatId   String
+  senderId       String
+  content        String        @db.Text
+  type           MessageType   @default(TEXT)
+  status         MessageStatus @default(SENT)
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentSize Int?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  directChat DirectChat @relation(fields: [directChatId], references: [id], onDelete: Cascade)
+  sender     User       @relation("SentDirectMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([directChatId, createdAt])
+  @@index([senderId])
+}
+
+model Room {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  ownerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner    User          @relation("OwnedRooms", fields: [ownerId], references: [id], onDelete: Restrict)
+  members  RoomMember[]
+  messages RoomMessage[]
+
+  @@index([ownerId])
+  @@index([updatedAt])
+}
+
+model RoomMember {
+  id                String    @id @default(uuid())
+  roomId            String
+  userId            String
+  role              RoomRole  @default(MEMBER)
+  lastReadMessageId String?
+  joinedAt          DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([userId])
+  @@index([roomId])
+}
+
+model RoomMessage {
+  id             String      @id @default(uuid())
+  roomId         String
+  senderId       String
+  content        String      @db.Text
+  type           MessageType @default(TEXT)
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentSize Int?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  room   Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender User @relation("SentRoomMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+  @@index([senderId])
+}
