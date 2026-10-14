@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/auth.routes.js';
+import userRoutes from './routes/user.routes.js';
+import directChatRoutes from './routes/direct-chat.routes.js';
 
 export const app = express();
 
@@ -14,3 +16,5 @@ app.get('/health', (_req, res) => {
 
 // Mount API routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/direct-chats', directChatRoutes);
