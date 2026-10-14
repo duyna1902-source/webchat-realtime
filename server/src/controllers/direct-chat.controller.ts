@@ -175,6 +175,7 @@ export async function getDirectChatMessages(req: AuthenticatedRequest, res: Resp
   const limitParam = parseInt(req.query.limit as string, 10);
   const limit = isNaN(limitParam) || limitParam <= 0 ? 50 : Math.min(limitParam, 100);
   const before = req.query.before as string | undefined;
+  const after = req.query.after as string | undefined;
 
   const prisma = getPrisma();
 
@@ -195,6 +196,50 @@ export async function getDirectChatMessages(req: AuthenticatedRequest, res: Resp
   const isParticipant = chat.participants.some((p) => p.userId === currentUserId);
   if (!isParticipant) {
     res.status(403).json({ message: 'You are not a participant in this direct chat' });
+    return;
+  }
+
+  // Catch-up sync: fetch messages newer than `after` message in chronological order (createdAt ASC)
+  if (after) {
+    const afterMsg = await prisma.directMessage.findUnique({ where: { id: after } });
+    if (!afterMsg || afterMsg.directChatId !== id) {
+      res.status(200).json({ messages: [], nextCursor: null, hasMore: false });
+      return;
+    }
+
+    const whereClause: any = {
+      directChatId: id,
+      createdAt: { gt: afterMsg.createdAt },
+    };
+
+    if (before) {
+      const cursorMsg = await prisma.directMessage.findUnique({ where: { id: before } });
+      if (cursorMsg) {
+        whereClause.createdAt.lt = cursorMsg.createdAt;
+      }
+    }
+
+    const rawMessages = await prisma.directMessage.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'asc' },
+      take: limit + 1,
+      include: {
+        sender: true,
+      },
+    });
+
+    const hasMore = rawMessages.length > limit;
+    const messagesBatch = hasMore ? rawMessages.slice(0, limit) : rawMessages;
+    const nextCursor = hasMore ? messagesBatch[messagesBatch.length - 1].id : null;
+    const chronologicalMessages = messagesBatch.map(toDirectReceiveMessagePayload);
+
+    const response: PaginatedMessagesDto<DirectReceiveMessagePayload> = {
+      messages: chronologicalMessages,
+      nextCursor,
+      hasMore,
+    };
+
+    res.status(200).json(response);
     return;
   }
 

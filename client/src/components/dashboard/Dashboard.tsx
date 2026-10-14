@@ -19,7 +19,7 @@ import { showBrowserNotification, playNotificationSound } from '../../utils/noti
 
 export const Dashboard: React.FC = () => {
   const { currentUser, logout } = useAuth();
-  const { socket, isConnected, isConnecting } = useSocket();
+  const { socket, isConnected, isConnecting, isReconnecting } = useSocket();
 
   // Active navigation mode
   const [activeTab, setActiveTab] = useState<'direct' | 'room'>('direct');
@@ -226,6 +226,11 @@ export const Dashboard: React.FC = () => {
               <>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-emerald-700 hidden sm:inline">Socket Connected</span>
+              </>
+            ) : isReconnecting ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-amber-700 hidden sm:inline">Reconnecting...</span>
               </>
             ) : isConnecting ? (
               <>

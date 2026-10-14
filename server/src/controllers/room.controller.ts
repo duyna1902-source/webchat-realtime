@@ -529,6 +529,7 @@ export async function getRoomMessages(req: AuthenticatedRequest, res: Response):
   const limitParam = parseInt(req.query.limit as string, 10);
   const limit = isNaN(limitParam) || limitParam <= 0 ? 50 : Math.min(limitParam, 100);
   const before = req.query.before as string | undefined;
+  const after = req.query.after as string | undefined;
 
   const prisma = getPrisma();
 
@@ -544,6 +545,50 @@ export async function getRoomMessages(req: AuthenticatedRequest, res: Response):
 
   if (!member) {
     res.status(403).json({ message: 'You are not a member of this room' });
+    return;
+  }
+
+  // Catch-up sync: fetch messages newer than `after` message in chronological order (createdAt ASC)
+  if (after) {
+    const afterMsg = await prisma.roomMessage.findUnique({ where: { id: after } });
+    if (!afterMsg || afterMsg.roomId !== id) {
+      res.status(200).json({ messages: [], nextCursor: null, hasMore: false });
+      return;
+    }
+
+    const whereClause: any = {
+      roomId: id,
+      createdAt: { gt: afterMsg.createdAt },
+    };
+
+    if (before) {
+      const cursorMsg = await prisma.roomMessage.findUnique({ where: { id: before } });
+      if (cursorMsg) {
+        whereClause.createdAt.lt = cursorMsg.createdAt;
+      }
+    }
+
+    const rawMessages = await prisma.roomMessage.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'asc' },
+      take: limit + 1,
+      include: {
+        sender: true,
+      },
+    });
+
+    const hasMore = rawMessages.length > limit;
+    const messagesBatch = hasMore ? rawMessages.slice(0, limit) : rawMessages;
+    const nextCursor = hasMore ? messagesBatch[messagesBatch.length - 1].id : null;
+    const chronologicalMessages = messagesBatch.map(toRoomReceiveMessagePayload);
+
+    const response: PaginatedMessagesDto<RoomReceiveMessagePayload> = {
+      messages: chronologicalMessages,
+      nextCursor,
+      hasMore,
+    };
+
+    res.status(200).json(response);
     return;
   }
 
