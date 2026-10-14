@@ -5,7 +5,7 @@ Tính năng hỗ trợ biểu tượng cảm xúc (emoji/icon) và hình ảnh �
 
 **Blocked by:** 02: Nhắn tin Trực tiếp 1-1 Thời gian thực & Lưu trữ Lịch sử Tin nhắn
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Tích hợp component Emoji Picker nhẹ dạng Popover cạnh thanh nhập tin nhắn để chèn ký tự Unicode emoji vào vị trí con trỏ nhập liệu.
 - [ ] Tích hợp API tìm kiếm ảnh động (Tenor hoặc Giphy API miễn phí) qua endpoint backend trung gian bảo mật API key hoặc client gọi an toàn.

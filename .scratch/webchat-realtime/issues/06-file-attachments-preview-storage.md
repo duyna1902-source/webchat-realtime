@@ -5,7 +5,7 @@ Chức năng tải lên và gửi tệp đính kèm (hình ảnh và tài liệu
 
 **Blocked by:** 02: Nhắn tin Trực tiếp 1-1 Thời gian thực & Lưu trữ Lịch sử Tin nhắn
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Cấu hình dịch vụ lưu trữ đám mây (Cloudinary hoặc Supabase Storage bucket) cho tệp tĩnh của dự án.
 - [ ] API tải tệp (`POST /api/upload`) kiểm tra nghiêm ngặt định dạng MIME và giới hạn dung lượng tệp (tối đa 10MB), tải lên cloud và trả về URL an toàn cùng siêu dữ liệu.
