@@ -76,6 +76,7 @@ export interface RoomListItemDto {
   name: string;
   description?: string | null;
   ownerId: string;
+  role: RoomRole;
   lastMessage?: RoomReceiveMessagePayload | null;
   unreadCount: number;
   memberCount: number;
@@ -94,6 +95,12 @@ export interface RoomMemberDto {
   role: RoomRole;
   joinedAt: string;
   user: UserDto;
+}
+
+export interface RoomDetailDto extends RoomDto {
+  members: RoomMemberDto[];
+  role?: RoomRole;
+  memberCount: number;
 }
 
 export interface AddRoomMemberRequestDto {

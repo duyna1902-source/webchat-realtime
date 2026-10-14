@@ -3,34 +3,90 @@ import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { useDirectChats } from '../../hooks/useDirectChats';
 import { useDirectMessages } from '../../hooks/useDirectMessages';
+import { useRooms } from '../../hooks/useRooms';
+import { useRoomMessages } from '../../hooks/useRoomMessages';
 import { Sidebar } from '../chat/Sidebar';
 import { ChatArea } from '../chat/ChatArea';
-import { MessageSquare, LogOut, Wifi, WifiOff } from 'lucide-react';
+import { RoomChatArea } from '../room/RoomChatArea';
+import { MessageSquare, LogOut } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const { currentUser, logout } = useAuth();
   const { isConnected, isConnecting } = useSocket();
 
+  // Active navigation mode
+  const [activeTab, setActiveTab] = useState<'direct' | 'room'>('direct');
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+
+  // Direct Chats hooks
   const {
     chats,
     isLoading: isLoadingChats,
     createOrOpenChat,
   } = useDirectChats();
 
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const {
+    messages: directMessages,
+    isLoading: isLoadingDirectMessages,
+    sendMessage: sendDirectMessage,
+  } = useDirectMessages(activeChatId);
+
+  // Rooms hooks
+  const {
+    rooms,
+    isLoading: isLoadingRooms,
+    createRoom,
+    refreshRooms,
+  } = useRooms();
 
   const {
-    messages,
-    isLoading: isLoadingMessages,
-    sendMessage,
-  } = useDirectMessages(activeChatId);
+    messages: roomMessages,
+    roomDetails,
+    isLoadingMessages: isLoadingRoomMessages,
+    sendMessage: sendRoomMessage,
+    addMember,
+    removeMember,
+    changeRole,
+    leaveRoom,
+    deleteRoom,
+  } = useRoomMessages(activeRoomId);
 
   const safeChats = Array.isArray(chats) ? chats : [];
   const activeChat = safeChats.find((c) => c.id === activeChatId) || null;
 
+  const safeRooms = Array.isArray(rooms) ? rooms : [];
+  const activeRoom = safeRooms.find((r) => r.id === activeRoomId) || null;
+
   const handleStartChat = async (targetUserId: string) => {
     const chatId = await createOrOpenChat(targetUserId);
     setActiveChatId(chatId);
+    setActiveRoomId(null);
+    setActiveTab('direct');
+  };
+
+  const handleSelectChat = (chatId: string) => {
+    setActiveChatId(chatId);
+    setActiveRoomId(null);
+    setActiveTab('direct');
+  };
+
+  const handleSelectRoom = (roomId: string) => {
+    setActiveRoomId(roomId);
+    setActiveChatId(null);
+    setActiveTab('room');
+  };
+
+  const handleLeaveRoom = async () => {
+    await leaveRoom();
+    setActiveRoomId(null);
+    await refreshRooms();
+  };
+
+  const handleDeleteRoom = async () => {
+    await deleteRoom();
+    setActiveRoomId(null);
+    await refreshRooms();
   };
 
   if (!currentUser) return null;
@@ -88,16 +144,39 @@ export const Dashboard: React.FC = () => {
         <Sidebar
           chats={chats}
           activeChatId={activeChatId}
-          onSelectChat={setActiveChatId}
+          onSelectChat={handleSelectChat}
           onStartChat={handleStartChat}
           isLoadingChats={isLoadingChats}
+          rooms={rooms}
+          activeRoomId={activeRoomId}
+          onSelectRoom={handleSelectRoom}
+          onCreateRoom={createRoom}
+          isLoadingRooms={isLoadingRooms}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
         />
-        <ChatArea
-          activeChat={activeChat}
-          messages={messages}
-          isLoadingMessages={isLoadingMessages}
-          onSendMessage={sendMessage}
-        />
+
+        {activeTab === 'room' || activeRoomId ? (
+          <RoomChatArea
+            activeRoom={activeRoom}
+            roomDetails={roomDetails}
+            messages={roomMessages}
+            isLoadingMessages={isLoadingRoomMessages}
+            onSendMessage={sendRoomMessage}
+            onAddMember={addMember}
+            onRemoveMember={removeMember}
+            onChangeRole={changeRole}
+            onLeaveRoom={handleLeaveRoom}
+            onDeleteRoom={handleDeleteRoom}
+          />
+        ) : (
+          <ChatArea
+            activeChat={activeChat}
+            messages={directMessages}
+            isLoadingMessages={isLoadingDirectMessages}
+            onSendMessage={sendDirectMessage}
+          />
+        )}
       </div>
     </div>
   );

@@ -1,8 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { DirectChatListItemDto, UserDto } from '@webchat/shared';
+import { DirectChatListItemDto, RoomListItemDto, UserDto, RoomRole } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
-import { Search, Plus, MessageSquare, LogOut, User, Wifi, WifiOff, X, Loader2 } from 'lucide-react';
+import { CreateRoomModal } from '../room/CreateRoomModal';
+import {
+  Search,
+  Plus,
+  MessageSquare,
+  LogOut,
+  Hash,
+  X,
+  Loader2,
+  Users,
+  ShieldCheck,
+  Shield,
+  User as UserIcon,
+} from 'lucide-react';
 
 interface SidebarProps {
   chats: DirectChatListItemDto[];
@@ -10,6 +23,14 @@ interface SidebarProps {
   onSelectChat: (chatId: string) => void;
   onStartChat: (targetUserId: string) => Promise<void>;
   isLoadingChats: boolean;
+  // Room props (optional with graceful defaults)
+  rooms?: RoomListItemDto[];
+  activeRoomId?: string | null;
+  onSelectRoom?: (roomId: string) => void;
+  onCreateRoom?: (name: string, description?: string) => Promise<string>;
+  isLoadingRooms?: boolean;
+  activeTab?: 'direct' | 'room';
+  onTabChange?: (tab: 'direct' | 'room') => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -18,19 +39,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectChat,
   onStartChat,
   isLoadingChats,
+  rooms = [],
+  activeRoomId = null,
+  onSelectRoom,
+  onCreateRoom,
+  isLoadingRooms = false,
+  activeTab: externalActiveTab,
+  onTabChange,
 }) => {
   const { currentUser, token, logout } = useAuth();
   const { isConnected, isConnecting } = useSocket();
+
+  const [internalTab, setInternalTab] = useState<'direct' | 'room'>('direct');
+  const activeTab = externalActiveTab ?? internalTab;
+
+  const handleTabClick = (tab: 'direct' | 'room') => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalTab(tab);
+    }
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserDto[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [showUserSearchModal, setShowUserSearchModal] = useState(false);
   const [isStartingChat, setIsStartingChat] = useState(false);
+  const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
 
-  // Search users via /api/users
+  // Search users via /api/users for direct chats
   useEffect(() => {
-    if (!token || !searchQuery.trim()) {
+    if (!token || !searchQuery.trim() || activeTab !== 'direct') {
       setSearchResults([]);
       return;
     }
@@ -53,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, token]);
+  }, [searchQuery, token, activeTab]);
 
   const handleSelectUser = async (targetUserId: string) => {
     try {
@@ -83,6 +123,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
+
+  const filteredRooms = rooms.filter((r) =>
+    r.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
+  );
 
   return (
     <aside className="w-80 md:w-88 bg-white border-r border-gray-200 flex flex-col h-full shrink-0">
@@ -115,11 +159,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <button
           onClick={logout}
-          className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+          className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
           title="Log out"
           aria-label="Log out"
         >
           <LogOut className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Tabs: Direct Chats vs Rooms */}
+      <div className="px-3 pt-3 pb-2 border-b border-gray-100 flex gap-1 bg-gray-50/50">
+        <button
+          onClick={() => {
+            handleTabClick('direct');
+            setSearchQuery('');
+          }}
+          className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+            activeTab === 'direct'
+              ? 'bg-white text-indigo-700 shadow-xs border border-gray-200/60'
+              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+          }`}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          <span>Direct Chats</span>
+        </button>
+        <button
+          onClick={() => {
+            handleTabClick('room');
+            setSearchQuery('');
+          }}
+          className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+            activeTab === 'room'
+              ? 'bg-white text-indigo-700 shadow-xs border border-gray-200/60'
+              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+          }`}
+        >
+          <Hash className="w-3.5 h-3.5" />
+          <span>Rooms</span>
         </button>
       </div>
 
@@ -129,12 +205,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search or start new chat..."
+            placeholder={activeTab === 'direct' ? 'Search or start new chat...' : 'Filter rooms...'}
             value={searchQuery}
-            onFocus={() => setShowUserSearchModal(true)}
+            onFocus={() => {
+              if (activeTab === 'direct') setShowUserSearchModal(true);
+            }}
             onChange={(e) => {
               setSearchQuery(e.target.value);
-              setShowUserSearchModal(true);
+              if (activeTab === 'direct') setShowUserSearchModal(true);
             }}
             className="w-full pl-9 pr-4 py-2 bg-gray-100 focus:bg-white border border-transparent focus:border-indigo-400 rounded-xl text-sm transition outline-none"
           />
@@ -150,18 +228,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
         </div>
-        <button
-          onClick={() => setShowUserSearchModal(true)}
-          className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl transition flex items-center justify-center shrink-0"
-          title="Start new chat"
-          aria-label="Start new direct chat"
-        >
-          <Plus className="w-5 h-5" />
-        </button>
+
+        {activeTab === 'direct' ? (
+          <button
+            onClick={() => setShowUserSearchModal(true)}
+            className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl transition flex items-center justify-center shrink-0 cursor-pointer"
+            title="Start new direct chat"
+            aria-label="Start new direct chat"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowCreateRoomModal(true)}
+            className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl transition flex items-center justify-center shrink-0 cursor-pointer"
+            title="Create new room"
+            aria-label="Create new room"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
-      {/* User Search Overlay / Dropdown */}
-      {showUserSearchModal && (
+      {/* User Search Overlay / Dropdown (Direct Chats only) */}
+      {activeTab === 'direct' && showUserSearchModal && (
         <div className="bg-indigo-50/50 border-b border-indigo-100 p-3 max-h-60 overflow-y-auto">
           <div className="flex items-center justify-between pb-2 mb-2 border-b border-indigo-100/60">
             <span className="text-xs font-semibold text-indigo-900 uppercase tracking-wider">
@@ -187,7 +277,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={user.id}
                   onClick={() => handleSelectUser(user.id)}
                   disabled={isStartingChat}
-                  className="w-full flex items-center gap-3 p-2 hover:bg-indigo-100/70 rounded-lg text-left transition"
+                  className="w-full flex items-center gap-3 p-2 hover:bg-indigo-100/70 rounded-lg text-left transition cursor-pointer"
                 >
                   <div className="w-8 h-8 rounded-full bg-indigo-200 text-indigo-800 font-bold flex items-center justify-center text-xs">
                     {user.username.slice(0, 2).toUpperCase()}
@@ -207,65 +297,176 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       )}
 
-      {/* Direct Chats List */}
+      {/* Conversation List (Direct Chats OR Rooms) */}
       <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
-        <div className="px-4 py-2 bg-gray-50/60 text-[11px] font-semibold tracking-wider text-gray-500 uppercase">
-          Direct Chats
-        </div>
+        {activeTab === 'direct' ? (
+          /* Direct Chats */
+          <>
+            <div className="px-4 py-2 bg-gray-50/60 text-[11px] font-semibold tracking-wider text-gray-500 uppercase">
+              Direct Chats
+            </div>
 
-        {isLoadingChats ? (
-          <div className="py-8 flex flex-col items-center justify-center gap-2 text-gray-400">
-            <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
-            <span className="text-xs">Loading conversations...</span>
-          </div>
-        ) : chats.length === 0 ? (
-          <div className="py-12 px-6 text-center text-gray-400 flex flex-col items-center gap-2">
-            <MessageSquare className="w-8 h-8 text-gray-300" />
-            <p className="text-sm font-medium text-gray-600">No conversations yet</p>
-            <p className="text-xs text-gray-400">Search for users above to start chatting directly!</p>
-          </div>
-        ) : (
-          chats.map((chat) => {
-            const isSelected = chat.id === activeChatId;
-            return (
-              <button
-                key={chat.id}
-                onClick={() => onSelectChat(chat.id)}
-                className={`w-full p-3.5 flex items-start gap-3 text-left transition cursor-pointer ${
-                  isSelected
-                    ? 'bg-indigo-50/80 border-r-4 border-indigo-600'
-                    : 'hover:bg-gray-50'
-                }`}
-              >
-                <div className="relative shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-700 font-semibold flex items-center justify-center text-sm">
-                    {chat.partner.username.slice(0, 2).toUpperCase()}
-                  </div>
-                  <span
-                    className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                      chat.partner.isOnline ? 'bg-emerald-500' : 'bg-gray-300'
+            {isLoadingChats ? (
+              <div className="py-8 flex flex-col items-center justify-center gap-2 text-gray-400">
+                <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                <span className="text-xs">Loading conversations...</span>
+              </div>
+            ) : chats.length === 0 ? (
+              <div className="py-12 px-6 text-center text-gray-400 flex flex-col items-center gap-2">
+                <MessageSquare className="w-8 h-8 text-gray-300" />
+                <p className="text-sm font-medium text-gray-600">No conversations yet</p>
+                <p className="text-xs text-gray-400">Search for users above to start chatting directly!</p>
+              </div>
+            ) : (
+              chats.map((chat) => {
+                const isSelected = chat.id === activeChatId;
+                return (
+                  <button
+                    key={chat.id}
+                    onClick={() => onSelectChat(chat.id)}
+                    className={`w-full p-3.5 flex items-start gap-3 text-left transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-50/80 border-r-4 border-indigo-600'
+                        : 'hover:bg-gray-50'
                     }`}
-                  />
-                </div>
+                  >
+                    <div className="relative shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-700 font-semibold flex items-center justify-center text-sm">
+                        {chat.partner.username.slice(0, 2).toUpperCase()}
+                      </div>
+                      <span
+                        className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                          chat.partner.isOnline ? 'bg-emerald-500' : 'bg-gray-300'
+                        }`}
+                      />
+                    </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-semibold text-gray-900 truncate">
-                      {chat.partner.username}
-                    </span>
-                    <span className="text-[11px] text-gray-400 shrink-0 ml-1">
-                      {formatMessageTime(chat.lastMessage?.createdAt || chat.updatedAt)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 truncate">
-                    {chat.lastMessage ? chat.lastMessage.content : <span className="italic text-gray-400">No messages yet</span>}
-                  </p>
-                </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold text-gray-900 truncate">
+                          {chat.partner.username}
+                        </span>
+                        <span className="text-[11px] text-gray-400 shrink-0 ml-1">
+                          {formatMessageTime(chat.lastMessage?.createdAt || chat.updatedAt)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 truncate">
+                        {chat.lastMessage ? chat.lastMessage.content : <span className="italic text-gray-400">No messages yet</span>}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </>
+        ) : (
+          /* Rooms */
+          <>
+            <div className="px-4 py-2 bg-gray-50/60 text-[11px] font-semibold tracking-wider text-gray-500 uppercase flex items-center justify-between">
+              <span>Rooms</span>
+              <button
+                onClick={() => setShowCreateRoomModal(true)}
+                className="text-indigo-600 hover:text-indigo-800 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3 h-3" />
+                <span>New</span>
               </button>
-            );
-          })
+            </div>
+
+            {isLoadingRooms ? (
+              <div className="py-8 flex flex-col items-center justify-center gap-2 text-gray-400">
+                <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                <span className="text-xs">Loading rooms...</span>
+              </div>
+            ) : filteredRooms.length === 0 ? (
+              <div className="py-12 px-6 text-center text-gray-400 flex flex-col items-center gap-2">
+                <Hash className="w-8 h-8 text-gray-300" />
+                <p className="text-sm font-medium text-gray-600">
+                  {searchQuery ? `No rooms match "${searchQuery}"` : 'No rooms joined yet'}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {searchQuery ? 'Try a different filter' : 'Create a room to start group messaging!'}
+                </p>
+              </div>
+            ) : (
+              filteredRooms.map((room) => {
+                const isSelected = room.id === activeRoomId;
+                const isOwner = room.role === RoomRole.OWNER;
+                const isAdmin = room.role === RoomRole.ADMIN;
+
+                return (
+                  <button
+                    key={room.id}
+                    onClick={() => onSelectRoom && onSelectRoom(room.id)}
+                    className={`w-full p-3.5 flex items-start gap-3 text-left transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-50/80 border-r-4 border-indigo-600'
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-sm shrink-0">
+                      <Hash className="w-5 h-5" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-bold text-gray-900 truncate">
+                          {room.name}
+                        </span>
+                        <span className="text-[11px] text-gray-400 shrink-0 ml-1">
+                          {formatMessageTime(room.lastMessage?.createdAt || room.updatedAt)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+                          <Users className="w-3 h-3" />
+                          <span>{room.memberCount}</span>
+                        </span>
+                        {isOwner ? (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-amber-50 text-amber-700 rounded border border-amber-200">
+                            Owner
+                          </span>
+                        ) : isAdmin ? (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-indigo-50 text-indigo-700 rounded border border-indigo-200">
+                            Admin
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <p className="text-xs text-gray-500 truncate">
+                        {room.lastMessage ? (
+                          <>
+                            <span className="font-medium text-gray-700">{room.lastMessage.sender.username}: </span>
+                            {room.lastMessage.content}
+                          </>
+                        ) : (
+                          <span className="italic text-gray-400">No messages yet</span>
+                        )}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </>
         )}
       </div>
+
+      {/* Create Room Modal */}
+      {onCreateRoom && (
+        <CreateRoomModal
+          isOpen={showCreateRoomModal}
+          onClose={() => setShowCreateRoomModal(false)}
+          onCreateRoom={async (name, desc) => {
+            const newId = await onCreateRoom(name, desc);
+            if (onSelectRoom) {
+              onSelectRoom(newId);
+            }
+            return newId;
+          }}
+        />
+      )}
     </aside>
   );
 };
