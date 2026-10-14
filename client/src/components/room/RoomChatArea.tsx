@@ -4,18 +4,21 @@ import {
   RoomReceiveMessagePayload,
   RoomDetailDto,
   RoomRole,
+  MessageType,
 } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { RoomMembersModal } from './RoomMembersModal';
-import { Hash, Users, Send, Loader2, MessageSquare, Check } from 'lucide-react';
+import { EmojiPickerPopover } from '../media/EmojiPickerPopover';
+import { GifSearchModal } from '../media/GifSearchModal';
+import { Hash, Users, Send, Loader2, MessageSquare, Check, Smile, Sparkles } from 'lucide-react';
 
 interface RoomChatAreaProps {
   activeRoom: RoomListItemDto | null;
   roomDetails: RoomDetailDto | null;
   messages: RoomReceiveMessagePayload[];
   isLoadingMessages: boolean;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, type?: MessageType) => void;
   onAddMember: (userId: string) => Promise<void>;
   onRemoveMember: (userId: string) => Promise<void>;
   onChangeRole: (userId: string, role: RoomRole.ADMIN | RoomRole.MEMBER) => Promise<void>;
@@ -39,6 +42,9 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   const { isConnected } = useSocket();
   const [inputText, setInputText] = useState('');
   const [showMembersModal, setShowMembersModal] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGifModal, setShowGifModal] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -64,6 +70,29 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
       e.preventDefault();
       handleSubmit(e);
     }
+  };
+
+  const handleSelectEmoji = (emoji: string) => {
+    if (!textareaRef.current) {
+      setInputText((prev) => prev + emoji);
+      return;
+    }
+    const textarea = textareaRef.current;
+    const start = textarea.selectionStart ?? inputText.length;
+    const end = textarea.selectionEnd ?? inputText.length;
+    const newText = inputText.substring(0, start) + emoji + inputText.substring(end);
+    setInputText(newText);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const newPos = start + emoji.length;
+      textarea.setSelectionRange(newPos, newPos);
+    });
+  };
+
+  const handleSelectGif = (gifUrl: string) => {
+    onSendMessage(gifUrl, MessageType.EMOJI_GIF);
+    setShowGifModal(false);
   };
 
   const formatMessageTime = (dateStr: string) => {
@@ -139,6 +168,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
         ) : (
           messages.map((msg) => {
             const isMe = msg.senderId === currentUser?.id;
+            const isGif = msg.type === MessageType.EMOJI_GIF;
             return (
               <div
                 key={msg.id}
@@ -158,15 +188,31 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                   )}
 
                   <div
-                    className={`px-4 py-2.5 rounded-2xl shadow-xs text-sm break-words whitespace-pre-wrap ${
-                      isMe
-                        ? 'bg-indigo-600 text-white rounded-br-xs'
-                        : 'bg-white text-gray-900 border border-gray-200 rounded-bl-xs'
+                    className={`max-w-[78%] sm:max-w-md ${
+                      isGif
+                        ? isMe
+                          ? 'bg-indigo-600/95 text-white p-1 rounded-2xl rounded-br-xs shadow-xs'
+                          : 'bg-white text-gray-900 border border-gray-200 p-1 rounded-2xl rounded-bl-xs shadow-xs'
+                        : isMe
+                        ? 'bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-xs shadow-xs text-sm break-words whitespace-pre-wrap'
+                        : 'bg-white text-gray-900 border border-gray-200 px-4 py-2.5 rounded-2xl rounded-bl-xs shadow-xs text-sm break-words whitespace-pre-wrap'
                     }`}
                   >
-                    <p>{msg.content}</p>
+                    {isGif ? (
+                      <div className="overflow-hidden rounded-xl">
+                        <img
+                          src={msg.content}
+                          alt="GIF message"
+                          loading="lazy"
+                          className="rounded-xl max-w-full sm:max-w-xs md:max-w-sm max-h-64 object-cover cursor-pointer hover:opacity-95 transition"
+                          onClick={() => window.open(msg.content, '_blank', 'noopener,noreferrer')}
+                        />
+                      </div>
+                    ) : (
+                      <p>{msg.content}</p>
+                    )}
                     <div
-                      className={`flex items-center gap-1 text-[10px] mt-1 ${
+                      className={`flex items-center gap-1 text-[10px] mt-1 ${isGif ? 'px-2 pb-1' : ''} ${
                         isMe ? 'text-indigo-200 justify-end' : 'text-gray-400 justify-start'
                       }`}
                     >
@@ -185,8 +231,40 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
       {/* Message Input Footer */}
       <footer className="p-3 sm:p-4 bg-white border-t border-gray-200">
         <form onSubmit={handleSubmit} className="flex items-end gap-2 max-w-4xl mx-auto">
+          {/* Action Buttons: Emoji Picker & GIF Search */}
+          <div className="flex items-center gap-1 pb-1">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker((prev) => !prev)}
+                className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+                title="Choose emoji"
+                aria-label="Choose emoji"
+              >
+                <Smile className="w-5 h-5" />
+              </button>
+              <EmojiPickerPopover
+                isOpen={showEmojiPicker}
+                onClose={() => setShowEmojiPicker(false)}
+                onSelectEmoji={handleSelectEmoji}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowGifModal(true)}
+              className="px-2.5 py-1 text-xs font-bold text-gray-600 hover:text-indigo-600 hover:bg-gray-100 rounded-xl border border-gray-200 transition cursor-pointer flex items-center gap-1 shrink-0"
+              title="Search animated GIFs"
+              aria-label="Search animated GIFs"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+              <span>GIF</span>
+            </button>
+          </div>
+
           <div className="flex-1 bg-gray-50 border border-gray-300 focus-within:border-indigo-500 focus-within:bg-white rounded-2xl transition px-4 py-2">
             <textarea
+              ref={textareaRef}
               rows={1}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
@@ -207,6 +285,13 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
           </button>
         </form>
       </footer>
+
+      {/* GIF Search Modal */}
+      <GifSearchModal
+        isOpen={showGifModal}
+        onClose={() => setShowGifModal(false)}
+        onSelectGif={handleSelectGif}
+      />
 
       {/* Members Management Modal */}
       <RoomMembersModal

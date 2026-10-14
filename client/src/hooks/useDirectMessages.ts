@@ -79,13 +79,13 @@ export function useDirectMessages(activeChatId: string | null) {
   }, [socket, activeChatId]);
 
   const sendMessage = useCallback(
-    (content: string) => {
+    (content: string, type: MessageType = MessageType.TEXT) => {
       if (!socket || !activeChatId || !content.trim()) return;
 
       const payload: DirectSendMessagePayload = {
         directChatId: activeChatId,
         content: content.trim(),
-        type: MessageType.TEXT,
+        type,
       };
 
       socket.emit(SOCKET_EVENTS.DIRECT_SEND, payload);

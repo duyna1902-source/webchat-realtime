@@ -121,13 +121,13 @@ export function useRoomMessages(activeRoomId: string | null) {
   }, [socket, activeRoomId, fetchRoomDetails]);
 
   const sendMessage = useCallback(
-    (content: string) => {
+    (content: string, type: MessageType = MessageType.TEXT) => {
       if (!socket || !activeRoomId || !content.trim()) return;
 
       const payload: RoomSendMessagePayload = {
         roomId: activeRoomId,
         content: content.trim(),
-        type: MessageType.TEXT,
+        type,
       };
 
       socket.emit(SOCKET_EVENTS.ROOM_SEND, payload);
