@@ -45,6 +45,7 @@ export function setupSocketServer(httpServer: http.Server): Server {
 
     try {
       const decoded = verifyToken(token);
+      (decoded as any).id = decoded.userId;
       socket.data.user = decoded;
       next();
     } catch (err) {

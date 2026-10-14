@@ -181,7 +181,7 @@ describe('Direct Chat Client Components', () => {
     );
 
     expect(screen.getByText(/real-time direct messaging/i)).toBeInTheDocument();
-    expect(screen.getByText(/select an existing conversation from the sidebar/i)).toBeInTheDocument();
+    expect(screen.getByText(/select an existing direct chat from the sidebar/i)).toBeInTheDocument();
   });
 
   it('displays online presence status in sidebar and chat header', () => {

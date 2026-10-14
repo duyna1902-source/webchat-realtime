@@ -6,7 +6,7 @@ import { app } from '../src/app.js';
 import { setupSocketServer } from '../src/socket/index.js';
 import { generateToken } from '../src/lib/jwt.js';
 import { getPrisma } from '../src/lib/prisma.js';
-import { SOCKET_EVENTS, RoomRole, MessageType } from '@webchat/shared';
+import { SOCKET_EVENTS, RoomRole, MessageType, RoomTypingPayload } from '@webchat/shared';
 
 function waitForEvent<T = any>(socket: ClientSocketType, event: string, timeout = 3000): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -210,5 +210,62 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
 
     await new Promise((r) => setTimeout(r, 400));
     expect(bobReceived).toBe(false);
+  });
+
+  it('broadcasts room:typing from sender to other room members and validates room membership', async () => {
+    // Both Alice and Bob join the room
+    await new Promise<{ success: boolean }>((resolve) => {
+      clientOwner.emit(SOCKET_EVENTS.ROOM_JOIN, { roomId: testRoom.id }, resolve);
+    });
+    await new Promise<{ success: boolean }>((resolve) => {
+      clientMember.emit(SOCKET_EVENTS.ROOM_JOIN, { roomId: testRoom.id }, resolve);
+    });
+
+    const bobTypingPromise = waitForEvent<RoomTypingPayload>(clientMember, SOCKET_EVENTS.ROOM_TYPING);
+
+    // Alice starts typing
+    clientOwner.emit(SOCKET_EVENTS.ROOM_TYPING, {
+      roomId: testRoom.id,
+      isTyping: true,
+    });
+
+    const receivedTyping = await bobTypingPromise;
+    expect(receivedTyping).toMatchObject({
+      roomId: testRoom.id,
+      userId: ownerUser.id,
+      username: ownerUser.username,
+      isTyping: true,
+    });
+
+    // Alice stops typing
+    const bobStoppedPromise = waitForEvent<RoomTypingPayload>(clientMember, SOCKET_EVENTS.ROOM_TYPING);
+
+    clientOwner.emit(SOCKET_EVENTS.ROOM_TYPING, {
+      roomId: testRoom.id,
+      isTyping: false,
+    });
+
+    const receivedStopped = await bobStoppedPromise;
+    expect(receivedStopped).toMatchObject({
+      roomId: testRoom.id,
+      userId: ownerUser.id,
+      username: ownerUser.username,
+      isTyping: false,
+    });
+
+    // Non-member Charlie tries to emit room:typing -> should be rejected
+    const outsiderRes = await new Promise<{ success: boolean; error?: string }>((resolve) => {
+      clientOutsider.emit(
+        SOCKET_EVENTS.ROOM_TYPING,
+        {
+          roomId: testRoom.id,
+          isTyping: true,
+        },
+        resolve
+      );
+    });
+
+    expect(outsiderRes.success).toBe(false);
+    expect(outsiderRes.error).toMatch(/not a member/i);
   });
 });

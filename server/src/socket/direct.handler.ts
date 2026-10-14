@@ -1,6 +1,7 @@
 import { Server } from 'socket.io';
 import { AuthenticatedSocket } from './index.js';
 import { getPrisma } from '../lib/prisma.js';
+import { presenceManager } from './presence.handler.js';
 import {
   SOCKET_EVENTS,
   DirectSendMessagePayload,
@@ -53,6 +54,12 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
         return;
       }
 
+      // Check if recipient is online via presenceManager
+      const recipient = chat.participants.find((p) => p.userId !== userId);
+      const recipientId = recipient ? recipient.userId : null;
+      const isRecipientOnline = recipientId ? presenceManager.isUserOnline(recipientId) : false;
+      const initialStatus = isRecipientOnline ? MessageStatus.DELIVERED : MessageStatus.SENT;
+
       // Create DirectMessage in DB
       const message = await prisma.directMessage.create({
         data: {
@@ -60,7 +67,7 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
           senderId: userId,
           content: content || '',
           type: (type as any) || MessageType.TEXT,
-          status: MessageStatus.SENT,
+          status: initialStatus,
           attachmentUrl: attachmentUrl || null,
           attachmentName: attachmentName || null,
           attachmentSize: attachmentSize || null,

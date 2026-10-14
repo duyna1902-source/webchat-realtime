@@ -107,7 +107,7 @@ describe('Direct Chat Socket.io Real-Time Integration', () => {
     ]);
   });
 
-  it('delivers direct:send from Alice to Bob via direct:receive and persists to DB', async () => {
+  it('delivers direct:send from Alice to Bob via direct:receive with DELIVERED status when recipient is online', async () => {
     const bobReceivePromise = waitForEvent(clientBob, SOCKET_EVENTS.DIRECT_RECEIVE);
     const aliceReceivePromise = waitForEvent(clientAlice, SOCKET_EVENTS.DIRECT_RECEIVE);
 
@@ -123,7 +123,7 @@ describe('Direct Chat Socket.io Real-Time Integration', () => {
       directChatId: directChat.id,
       content: 'Hello Bob from Alice!',
       senderId: userAlice.id,
-      status: 'SENT',
+      status: 'DELIVERED',
     });
     expect(bobMsg.sender.username).toBe('alice');
 
@@ -131,7 +131,7 @@ describe('Direct Chat Socket.io Real-Time Integration', () => {
       directChatId: directChat.id,
       content: 'Hello Bob from Alice!',
       senderId: userAlice.id,
-      status: 'SENT',
+      status: 'DELIVERED',
     });
 
     // Verify DB persistence
@@ -143,6 +143,35 @@ describe('Direct Chat Socket.io Real-Time Integration', () => {
     expect(dbMsg?.content).toBe('Hello Bob from Alice!');
     expect(dbMsg?.directChatId).toBe(directChat.id);
     expect(dbMsg?.senderId).toBe(userAlice.id);
+    expect(dbMsg?.status).toBe('DELIVERED');
+  });
+
+  it('sets status to SENT when direct message recipient is offline', async () => {
+    // Disconnect Bob so Bob is offline
+    clientBob.disconnect();
+    await new Promise((r) => setTimeout(r, 100));
+
+    const aliceReceivePromise = waitForEvent(clientAlice, SOCKET_EVENTS.DIRECT_RECEIVE);
+
+    clientAlice.emit(SOCKET_EVENTS.DIRECT_SEND, {
+      directChatId: directChat.id,
+      content: 'Hey Bob, leaving you a message while you are offline',
+      type: 'TEXT',
+    });
+
+    const aliceMsg = await aliceReceivePromise;
+    expect(aliceMsg).toMatchObject({
+      directChatId: directChat.id,
+      content: 'Hey Bob, leaving you a message while you are offline',
+      senderId: userAlice.id,
+      status: 'SENT',
+    });
+
+    const prisma = getPrisma();
+    const dbMsg = await prisma.directMessage.findUnique({
+      where: { id: aliceMsg.id },
+    });
+    expect(dbMsg?.status).toBe('SENT');
   });
 
   it('rejects direct:send if sender is not a participant in the chat', async () => {

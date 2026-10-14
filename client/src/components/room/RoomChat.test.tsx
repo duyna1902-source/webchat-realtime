@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { Sidebar } from '../chat/Sidebar';
 import { RoomChatArea } from './RoomChatArea';
 import { CreateRoomModal } from './CreateRoomModal';
@@ -12,6 +12,7 @@ import {
   RoomReceiveMessagePayload,
   RoomRole,
   MessageType,
+  SOCKET_EVENTS,
 } from '@webchat/shared';
 
 const mockUser = {
@@ -335,5 +336,68 @@ describe('Room Chat Client Components', () => {
 
     fireEvent.change(fileInput, { target: { files: [oversizeFile] } });
     expect(await screen.findByText(/exceeds 10mb limit/i)).toBeInTheDocument();
+  });
+
+  it('emits room:typing on keystroke and displays incoming room:typing animated banner', async () => {
+    let typingHandler: ((payload: any) => void) | undefined;
+    const mockEmit = vi.fn();
+    const mockOn = vi.fn().mockImplementation((event: string, handler: any) => {
+      if (event === SOCKET_EVENTS.ROOM_TYPING) {
+        typingHandler = handler;
+      }
+    });
+
+    const authValue: any = {
+      currentUser: mockUser,
+      token: 'token-xyz',
+      isLoading: false,
+    };
+
+    const socketValue: any = {
+      socket: { emit: mockEmit, on: mockOn, off: vi.fn() },
+      isConnected: true,
+      isConnecting: false,
+      connectionError: null,
+    };
+
+    render(
+      <AuthContext.Provider value={authValue}>
+        <SocketContext.Provider value={socketValue}>
+          <RoomChatArea
+            activeRoom={mockRoom}
+            roomDetails={mockRoomDetail}
+            messages={[]}
+            isLoadingMessages={false}
+            onSendMessage={vi.fn()}
+            onAddMember={vi.fn()}
+            onRemoveMember={vi.fn()}
+            onChangeRole={vi.fn()}
+            onLeaveRoom={vi.fn()}
+            onDeleteRoom={vi.fn()}
+          />
+        </SocketContext.Provider>
+      </AuthContext.Provider>
+    );
+
+    const textarea = screen.getByPlaceholderText(/message #engineering\.\.\./i);
+    fireEvent.change(textarea, { target: { value: 'H' } });
+
+    expect(mockEmit).toHaveBeenCalledWith(SOCKET_EVENTS.ROOM_TYPING, {
+      roomId: 'room-1',
+      isTyping: true,
+    });
+
+    // Simulate incoming room:typing event from Bob
+    expect(typingHandler).toBeDefined();
+    act(() => {
+      typingHandler?.({
+        roomId: 'room-1',
+        userId: 'user-admin-id',
+        username: 'bob_admin',
+        isTyping: true,
+      });
+    });
+
+    expect(await screen.findByText(/bob_admin is typing\.\.\./i)).toBeInTheDocument();
   });
 });

@@ -39,6 +39,13 @@ export function isUserOnline(userId: string): boolean {
   return Boolean(sockets && sockets.size > 0);
 }
 
+export const presenceManager = {
+  isUserOnline,
+  clearPresenceState,
+  setPresenceGracePeriodMs,
+  getPresenceGracePeriodMs,
+};
+
 export async function handleUserConnect(io: Server, socket: AuthenticatedSocket): Promise<void> {
   const userId = socket.data?.user?.userId;
   if (!userId) return;

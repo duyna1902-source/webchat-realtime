@@ -14,6 +14,7 @@ import {
 } from '@webchat/shared';
 import { toUserDto } from './user.controller.js';
 import { getIO } from '../socket/index.js';
+import { parsePaginationParams, fetchPaginatedMessages } from '../lib/pagination.js';
 
 export function toRoomReceiveMessagePayload(msg: any): RoomReceiveMessagePayload {
   return {
@@ -120,22 +121,72 @@ export async function getRooms(req: AuthenticatedRequest, res: Response): Promis
     },
   });
 
-  const listItems: RoomListItemDto[] = memberships.map((membership) => {
-    const r = membership.room;
-    const lastMsg = r.messages[0] ? toRoomReceiveMessagePayload(r.messages[0]) : null;
-
-    return {
-      id: r.id,
-      name: r.name,
-      description: r.description,
-      ownerId: r.ownerId,
-      role: membership.role as RoomRole,
-      lastMessage: lastMsg,
-      unreadCount: 0,
-      memberCount: r.members.length,
-      updatedAt: r.updatedAt.toISOString(),
-    };
+  // Collect all lastReadMessageIds for current user memberships
+  const readMessageIds: string[] = [];
+  memberships.forEach((m) => {
+    if (m.lastReadMessageId) {
+      readMessageIds.push(m.lastReadMessageId);
+    }
   });
+
+  const lastReadMessages = readMessageIds.length > 0
+    ? await prisma.roomMessage.findMany({
+        where: { id: { in: readMessageIds } },
+        select: { id: true, createdAt: true },
+      })
+    : [];
+
+  const lastReadMap = new Map<string, Date>();
+  lastReadMessages.forEach((m) => {
+    lastReadMap.set(m.id, m.createdAt);
+  });
+
+  const listItems: RoomListItemDto[] = await Promise.all(
+    memberships.map(async (membership) => {
+      const r = membership.room;
+      const lastMsg = r.messages[0] ? toRoomReceiveMessagePayload(r.messages[0]) : null;
+
+      let unreadCount = 0;
+      if (membership.lastReadMessageId) {
+        const lastReadCreatedAt = lastReadMap.get(membership.lastReadMessageId);
+        if (lastReadCreatedAt) {
+          unreadCount = await prisma.roomMessage.count({
+            where: {
+              roomId: r.id,
+              senderId: { not: currentUserId },
+              createdAt: { gt: lastReadCreatedAt },
+            },
+          });
+        } else {
+          unreadCount = await prisma.roomMessage.count({
+            where: {
+              roomId: r.id,
+              senderId: { not: currentUserId },
+            },
+          });
+        }
+      } else {
+        unreadCount = await prisma.roomMessage.count({
+          where: {
+            roomId: r.id,
+            senderId: { not: currentUserId },
+          },
+        });
+      }
+
+      return {
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        ownerId: r.ownerId,
+        role: membership.role as RoomRole,
+        lastMessage: lastMsg,
+        unreadCount,
+        memberCount: r.members.length,
+        updatedAt: r.updatedAt.toISOString(),
+      };
+    })
+  );
 
   res.status(200).json(listItems);
 }
@@ -526,10 +577,7 @@ export async function getRoomMessages(req: AuthenticatedRequest, res: Response):
 
   const currentUserId = req.user.userId;
   const { id } = req.params;
-  const limitParam = parseInt(req.query.limit as string, 10);
-  const limit = isNaN(limitParam) || limitParam <= 0 ? 50 : Math.min(limitParam, 100);
-  const before = req.query.before as string | undefined;
-  const after = req.query.after as string | undefined;
+  const { limit, before, after } = parsePaginationParams(req.query);
 
   const prisma = getPrisma();
 
@@ -548,75 +596,24 @@ export async function getRoomMessages(req: AuthenticatedRequest, res: Response):
     return;
   }
 
-  // Catch-up sync: fetch messages newer than `after` message in chronological order (createdAt ASC)
-  if (after) {
-    const afterMsg = await prisma.roomMessage.findUnique({ where: { id: after } });
-    if (!afterMsg || afterMsg.roomId !== id) {
-      res.status(200).json({ messages: [], nextCursor: null, hasMore: false });
-      return;
-    }
-
-    const whereClause: any = {
-      roomId: id,
-      createdAt: { gt: afterMsg.createdAt },
-    };
-
-    if (before) {
-      const cursorMsg = await prisma.roomMessage.findUnique({ where: { id: before } });
-      if (cursorMsg) {
-        whereClause.createdAt.lt = cursorMsg.createdAt;
-      }
-    }
-
-    const rawMessages = await prisma.roomMessage.findMany({
-      where: whereClause,
-      orderBy: { createdAt: 'asc' },
-      take: limit + 1,
-      include: {
-        sender: true,
-      },
-    });
-
-    const hasMore = rawMessages.length > limit;
-    const messagesBatch = hasMore ? rawMessages.slice(0, limit) : rawMessages;
-    const nextCursor = hasMore ? messagesBatch[messagesBatch.length - 1].id : null;
-    const chronologicalMessages = messagesBatch.map(toRoomReceiveMessagePayload);
-
-    const response: PaginatedMessagesDto<RoomReceiveMessagePayload> = {
-      messages: chronologicalMessages,
-      nextCursor,
-      hasMore,
-    };
-
-    res.status(200).json(response);
-    return;
-  }
-
-  const whereClause: any = { roomId: id };
-  if (before) {
-    const cursorMsg = await prisma.roomMessage.findUnique({ where: { id: before } });
-    if (cursorMsg) {
-      whereClause.createdAt = { lt: cursorMsg.createdAt };
-    }
-  }
-
-  const rawMessages = await prisma.roomMessage.findMany({
-    where: whereClause,
-    orderBy: { createdAt: 'desc' },
-    take: limit + 1,
-    include: {
-      sender: true,
-    },
+  const { messages, nextCursor, hasMore } = await fetchPaginatedMessages({
+    chatIdKey: 'roomId',
+    chatId: id,
+    limit,
+    before,
+    after,
+    findUniqueMessage: (msgId) => prisma.roomMessage.findUnique({ where: { id: msgId } }),
+    findManyMessages: (query) =>
+      prisma.roomMessage.findMany({
+        ...query,
+        include: {
+          sender: true,
+        },
+      }),
   });
 
-  const hasMore = rawMessages.length > limit;
-  const messagesBatch = hasMore ? rawMessages.slice(0, limit) : rawMessages;
-  const nextCursor = hasMore ? messagesBatch[messagesBatch.length - 1].id : null;
-
-  const chronologicalMessages = [...messagesBatch].reverse().map(toRoomReceiveMessagePayload);
-
   const response: PaginatedMessagesDto<RoomReceiveMessagePayload> = {
-    messages: chronologicalMessages,
+    messages: messages.map(toRoomReceiveMessagePayload),
     nextCursor,
     hasMore,
   };

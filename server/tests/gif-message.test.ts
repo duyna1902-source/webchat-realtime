@@ -178,7 +178,7 @@ describe('GIF Search API & EMOJI_GIF Real-Time Messaging Integration', () => {
         content: gifUrl,
         type: MessageType.EMOJI_GIF,
         senderId: userAlice.id,
-        status: 'SENT',
+        status: 'DELIVERED',
       });
 
       // Verify DB persistence

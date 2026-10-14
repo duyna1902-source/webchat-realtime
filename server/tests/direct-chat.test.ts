@@ -198,6 +198,103 @@ describe('Direct Chat REST APIs', () => {
       expect(chatItem.lastMessage).toBeDefined();
       expect(chatItem.lastMessage.content).toBe('Hello Alice!');
       expect(chatItem.lastMessage.sender.id).toBe(user2.id);
+      expect(chatItem.unreadCount).toBe(1);
+    });
+
+    it('calculates accurate unreadCount considering lastReadMessageId and only partner messages', async () => {
+      const prisma = getPrisma();
+
+      // Alice & Bob chat
+      const resCreate = await request(app)
+        .post('/api/direct-chats')
+        .set('Authorization', `Bearer ${token1}`)
+        .send({ targetUserId: user2.id })
+        .expect(201);
+
+      const chatId = resCreate.body.id;
+
+      // Bob sends msg1
+      const msg1 = await prisma.directMessage.create({
+        data: {
+          directChatId: chatId,
+          senderId: user2.id,
+          content: 'Bob msg 1',
+          createdAt: new Date('2026-01-01T10:00:00Z'),
+        },
+      });
+
+      // Alice sends msg2
+      await prisma.directMessage.create({
+        data: {
+          directChatId: chatId,
+          senderId: user1.id,
+          content: 'Alice reply',
+          createdAt: new Date('2026-01-01T10:05:00Z'),
+        },
+      });
+
+      // Bob sends msg3
+      const msg3 = await prisma.directMessage.create({
+        data: {
+          directChatId: chatId,
+          senderId: user2.id,
+          content: 'Bob msg 3',
+          createdAt: new Date('2026-01-01T10:10:00Z'),
+        },
+      });
+
+      // Before reading: Alice has 2 unread messages from Bob (msg1 and msg3, not Alice's msg2)
+      const resBeforeRead = await request(app)
+        .get('/api/direct-chats')
+        .set('Authorization', `Bearer ${token1}`)
+        .expect(200);
+
+      const chatAliceBefore = resBeforeRead.body.find((c: any) => c.id === chatId);
+      expect(chatAliceBefore.unreadCount).toBe(2);
+
+      // Alice reads up to msg1
+      await prisma.directChatParticipant.update({
+        where: {
+          directChatId_userId: {
+            directChatId: chatId,
+            userId: user1.id,
+          },
+        },
+        data: {
+          lastReadMessageId: msg1.id,
+        },
+      });
+
+      // After reading msg1: Alice has 1 unread message (msg3)
+      const resAfterMsg1 = await request(app)
+        .get('/api/direct-chats')
+        .set('Authorization', `Bearer ${token1}`)
+        .expect(200);
+
+      const chatAliceAfter1 = resAfterMsg1.body.find((c: any) => c.id === chatId);
+      expect(chatAliceAfter1.unreadCount).toBe(1);
+
+      // Alice reads up to msg3
+      await prisma.directChatParticipant.update({
+        where: {
+          directChatId_userId: {
+            directChatId: chatId,
+            userId: user1.id,
+          },
+        },
+        data: {
+          lastReadMessageId: msg3.id,
+        },
+      });
+
+      // After reading msg3: Alice has 0 unread messages
+      const resAfterMsg3 = await request(app)
+        .get('/api/direct-chats')
+        .set('Authorization', `Bearer ${token1}`)
+        .expect(200);
+
+      const chatAliceAfter3 = resAfterMsg3.body.find((c: any) => c.id === chatId);
+      expect(chatAliceAfter3.unreadCount).toBe(0);
     });
   });
 

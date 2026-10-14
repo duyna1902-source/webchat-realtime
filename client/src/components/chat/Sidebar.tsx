@@ -388,7 +388,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {searchQuery ? `No rooms match "${searchQuery}"` : 'No rooms joined yet'}
                 </p>
                 <p className="text-xs text-gray-400">
-                  {searchQuery ? 'Try a different filter' : 'Create a room to start group messaging!'}
+                  {searchQuery ? 'Try a different filter' : 'Create a room to start Room Chat!'}
                 </p>
               </div>
             ) : (

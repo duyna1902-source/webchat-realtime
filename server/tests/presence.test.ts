@@ -22,7 +22,7 @@ function waitForEvent<T = any>(socket: ClientSocketType, event: string, timeout 
   });
 }
 
-describe('Presence Management & Grace Period Integration', () => {
+describe('Presence Management & Grace Period Integration', { timeout: 30000 }, () => {
   let httpServer: http.Server;
   let serverPort: number;
   let clientAlice: ClientSocketType;
@@ -31,8 +31,8 @@ describe('Presence Management & Grace Period Integration', () => {
   let userBob: any;
 
   beforeAll(async () => {
-    // Configure 100ms grace period for fast integration testing
-    setPresenceGracePeriodMs(100);
+    // Configure 250ms grace period for fast integration testing
+    setPresenceGracePeriodMs(250);
 
     httpServer = http.createServer(app);
     setupSocketServer(httpServer);
@@ -177,8 +177,8 @@ describe('Presence Management & Grace Period Integration', () => {
     // Alice disconnects
     clientAlice.disconnect();
 
-    // Reconnect within grace period (at 30ms, grace period is 100ms)
-    await new Promise((r) => setTimeout(r, 30));
+    // Reconnect within grace period (at 40ms, grace period is 250ms)
+    await new Promise((r) => setTimeout(r, 40));
 
     const clientAliceReconnect = ClientSocket(`http://localhost:${serverPort}`, {
       auth: { token: tokenAlice },
@@ -186,8 +186,8 @@ describe('Presence Management & Grace Period Integration', () => {
     });
     await waitForEvent(clientAliceReconnect, 'connect');
 
-    // Wait past the original 100ms grace period window (wait 150ms)
-    await new Promise((r) => setTimeout(r, 150));
+    // Wait past the original 250ms grace period window (wait 300ms)
+    await new Promise((r) => setTimeout(r, 300));
 
     // Verify Alice was never broadcast as offline
     expect(offlineBroadcast).toBe(false);

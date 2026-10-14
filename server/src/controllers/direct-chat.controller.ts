@@ -3,6 +3,7 @@ import { getPrisma } from '../lib/prisma.js';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
 import { normalizeDirectChatPair, DirectChatDto, DirectChatListItemDto, DirectReceiveMessagePayload, PaginatedMessagesDto } from '@webchat/shared';
 import { toUserDto } from './user.controller.js';
+import { parsePaginationParams, fetchPaginatedMessages } from '../lib/pagination.js';
 
 export function toDirectReceiveMessagePayload(msg: any): DirectReceiveMessagePayload {
   return {
@@ -144,22 +145,74 @@ export async function getDirectChats(req: AuthenticatedRequest, res: Response): 
     orderBy: { updatedAt: 'desc' },
   });
 
-  const listItems: DirectChatListItemDto[] = chats.map((chat) => {
-    const partner = chat.user1Id === currentUserId ? chat.user2 : chat.user1;
-    const lastMsg = chat.messages[0] ? toDirectReceiveMessagePayload(chat.messages[0]) : null;
+  // Collect all lastReadMessageIds for current user
+  const readMessageIds: string[] = [];
+  chats.forEach((chat) => {
     const myParticipant = chat.participants.find((p) => p.userId === currentUserId);
-    const partnerParticipant = chat.participants.find((p) => p.userId !== currentUserId);
-
-    return {
-      id: chat.id,
-      partner: toUserDto(partner),
-      lastMessage: lastMsg,
-      unreadCount: 0,
-      lastReadMessageId: myParticipant?.lastReadMessageId ?? null,
-      partnerLastReadMessageId: partnerParticipant?.lastReadMessageId ?? null,
-      updatedAt: chat.updatedAt.toISOString(),
-    };
+    if (myParticipant?.lastReadMessageId) {
+      readMessageIds.push(myParticipant.lastReadMessageId);
+    }
   });
+
+  const lastReadMessages = readMessageIds.length > 0
+    ? await prisma.directMessage.findMany({
+        where: { id: { in: readMessageIds } },
+        select: { id: true, createdAt: true },
+      })
+    : [];
+
+  const lastReadMap = new Map<string, Date>();
+  lastReadMessages.forEach((m) => {
+    lastReadMap.set(m.id, m.createdAt);
+  });
+
+  const listItems: DirectChatListItemDto[] = await Promise.all(
+    chats.map(async (chat) => {
+      const partner = chat.user1Id === currentUserId ? chat.user2 : chat.user1;
+      const partnerId = partner.id;
+      const lastMsg = chat.messages[0] ? toDirectReceiveMessagePayload(chat.messages[0]) : null;
+      const myParticipant = chat.participants.find((p) => p.userId === currentUserId);
+      const partnerParticipant = chat.participants.find((p) => p.userId !== currentUserId);
+
+      let unreadCount = 0;
+      if (myParticipant?.lastReadMessageId) {
+        const lastReadCreatedAt = lastReadMap.get(myParticipant.lastReadMessageId);
+        if (lastReadCreatedAt) {
+          unreadCount = await prisma.directMessage.count({
+            where: {
+              directChatId: chat.id,
+              senderId: partnerId,
+              createdAt: { gt: lastReadCreatedAt },
+            },
+          });
+        } else {
+          unreadCount = await prisma.directMessage.count({
+            where: {
+              directChatId: chat.id,
+              senderId: partnerId,
+            },
+          });
+        }
+      } else {
+        unreadCount = await prisma.directMessage.count({
+          where: {
+            directChatId: chat.id,
+            senderId: partnerId,
+          },
+        });
+      }
+
+      return {
+        id: chat.id,
+        partner: toUserDto(partner),
+        lastMessage: lastMsg,
+        unreadCount,
+        lastReadMessageId: myParticipant?.lastReadMessageId ?? null,
+        partnerLastReadMessageId: partnerParticipant?.lastReadMessageId ?? null,
+        updatedAt: chat.updatedAt.toISOString(),
+      };
+    })
+  );
 
   res.status(200).json(listItems);
 }
@@ -172,10 +225,7 @@ export async function getDirectChatMessages(req: AuthenticatedRequest, res: Resp
 
   const currentUserId = req.user.userId;
   const { id } = req.params;
-  const limitParam = parseInt(req.query.limit as string, 10);
-  const limit = isNaN(limitParam) || limitParam <= 0 ? 50 : Math.min(limitParam, 100);
-  const before = req.query.before as string | undefined;
-  const after = req.query.after as string | undefined;
+  const { limit, before, after } = parsePaginationParams(req.query);
 
   const prisma = getPrisma();
 
@@ -199,78 +249,24 @@ export async function getDirectChatMessages(req: AuthenticatedRequest, res: Resp
     return;
   }
 
-  // Catch-up sync: fetch messages newer than `after` message in chronological order (createdAt ASC)
-  if (after) {
-    const afterMsg = await prisma.directMessage.findUnique({ where: { id: after } });
-    if (!afterMsg || afterMsg.directChatId !== id) {
-      res.status(200).json({ messages: [], nextCursor: null, hasMore: false });
-      return;
-    }
-
-    const whereClause: any = {
-      directChatId: id,
-      createdAt: { gt: afterMsg.createdAt },
-    };
-
-    if (before) {
-      const cursorMsg = await prisma.directMessage.findUnique({ where: { id: before } });
-      if (cursorMsg) {
-        whereClause.createdAt.lt = cursorMsg.createdAt;
-      }
-    }
-
-    const rawMessages = await prisma.directMessage.findMany({
-      where: whereClause,
-      orderBy: { createdAt: 'asc' },
-      take: limit + 1,
-      include: {
-        sender: true,
-      },
-    });
-
-    const hasMore = rawMessages.length > limit;
-    const messagesBatch = hasMore ? rawMessages.slice(0, limit) : rawMessages;
-    const nextCursor = hasMore ? messagesBatch[messagesBatch.length - 1].id : null;
-    const chronologicalMessages = messagesBatch.map(toDirectReceiveMessagePayload);
-
-    const response: PaginatedMessagesDto<DirectReceiveMessagePayload> = {
-      messages: chronologicalMessages,
-      nextCursor,
-      hasMore,
-    };
-
-    res.status(200).json(response);
-    return;
-  }
-
-  // Build query
-  const whereClause: any = { directChatId: id };
-  if (before) {
-    const cursorMsg = await prisma.directMessage.findUnique({ where: { id: before } });
-    if (cursorMsg) {
-      whereClause.createdAt = { lt: cursorMsg.createdAt };
-    }
-  }
-
-  // Fetch up to limit + 1 in descending order
-  const rawMessages = await prisma.directMessage.findMany({
-    where: whereClause,
-    orderBy: { createdAt: 'desc' },
-    take: limit + 1,
-    include: {
-      sender: true,
-    },
+  const { messages, nextCursor, hasMore } = await fetchPaginatedMessages({
+    chatIdKey: 'directChatId',
+    chatId: id,
+    limit,
+    before,
+    after,
+    findUniqueMessage: (msgId) => prisma.directMessage.findUnique({ where: { id: msgId } }),
+    findManyMessages: (query) =>
+      prisma.directMessage.findMany({
+        ...query,
+        include: {
+          sender: true,
+        },
+      }),
   });
 
-  const hasMore = rawMessages.length > limit;
-  const messagesBatch = hasMore ? rawMessages.slice(0, limit) : rawMessages;
-  const nextCursor = hasMore ? messagesBatch[messagesBatch.length - 1].id : null;
-
-  // Reverse so they are in chronological order (createdAt ASC)
-  const chronologicalMessages = [...messagesBatch].reverse().map(toDirectReceiveMessagePayload);
-
   const response: PaginatedMessagesDto<DirectReceiveMessagePayload> = {
-    messages: chronologicalMessages,
+    messages: messages.map(toDirectReceiveMessagePayload),
     nextCursor,
     hasMore,
   };

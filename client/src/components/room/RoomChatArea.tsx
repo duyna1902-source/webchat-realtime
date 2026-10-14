@@ -15,6 +15,7 @@ import { AttachmentPreview } from '../chat/AttachmentPreview';
 import { MessageItemContent } from '../chat/MessageItemContent';
 import { ImageLightboxModal } from '../chat/ImageLightboxModal';
 import { SendRoomMessageOptions } from '../../hooks/useRoomMessages';
+import { useRoomTyping } from '../../hooks/useRoomTyping';
 import {
   Hash,
   Users,
@@ -80,6 +81,8 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   const isPrependRef = useRef(false);
   const prevMessagesLengthRef = useRef(messages.length);
 
+  const { isTyping, typingText, handleTyping, stopTyping } = useRoomTyping(activeRoom?.id ?? null);
+
   const scrollToBottom = () => {
     if (typeof messagesEndRef.current?.scrollIntoView === 'function') {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -94,7 +97,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
       scrollToBottom();
     }
     prevMessagesLengthRef.current = messages.length;
-  }, [messages]);
+  }, [messages, isTyping]);
 
   const handleScroll = () => {
     const container = scrollContainerRef.current;
@@ -180,6 +183,8 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
     e.preventDefault();
     if (!inputText.trim() && !selectedFile) return;
 
+    stopTyping();
+
     if (selectedFile) {
       try {
         setIsUploading(true);
@@ -217,6 +222,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   const handleSelectEmoji = (emoji: string) => {
     if (!textareaRef.current) {
       setInputText((prev) => prev + emoji);
+      handleTyping();
       return;
     }
     const textarea = textareaRef.current;
@@ -224,6 +230,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
     const end = textarea.selectionEnd ?? inputText.length;
     const newText = inputText.substring(0, start) + emoji + inputText.substring(end);
     setInputText(newText);
+    handleTyping();
 
     requestAnimationFrame(() => {
       textarea.focus();
@@ -248,7 +255,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
         <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center mb-4 shadow-sm">
           <Hash className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-gray-800 mb-2">Room Conversations</h2>
+        <h2 className="text-xl font-bold text-gray-800 mb-2">Room Chat</h2>
         <p className="text-sm text-gray-500 max-w-sm">
           Select a room from the sidebar or create a new room to collaborate with your team!
         </p>
@@ -391,6 +398,24 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
             );
           })
         )}
+
+        {/* Animated Typing Indicator */}
+        {isTyping && (
+          <div
+            data-testid="room-typing-indicator"
+            className="flex items-center gap-2 text-xs text-gray-500 italic px-2 py-1"
+          >
+            <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-full px-3 py-1.5 shadow-xs">
+              <span className="font-medium text-gray-700">{typingText}</span>
+              <span className="flex gap-0.5 ml-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" />
+              </span>
+            </div>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -488,7 +513,10 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
               ref={textareaRef}
               rows={1}
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={(e) => {
+                setInputText(e.target.value);
+                handleTyping();
+              }}
               onKeyDown={handleKeyDown}
               placeholder={
                 selectedFile

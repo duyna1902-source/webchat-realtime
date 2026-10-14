@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
-import { UploadResponseDto } from '@webchat/shared';
+import { getStorageAdapter } from '../lib/storage.js';
 
 export async function uploadFile(req: AuthenticatedRequest, res: Response): Promise<void> {
   if (!req.file) {
@@ -8,14 +8,12 @@ export async function uploadFile(req: AuthenticatedRequest, res: Response): Prom
     return;
   }
 
-  const fileUrl = `/uploads/${req.file.filename}`;
-  const response: UploadResponseDto & { filename: string } = {
-    url: fileUrl,
-    name: req.file.originalname,
-    filename: req.file.originalname,
-    size: req.file.size,
-    mimeType: req.file.mimetype,
-  };
-
-  res.status(200).json(response);
+  try {
+    const adapter = getStorageAdapter();
+    const result = await adapter.upload(req.file);
+    res.status(200).json(result);
+  } catch (err: any) {
+    console.error('Error during file upload:', err);
+    res.status(500).json({ message: err.message || 'File upload failed' });
+  }
 }

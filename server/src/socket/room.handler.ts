@@ -8,6 +8,7 @@ import {
   RoomSendMessagePayload,
   RoomReceiveMessagePayload,
   RoomReadPayload,
+  RoomTypingPayload,
   MessageType,
 } from '@webchat/shared';
 
@@ -221,6 +222,56 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket): v
       }
     } catch (err: any) {
       console.error('Error handling room:read:', err);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: err.message || 'Internal server error' });
+      }
+    }
+  });
+
+  socket.on(SOCKET_EVENTS.ROOM_TYPING, async (payload: RoomTypingPayload, callback?: (res: any) => void) => {
+    try {
+      const { roomId, isTyping } = payload || {};
+      if (!roomId || typeof isTyping !== 'boolean') {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'roomId and isTyping are required' });
+        }
+        return;
+      }
+
+      const prisma = getPrisma();
+
+      // Validate user is a member of the room
+      const member = await prisma.roomMember.findUnique({
+        where: {
+          roomId_userId: {
+            roomId,
+            userId,
+          },
+        },
+      });
+
+      if (!member) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Not a member of this room' });
+        }
+        return;
+      }
+
+      const typingPayload: RoomTypingPayload = {
+        roomId,
+        userId: (socket.data.user as any).id || socket.data.user.userId,
+        username: socket.data.user.username,
+        isTyping,
+      };
+
+      // Broadcast room:typing to room
+      socket.to(`room:${roomId}`).emit(SOCKET_EVENTS.ROOM_TYPING, typingPayload);
+
+      if (typeof callback === 'function') {
+        callback({ success: true });
+      }
+    } catch (err: any) {
+      console.error('Error handling room:typing:', err);
       if (typeof callback === 'function') {
         callback({ success: false, error: err.message || 'Internal server error' });
       }

@@ -109,4 +109,55 @@ describe('File Upload REST API (POST /api/upload)', () => {
 
     expect(res.body.message).toMatch(/unsupported|invalid|disallowed|mime/i);
   });
+
+  describe('Cloud Storage Adapter Architecture (ADR 0004)', () => {
+    const originalEnv = { ...process.env };
+
+    afterEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    it('uses LocalStorageAdapter and respects PUBLIC_URL for full public URLs', async () => {
+      const { LocalStorageAdapter } = await import('../src/lib/storage.js');
+      const adapter = new LocalStorageAdapter();
+      expect(adapter.name).toBe('local');
+
+      process.env.PUBLIC_URL = 'https://chat.example.com';
+      const mockFile: any = {
+        originalname: 'sample.png',
+        filename: '123-sample.png',
+        size: 1024,
+        mimetype: 'image/png',
+      };
+
+      const result = await adapter.upload(mockFile);
+      expect(result.url).toBe('https://chat.example.com/uploads/123-sample.png');
+      expect(result.name).toBe('sample.png');
+      expect(result.size).toBe(1024);
+    });
+
+    it('resolves correct adapter from environment configuration in getStorageAdapter', async () => {
+      const { getStorageAdapter } = await import('../src/lib/storage.js');
+
+      // Default should be local
+      delete process.env.STORAGE_PROVIDER;
+      delete process.env.CLOUDINARY_CLOUD_NAME;
+      delete process.env.SUPABASE_URL;
+      const defaultAdapter = getStorageAdapter();
+      expect(defaultAdapter.name).toBe('local');
+
+      // Cloudinary configuration
+      process.env.STORAGE_PROVIDER = 'cloudinary';
+      process.env.CLOUDINARY_CLOUD_NAME = 'demo-cloud';
+      const cloudinaryAdapter = getStorageAdapter();
+      expect(cloudinaryAdapter.name).toBe('cloudinary');
+
+      // Supabase configuration
+      process.env.STORAGE_PROVIDER = 'supabase';
+      process.env.SUPABASE_URL = 'https://demo.supabase.co';
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'secret-service-key';
+      const supabaseAdapter = getStorageAdapter();
+      expect(supabaseAdapter.name).toBe('supabase');
+    });
+  });
 });

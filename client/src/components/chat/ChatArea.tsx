@@ -251,7 +251,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         </div>
         <h2 className="text-xl font-bold text-gray-800 mb-2">Real-Time Direct Messaging</h2>
         <p className="text-sm text-gray-500 max-w-sm">
-          Select an existing conversation from the sidebar or find users with the search bar to start chatting 1-1.
+          Select an existing Direct Chat from the sidebar or find users with the search bar to start Direct Chat.
         </p>
       </main>
     );

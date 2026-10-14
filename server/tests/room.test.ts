@@ -156,6 +156,106 @@ describe('Room Chat REST APIs & Role Governance', () => {
       expect(res.body[0].memberCount).toBe(2);
       expect(res.body[0].role).toBe(RoomRole.OWNER);
       expect(res.body[0].lastMessage?.content).toBe('Welcome to Room 1!');
+      expect(res.body[0].unreadCount).toBe(0);
+    });
+
+    it('calculates accurate unreadCount for rooms considering lastReadMessageId and excluding self messages', async () => {
+      const prisma = getPrisma();
+
+      // Create test room with Alice (Owner) and Charlie (Member)
+      const room = await prisma.room.create({
+        data: {
+          name: 'Unread Test Room',
+          ownerId: ownerUser.id,
+          members: {
+            create: [
+              { userId: ownerUser.id, role: RoomRole.OWNER },
+              { userId: memberUser.id, role: RoomRole.MEMBER },
+            ],
+          },
+        },
+      });
+
+      // Charlie sends msg 1
+      const msg1 = await prisma.roomMessage.create({
+        data: {
+          roomId: room.id,
+          senderId: memberUser.id,
+          content: 'Charlie room msg 1',
+          createdAt: new Date('2026-01-01T10:00:00Z'),
+        },
+      });
+
+      // Alice sends msg 2 (own message)
+      await prisma.roomMessage.create({
+        data: {
+          roomId: room.id,
+          senderId: ownerUser.id,
+          content: 'Alice room msg 2',
+          createdAt: new Date('2026-01-01T10:05:00Z'),
+        },
+      });
+
+      // Charlie sends msg 3
+      const msg3 = await prisma.roomMessage.create({
+        data: {
+          roomId: room.id,
+          senderId: memberUser.id,
+          content: 'Charlie room msg 3',
+          createdAt: new Date('2026-01-01T10:10:00Z'),
+        },
+      });
+
+      // Before reading: Alice should see 2 unread messages from Charlie (excluding her own msg 2)
+      const resBefore = await request(app)
+        .get('/api/rooms')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(200);
+
+      const targetRoomBefore = resBefore.body.find((r: any) => r.id === room.id);
+      expect(targetRoomBefore.unreadCount).toBe(2);
+
+      // Alice reads up to msg 1
+      await prisma.roomMember.update({
+        where: {
+          roomId_userId: {
+            roomId: room.id,
+            userId: ownerUser.id,
+          },
+        },
+        data: {
+          lastReadMessageId: msg1.id,
+        },
+      });
+
+      const resAfter1 = await request(app)
+        .get('/api/rooms')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(200);
+
+      const targetRoomAfter1 = resAfter1.body.find((r: any) => r.id === room.id);
+      expect(targetRoomAfter1.unreadCount).toBe(1);
+
+      // Alice reads up to msg 3
+      await prisma.roomMember.update({
+        where: {
+          roomId_userId: {
+            roomId: room.id,
+            userId: ownerUser.id,
+          },
+        },
+        data: {
+          lastReadMessageId: msg3.id,
+        },
+      });
+
+      const resAfter3 = await request(app)
+        .get('/api/rooms')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(200);
+
+      const targetRoomAfter3 = resAfter3.body.find((r: any) => r.id === room.id);
+      expect(targetRoomAfter3.unreadCount).toBe(0);
     });
   });
 
