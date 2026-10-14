@@ -5,7 +5,7 @@ Chức năng cập nhật trạng thái trực tuyến/ngoại tuyến (Online/O
 
 **Blocked by:** 02: Nhắn tin Trực tiếp 1-1 Thời gian thực & Lưu trữ Lịch sử Tin nhắn
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Máy chủ theo dõi kết nối socket của từng `userId` và cập nhật trường `isOnline`, `lastSeenAt` trong cơ sở dữ liệu.
 - [ ] Sự kiện `presence:update` được phát tán theo thời gian thực khi trạng thái Online/Offline của người dùng thay đổi.

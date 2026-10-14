@@ -5,7 +5,7 @@ Chức năng trò chuyện nhóm hoàn chỉnh theo phòng (Room Chat). Người
 
 **Blocked by:** 02: Nhắn tin Trực tiếp 1-1 Thời gian thực & Lưu trữ Lịch sử Tin nhắn
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] API tạo Room Chat mới (`POST /api/rooms`) gán người tạo với vai trò `OWNER` trong bảng `RoomMember`.
 - [ ] API lấy danh sách các Room mà người dùng tham gia (`GET /api/rooms`).
