@@ -64,6 +64,7 @@ export interface DirectReadPayload {
   directChatId: string;
   messageId: string;
   readByUserId?: string;
+  userId?: string;
 }
 
 // ==========================================
@@ -115,6 +116,7 @@ export interface RoomReadPayload {
   roomId: string;
   messageId: string;
   readByUserId?: string;
+  userId?: string;
 }
 
 export interface RoomMemberChangePayload {

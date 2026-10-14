@@ -7,6 +7,7 @@ import {
   RoomLeavePayload,
   RoomSendMessagePayload,
   RoomReceiveMessagePayload,
+  RoomReadPayload,
   MessageType,
 } from '@webchat/shared';
 
@@ -150,4 +151,80 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket): v
       }
     }
   });
+
+  socket.on(SOCKET_EVENTS.ROOM_READ, async (payload: { roomId: string; messageId: string }, callback?: (res: any) => void) => {
+    try {
+      if (!payload || !payload.roomId || !payload.messageId) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'roomId and messageId are required' });
+        }
+        return;
+      }
+
+      const { roomId, messageId } = payload;
+      const prisma = getPrisma();
+
+      // Verify that user is a member of this room
+      const member = await prisma.roomMember.findUnique({
+        where: {
+          roomId_userId: {
+            roomId,
+            userId,
+          },
+        },
+      });
+
+      if (!member) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Not a member of this room' });
+        }
+        return;
+      }
+
+      // Verify target message exists in this room
+      const targetMessage = await prisma.roomMessage.findUnique({
+        where: { id: messageId },
+      });
+
+      if (!targetMessage || targetMessage.roomId !== roomId) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: 'Target message not found in this room' });
+        }
+        return;
+      }
+
+      // Update caller's RoomMember.lastReadMessageId
+      await prisma.roomMember.update({
+        where: {
+          roomId_userId: {
+            roomId,
+            userId,
+          },
+        },
+        data: {
+          lastReadMessageId: messageId,
+        },
+      });
+
+      const readPayload: RoomReadPayload = {
+        roomId,
+        messageId,
+        userId,
+        readByUserId: userId,
+      };
+
+      // Broadcast room:read to room
+      io.to(`room:${roomId}`).emit(SOCKET_EVENTS.ROOM_READ, readPayload);
+
+      if (typeof callback === 'function') {
+        callback({ success: true, payload: readPayload });
+      }
+    } catch (err: any) {
+      console.error('Error handling room:read:', err);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: err.message || 'Internal server error' });
+      }
+    }
+  });
 }
+

@@ -22,6 +22,7 @@ import {
   Loader2,
   MessageSquare,
   Check,
+  CheckCheck,
   Smile,
   Sparkles,
   Paperclip,
@@ -34,6 +35,9 @@ interface RoomChatAreaProps {
   roomDetails: RoomDetailDto | null;
   messages: RoomReceiveMessagePayload[];
   isLoadingMessages: boolean;
+  hasMore?: boolean;
+  isLoadingOlder?: boolean;
+  onLoadOlderMessages?: () => Promise<void> | void;
   onSendMessage: (content: string, optionsOrType?: MessageType | SendRoomMessageOptions) => void;
   onAddMember: (userId: string) => Promise<void>;
   onRemoveMember: (userId: string) => Promise<void>;
@@ -47,6 +51,9 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   roomDetails,
   messages,
   isLoadingMessages,
+  hasMore = false,
+  isLoadingOlder = false,
+  onLoadOlderMessages,
   onSendMessage,
   onAddMember,
   onRemoveMember,
@@ -69,6 +76,9 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isPrependRef = useRef(false);
+  const prevMessagesLengthRef = useRef(messages.length);
 
   const scrollToBottom = () => {
     if (typeof messagesEndRef.current?.scrollIntoView === 'function') {
@@ -77,8 +87,41 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   };
 
   useEffect(() => {
-    scrollToBottom();
+    if (isPrependRef.current) {
+      return;
+    }
+    if (messages.length > prevMessagesLengthRef.current || prevMessagesLengthRef.current === 0) {
+      scrollToBottom();
+    }
+    prevMessagesLengthRef.current = messages.length;
   }, [messages]);
+
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    if (
+      container.scrollTop < 40 &&
+      hasMore &&
+      !isLoadingOlder &&
+      !isLoadingMessages &&
+      typeof onLoadOlderMessages === 'function'
+    ) {
+      const prevScrollHeight = container.scrollHeight;
+      const prevScrollTop = container.scrollTop;
+      isPrependRef.current = true;
+
+      Promise.resolve(onLoadOlderMessages()).finally(() => {
+        requestAnimationFrame(() => {
+          if (scrollContainerRef.current) {
+            const newScrollHeight = scrollContainerRef.current.scrollHeight;
+            scrollContainerRef.current.scrollTop = newScrollHeight - prevScrollHeight + prevScrollTop;
+          }
+          isPrependRef.current = false;
+        });
+      });
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -250,7 +293,19 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
       </header>
 
       {/* Message Thread */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        data-testid="room-messages-container"
+        className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3"
+      >
+        {isLoadingOlder && (
+          <div data-testid="load-older-indicator" className="py-2 flex items-center justify-center gap-1.5 text-xs text-indigo-600">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <span>Loading older room messages...</span>
+          </div>
+        )}
+
         {isLoadingMessages ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2">
             <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
@@ -268,6 +323,10 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
           messages.map((msg) => {
             const isMe = msg.senderId === currentUser?.id;
             const isGif = msg.type === MessageType.EMOJI_GIF;
+            const readers = (roomDetails?.members || []).filter(
+              (m) => m.userId !== msg.senderId && m.lastReadMessageId === msg.id
+            );
+
             return (
               <div
                 key={msg.id}
@@ -307,12 +366,24 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                       onImageClick={(url, name) => setLightboxImage({ url, name })}
                     />
                     <div
-                      className={`flex items-center gap-1 text-[10px] mt-1 ${isGif ? 'px-2 pb-1' : ''} ${
+                      className={`flex items-center gap-1.5 text-[10px] mt-1 ${isGif ? 'px-2 pb-1' : ''} ${
                         isMe ? 'text-indigo-200 justify-end' : 'text-gray-400 justify-start'
                       }`}
                     >
                       <span>{formatMessageTime(msg.createdAt)}</span>
                       {isMe && <Check className="w-3 h-3 text-indigo-200" />}
+                      {readers.length > 0 && (
+                        <span
+                          data-testid="room-message-read-indicator"
+                          className={`flex items-center gap-0.5 font-medium ml-1 ${
+                            isMe ? 'text-sky-300' : 'text-sky-600'
+                          }`}
+                          title={`Read by: ${readers.map((r) => r.user?.username || r.userId).join(', ')}`}
+                        >
+                          <CheckCheck className="w-3 h-3" />
+                          <span>{readers.length}</span>
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

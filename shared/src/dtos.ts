@@ -51,6 +51,8 @@ export interface DirectChatListItemDto {
   partner: UserDto;
   lastMessage?: DirectReceiveMessagePayload | null;
   unreadCount: number;
+  lastReadMessageId?: string | null;
+  partnerLastReadMessageId?: string | null;
   updatedAt: string;
 }
 
@@ -93,6 +95,7 @@ export interface RoomMemberDto {
   roomId: string;
   userId: string;
   role: RoomRole;
+  lastReadMessageId?: string | null;
   joinedAt: string;
   user: UserDto;
 }

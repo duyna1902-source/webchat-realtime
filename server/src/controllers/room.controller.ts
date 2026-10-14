@@ -40,6 +40,7 @@ export function toRoomMemberDto(member: any): RoomMemberDto {
     roomId: member.roomId,
     userId: member.userId,
     role: member.role,
+    lastReadMessageId: member.lastReadMessageId ?? null,
     joinedAt: member.joinedAt instanceof Date ? member.joinedAt.toISOString() : new Date(member.joinedAt).toISOString(),
     user: toUserDto(member.user),
   };

@@ -8,6 +8,7 @@ import {
   RoomRole,
   RoomSendMessagePayload,
   RoomMemberChangePayload,
+  RoomReadPayload,
 } from '@webchat/shared';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -20,14 +21,17 @@ export interface SendRoomMessageOptions {
 }
 
 export function useRoomMessages(activeRoomId: string | null) {
-  const { token } = useAuth();
+  const { token, currentUser } = useAuth();
   const { socket } = useSocket();
   const [messages, setMessages] = useState<RoomReceiveMessagePayload[]>([]);
   const [roomDetails, setRoomDetails] = useState<RoomDetailDto | null>(null);
   const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState<boolean>(false);
+  const [hasMore, setHasMore] = useState<boolean>(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const lastReadEmittedIdRef = useRef<string | null>(null);
   const messagesRef = useRef<RoomReceiveMessagePayload[]>([]);
   messagesRef.current = messages;
 
@@ -56,9 +60,11 @@ export function useRoomMessages(activeRoomId: string | null) {
 
   // Fetch initial message history
   useEffect(() => {
+    lastReadEmittedIdRef.current = null;
     if (!token || !activeRoomId) {
       setMessages([]);
       setRoomDetails(null);
+      setHasMore(false);
       return;
     }
 
@@ -82,6 +88,7 @@ export function useRoomMessages(activeRoomId: string | null) {
       .then((data: PaginatedMessagesDto<RoomReceiveMessagePayload>) => {
         if (isMounted) {
           setMessages(Array.isArray(data?.messages) ? data.messages : []);
+          setHasMore(Boolean(data?.hasMore));
           setIsLoadingMessages(false);
         }
       })
@@ -96,6 +103,40 @@ export function useRoomMessages(activeRoomId: string | null) {
       isMounted = false;
     };
   }, [token, activeRoomId, fetchRoomDetails]);
+
+  // Load older messages for cursor pagination (?before=<oldestId>)
+  const loadOlderMessages = useCallback(async () => {
+    if (!token || !activeRoomId || isLoadingOlder || !hasMore || messages.length === 0) {
+      return;
+    }
+
+    const oldestId = messages[0].id;
+    setIsLoadingOlder(true);
+
+    try {
+      const res = await fetch(`/api/rooms/${activeRoomId}/messages?limit=50&before=${oldestId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        const data: PaginatedMessagesDto<RoomReceiveMessagePayload> = await res.json();
+        if (Array.isArray(data?.messages) && data.messages.length > 0) {
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const newOlder = data.messages.filter((m) => !existingIds.has(m.id));
+            return [...newOlder, ...prev];
+          });
+        }
+        setHasMore(Boolean(data?.hasMore));
+      }
+    } catch (err: any) {
+      console.error('Error loading older room messages:', err);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }, [token, activeRoomId, isLoadingOlder, hasMore, messages]);
 
   // Catch-up Sync: fetches room messages strictly newer than the latest local message
   const syncCatchup = useCallback(async () => {
@@ -126,7 +167,21 @@ export function useRoomMessages(activeRoomId: string | null) {
     }
   }, [token, activeRoomId]);
 
-  // Socket join & leave lifecycle
+  // Auto read receipt: when active room has messages, emit room:read
+  useEffect(() => {
+    if (!socket || !activeRoomId || messages.length === 0) return;
+
+    const latestMsg = messages[messages.length - 1];
+    if (latestMsg && latestMsg.id !== lastReadEmittedIdRef.current) {
+      lastReadEmittedIdRef.current = latestMsg.id;
+      socket.emit(SOCKET_EVENTS.ROOM_READ, {
+        roomId: activeRoomId,
+        messageId: latestMsg.id,
+      });
+    }
+  }, [socket, activeRoomId, messages]);
+
+  // Socket join & leave lifecycle, receive message, and read receipt listeners
   useEffect(() => {
     if (!socket || !activeRoomId) return;
 
@@ -149,6 +204,21 @@ export function useRoomMessages(activeRoomId: string | null) {
       }
     };
 
+    const handleRoomRead = (payload: RoomReadPayload) => {
+      if (payload.roomId === activeRoomId) {
+        const readerId = payload.userId || payload.readByUserId;
+        setRoomDetails((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            members: prev.members.map((m) =>
+              m.userId === readerId ? { ...m, lastReadMessageId: payload.messageId } : m
+            ),
+          };
+        });
+      }
+    };
+
     const handleConnect = () => {
       // Re-join room on socket
       socket.emit(SOCKET_EVENTS.ROOM_JOIN, { roomId: activeRoomId });
@@ -162,12 +232,14 @@ export function useRoomMessages(activeRoomId: string | null) {
 
     socket.on(SOCKET_EVENTS.ROOM_RECEIVE, handleRoomReceive);
     socket.on(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, handleMemberChange);
+    socket.on(SOCKET_EVENTS.ROOM_READ, handleRoomRead);
     socket.on('connect', handleConnect);
 
     return () => {
       socket.emit(SOCKET_EVENTS.ROOM_LEAVE, { roomId: activeRoomId });
       socket.off(SOCKET_EVENTS.ROOM_RECEIVE, handleRoomReceive);
       socket.off(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, handleMemberChange);
+      socket.off(SOCKET_EVENTS.ROOM_READ, handleRoomRead);
       socket.off('connect', handleConnect);
     };
   }, [socket, activeRoomId, fetchRoomDetails, syncCatchup]);
@@ -300,6 +372,9 @@ export function useRoomMessages(activeRoomId: string | null) {
     messages,
     roomDetails,
     isLoadingMessages,
+    isLoadingOlder,
+    hasMore,
+    loadOlderMessages,
     isLoadingDetails,
     error,
     sendMessage,

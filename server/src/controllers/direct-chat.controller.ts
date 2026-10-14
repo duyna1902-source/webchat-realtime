@@ -132,6 +132,7 @@ export async function getDirectChats(req: AuthenticatedRequest, res: Response): 
     include: {
       user1: true,
       user2: true,
+      participants: true,
       messages: {
         orderBy: { createdAt: 'desc' },
         take: 1,
@@ -146,12 +147,16 @@ export async function getDirectChats(req: AuthenticatedRequest, res: Response): 
   const listItems: DirectChatListItemDto[] = chats.map((chat) => {
     const partner = chat.user1Id === currentUserId ? chat.user2 : chat.user1;
     const lastMsg = chat.messages[0] ? toDirectReceiveMessagePayload(chat.messages[0]) : null;
+    const myParticipant = chat.participants.find((p) => p.userId === currentUserId);
+    const partnerParticipant = chat.participants.find((p) => p.userId !== currentUserId);
 
     return {
       id: chat.id,
       partner: toUserDto(partner),
       lastMessage: lastMsg,
       unreadCount: 0,
+      lastReadMessageId: myParticipant?.lastReadMessageId ?? null,
+      partnerLastReadMessageId: partnerParticipant?.lastReadMessageId ?? null,
       updatedAt: chat.updatedAt.toISOString(),
     };
   });
