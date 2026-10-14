@@ -39,3 +39,5 @@ Ticket 02 has been successfully implemented following TDD, fully verified with 4
    - `server/tests/direct-chat-socket.test.ts`: 2 real socket.io-client integration tests verifying real-time delivery (`direct:send` -> `direct:receive`) and database persistence between Alice and Bob, and rejection of non-participant eavesdropping.
    - `client/src/components/chat/DirectChat.test.tsx`: 4 unit tests verifying sidebar selection, chat bubble rendering, send button, Enter key submission, and empty placeholder state.
    - Total test suite: 40 passing tests (31 server, 9 client).
+6. **Merge**:
+   - Merged into `integration/webchat-realtime` in merge commit `a6a3475`.
