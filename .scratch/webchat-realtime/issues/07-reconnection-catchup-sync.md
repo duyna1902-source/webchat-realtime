@@ -5,12 +5,12 @@ Cơ chế đảm bảo độ ổn định mạng và chống mất dữ liệu k
 
 **Blocked by:** 02: Nhắn tin Trực tiếp 1-1 Thời gian thực & Lưu trữ Lịch sử Tin nhắn
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] Cấu hình `connectionStateRecovery` trên máy chủ Socket.io với thời gian đệm `maxDisconnectionDuration: 2 * 60 * 1000`.
-- [ ] API Catch-up Sync cho Direct Chat (`GET /api/direct-chats/:id/messages?after=<lastMessageId>`) trả về toàn bộ tin nhắn mới hơn mốc tin nhắn chỉ định.
-- [ ] API Catch-up Sync cho Room Chat (`GET /api/rooms/:id/messages?after=<lastMessageId>`) trả về toàn bộ tin nhắn mới của phòng kể từ mốc chỉ định.
-- [ ] Client lắng nghe các sự kiện vòng đời socket (`connect`, `disconnect`, `connect_error`) và hiển thị banner trạng thái "Đang kết nối lại..." trên giao diện khi mất mạng.
-- [ ] Khi socket kết nối lại sau gián đoạn, client tự động kiểm tra trạng thái khôi phục (`socket.recovered`); nếu không được phục hồi tự động, client kích hoạt Catch-up Sync để đồng bộ tin nhắn còn thiếu.
-- [ ] Logic client tự động khử trùng lặp tin nhắn (deduplication) để đảm bảo không hiển thị hai lần một tin nhắn.
-- [ ] Kiểm thử tích hợp giả lập ngắt mạng client, gửi tin nhắn từ phía khác, kết nối lại client và xác minh toàn bộ tin nhắn bị bỏ lỡ được đồng bộ đầy đủ.
+- [x] Cấu hình `connectionStateRecovery` trên máy chủ Socket.io với thời gian đệm `maxDisconnectionDuration: 2 * 60 * 1000`.
+- [x] API Catch-up Sync cho Direct Chat (`GET /api/direct-chats/:id/messages?after=<lastMessageId>`) trả về toàn bộ tin nhắn mới hơn mốc tin nhắn chỉ định.
+- [x] API Catch-up Sync cho Room Chat (`GET /api/rooms/:id/messages?after=<lastMessageId>`) trả về toàn bộ tin nhắn mới của phòng kể từ mốc chỉ định.
+- [x] Client lắng nghe các sự kiện vòng đời socket (`connect`, `disconnect`, `connect_error`) và hiển thị banner trạng thái "Đang kết nối lại..." trên giao diện khi mất mạng.
+- [x] Khi socket kết nối lại sau gián đoạn, client tự động kiểm tra trạng thái khôi phục (`socket.recovered`); nếu không được phục hồi tự động, client kích hoạt Catch-up Sync để đồng bộ tin nhắn còn thiếu.
+- [x] Logic client tự động khử trùng lặp tin nhắn (deduplication) để đảm bảo không hiển thị hai lần một tin nhắn.
+- [x] Kiểm thử tích hợp giả lập ngắt mạng client, gửi tin nhắn từ phía khác, kết nối lại client và xác minh toàn bộ tin nhắn bị bỏ lỡ được đồng bộ đầy đủ.

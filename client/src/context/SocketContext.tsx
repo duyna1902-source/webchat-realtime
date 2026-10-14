@@ -6,6 +6,7 @@ interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
   isConnecting: boolean;
+  isReconnecting: boolean;
   connectionError: string | null;
 }
 
@@ -16,6 +17,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
+  const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,17 +28,19 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       setIsConnected(false);
       setIsConnecting(false);
+      setIsReconnecting(false);
       return;
     }
 
     setIsConnecting(true);
+    setIsReconnecting(false);
     setConnectionError(null);
 
     const newSocket = io('/', {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: 20,
       reconnectionDelay: 1000,
       timeout: 20000,
     });
@@ -44,17 +48,38 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     newSocket.on('connect', () => {
       setIsConnected(true);
       setIsConnecting(false);
+      setIsReconnecting(false);
       setConnectionError(null);
     });
 
     newSocket.on('connect_error', (err) => {
       setIsConnecting(false);
       setIsConnected(false);
+      setIsReconnecting(true);
       setConnectionError(err.message || 'Connection failed');
     });
 
-    newSocket.on('disconnect', () => {
+    newSocket.on('disconnect', (reason) => {
       setIsConnected(false);
+      if (reason !== 'io client disconnect') {
+        setIsReconnecting(true);
+      }
+    });
+
+    newSocket.io.on('reconnect_attempt', () => {
+      setIsReconnecting(true);
+    });
+
+    newSocket.io.on('reconnect', () => {
+      setIsConnected(true);
+      setIsConnecting(false);
+      setIsReconnecting(false);
+      setConnectionError(null);
+    });
+
+    newSocket.io.on('reconnect_failed', () => {
+      setIsReconnecting(false);
+      setConnectionError('Reconnection failed');
     });
 
     setSocket(newSocket);
@@ -65,7 +90,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [token]);
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected, isConnecting, connectionError }}>
+    <SocketContext.Provider value={{ socket, isConnected, isConnecting, isReconnecting, connectionError }}>
       {children}
     </SocketContext.Provider>
   );
