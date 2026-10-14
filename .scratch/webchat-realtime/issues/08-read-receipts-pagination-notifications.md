@@ -5,7 +5,7 @@ Các tính năng hoàn thiện trải nghiệm giao tiếp: hiển thị biên n
 
 **Blocked by:** 02: Nhắn tin Trực tiếp 1-1 Thời gian thực & Lưu trữ Lịch sử Tin nhắn
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Cập nhật và lưu trữ trường `lastReadMessageId` trên bảng `DirectChatParticipant` và `RoomMember` khi người dùng mở hoặc cuộn xem tin nhắn mới.
 - [ ] Sự kiện Socket.io `direct:read` và `room:read` phát tín hiệu mốc tin nhắn đã đọc tới những người tham gia còn lại trong cuộc trò chuyện.

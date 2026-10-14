@@ -5,7 +5,7 @@ Cơ chế đảm bảo độ ổn định mạng và chống mất dữ liệu k
 
 **Blocked by:** 02: Nhắn tin Trực tiếp 1-1 Thời gian thực & Lưu trữ Lịch sử Tin nhắn
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Cấu hình `connectionStateRecovery` trên máy chủ Socket.io với thời gian đệm `maxDisconnectionDuration: 2 * 60 * 1000`.
 - [ ] API Catch-up Sync cho Direct Chat (`GET /api/direct-chats/:id/messages?after=<lastMessageId>`) trả về toàn bộ tin nhắn mới hơn mốc tin nhắn chỉ định.
