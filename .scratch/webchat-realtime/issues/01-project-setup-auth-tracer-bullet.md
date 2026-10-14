@@ -5,13 +5,13 @@ Khởi tạo nền móng dự án Monorepo và hoàn thiện luồng đăng ký,
 
 **Blocked by:** None (can start immediately)
 
-**Status:** claimed
+**Status:** done
 
-- [ ] Cấu trúc Monorepo (`client`, `server`, `shared`) được thiết lập với TypeScript và script khởi chạy nhất quán.
-- [ ] Toàn bộ Prisma Schema bao quát cả 3 cấp độ (Direct Chat, Room Chat, Attachments, Roles, Read receipts) được định nghĩa và migrate thành công vào PostgreSQL.
-- [ ] API đăng ký (`POST /api/auth/register`) mã hóa mật khẩu an toàn và tạo bản ghi User mới.
-- [ ] API đăng nhập (`POST /api/auth/login`) xác thực thông tin đăng nhập và cấp mã JWT.
-- [ ] API lấy thông tin người dùng hiện tại (`GET /api/auth/me`) trả về dữ liệu User khi có token hợp lệ.
-- [ ] Middleware xác thực Socket.io (`io.use`) giải mã thành công JWT và gắn thông tin người dùng vào phiên kết nối socket.
-- [ ] Giao diện React hiển thị form Đăng ký / Đăng nhập, lưu trữ token an toàn và hiển thị trang Dashboard cơ bản với thông tin người dùng đã đăng nhập.
-- [ ] Bộ kiểm thử tích hợp (integration tests) kiểm tra thành công luồng đăng ký, đăng nhập và bảo vệ endpoint.
+- [x] Cấu trúc Monorepo (`client`, `server`, `shared`) được thiết lập với TypeScript và script khởi chạy nhất quán.
+- [x] Toàn bộ Prisma Schema bao quát cả 3 cấp độ (Direct Chat, Room Chat, Attachments, Roles, Read receipts) được định nghĩa và migrate thành công vào PostgreSQL.
+- [x] API đăng ký (`POST /api/auth/register`) mã hóa mật khẩu an toàn và tạo bản ghi User mới.
+- [x] API đăng nhập (`POST /api/auth/login`) xác thực thông tin đăng nhập và cấp mã JWT.
+- [x] API lấy thông tin người dùng hiện tại (`GET /api/auth/me`) trả về dữ liệu User khi có token hợp lệ.
+- [x] Middleware xác thực Socket.io (`io.use`) giải mã thành công JWT và gắn thông tin người dùng vào phiên kết nối socket.
+- [x] Giao diện React hiển thị form Đăng ký / Đăng nhập, lưu trữ token an toàn và hiển thị trang Dashboard cơ bản với thông tin người dùng đã đăng nhập.
+- [x] Bộ kiểm thử tích hợp (integration tests) kiểm tra thành công luồng đăng ký, đăng nhập và bảo vệ endpoint.
