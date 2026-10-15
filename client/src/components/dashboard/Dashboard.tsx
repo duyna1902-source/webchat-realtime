@@ -16,6 +16,7 @@ import {
   MessageType,
 } from '@webchat/shared';
 import { showBrowserNotification, playNotificationSound } from '../../utils/notifications';
+import { getAvatarColorClass } from '../../utils/avatarColor';
 
 export const Dashboard: React.FC = () => {
   const { currentUser, logout } = useAuth();
@@ -260,7 +261,7 @@ export const Dashboard: React.FC = () => {
 
           {/* Current User 24px Avatar Circle */}
           <div
-            className="w-6 h-6 rounded-full bg-google-blue text-white text-[10px] font-bold flex items-center justify-center shadow-xs shrink-0"
+            className={`w-6 h-6 rounded-full ${getAvatarColorClass(currentUser.username)} text-[10px] font-bold flex items-center justify-center shadow-xs shrink-0`}
             title={`${currentUser.username} (Online)`}
             aria-label={`${currentUser.username} (Online)`}
             data-testid="header-user-avatar"

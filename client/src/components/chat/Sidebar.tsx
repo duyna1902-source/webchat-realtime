@@ -217,21 +217,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* User Search Overlay / Dropdown (Direct Chats only) */}
       {activeTab === 'direct' && showUserSearchModal && (
-        <div className="bg-indigo-50/50 border-b border-indigo-100 p-3 max-h-60 overflow-y-auto">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-indigo-100/60">
-            <span className="text-xs font-semibold text-indigo-900 uppercase tracking-wider">
+        <div className="bg-google-blue-subtle/50 border-b border-google-grey200 p-3 max-h-60 overflow-y-auto">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-google-grey200">
+            <span className="text-xs font-semibold text-google-grey900 uppercase tracking-wider">
               {searchQuery ? 'Search Results' : 'Find Users to Message'}
             </span>
             <button
               onClick={() => setShowUserSearchModal(false)}
-              className="text-xs text-gray-500 hover:text-gray-700"
+              className="text-xs text-google-grey700 hover:text-google-grey900 cursor-pointer"
             >
               Close
             </button>
           </div>
 
           {isSearchingUsers ? (
-            <div className="py-4 flex items-center justify-center gap-2 text-xs text-indigo-600">
+            <div className="py-4 flex items-center justify-center gap-2 text-xs text-google-blue">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>Searching users...</span>
             </div>
@@ -242,7 +242,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={user.id}
                   onClick={() => handleSelectUser(user.id)}
                   disabled={isStartingChat}
-                  className="w-full flex items-center gap-3 p-2 hover:bg-indigo-100/70 rounded-lg text-left transition cursor-pointer"
+                  className="w-full flex items-center gap-3 p-2 hover:bg-google-blue-subtle rounded-lg text-left transition cursor-pointer"
                 >
                   <div className={`w-8 h-8 rounded-full font-bold flex items-center justify-center text-xs shadow-xs ${getAvatarColorClass(user.username)}`}>
                     {user.username.slice(0, 2).toUpperCase()}
@@ -302,7 +302,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <span
                         data-testid={`presence-dot-${chat.partner.id}`}
                         className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                          chat.partner.isOnline ? 'bg-emerald-500' : 'bg-gray-300'
+                          chat.partner.isOnline ? 'bg-google-green' : 'bg-gray-300'
                         }`}
                         title={chat.partner.isOnline ? 'Online' : 'Offline'}
                         aria-label={chat.partner.isOnline ? 'Online' : 'Offline'}
@@ -334,7 +334,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Rooms</span>
               <button
                 onClick={() => setShowCreateRoomModal(true)}
-                className="text-indigo-600 hover:text-indigo-800 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                className="text-google-blue hover:text-google-blue-hover text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3 h-3" />
                 <span>New</span>
@@ -343,7 +343,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {isLoadingRooms ? (
               <div className="py-8 flex flex-col items-center justify-center gap-2 text-gray-400">
-                <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                <Loader2 className="w-5 h-5 animate-spin text-google-blue" />
                 <span className="text-xs">Loading rooms...</span>
               </div>
             ) : filteredRooms.length === 0 ? (
@@ -392,7 +392,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           <span>{room.memberCount}</span>
                         </span>
                         {isOwner ? (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-amber-50 text-amber-700 rounded border border-amber-200">
+                          <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-google-yellow-subtle text-google-grey900 rounded border border-google-yellow/40">
                             Owner
                           </span>
                         ) : isAdmin ? (

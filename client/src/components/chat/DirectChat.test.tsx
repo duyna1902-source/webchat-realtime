@@ -196,7 +196,7 @@ describe('Direct Chat Client Components', () => {
 
     expect(screen.getByText('Online')).toBeInTheDocument();
     const presenceDot = screen.getByTestId('chat-header-presence-dot');
-    expect(presenceDot).toHaveClass('bg-emerald-500');
+    expect(presenceDot).toHaveClass('bg-google-green');
   });
 
   it('displays offline status and last seen timestamp when partner is offline', () => {
