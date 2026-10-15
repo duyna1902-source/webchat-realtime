@@ -136,7 +136,7 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
 
       if (!chat) return;
 
-      const isParticipant = chat.participants.some((p) => p.userId === userId);
+      const isParticipant = chat.participants.some((p: any) => p.userId === userId);
       if (!isParticipant) return;
 
       const typingPayload: DirectTypingPayload = {
@@ -146,7 +146,7 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
       };
 
       // Deliver typing indicator to other participants
-      chat.participants.forEach((p) => {
+      chat.participants.forEach((p: any) => {
         if (p.userId !== userId) {
           io.to(`user:${p.userId}`).emit(SOCKET_EVENTS.DIRECT_TYPING, typingPayload);
         }
@@ -183,7 +183,7 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
         return;
       }
 
-      const isParticipant = chat.participants.some((p) => p.userId === userId);
+      const isParticipant = chat.participants.some((p: any) => p.userId === userId);
       if (!isParticipant) {
         if (typeof callback === 'function') {
           callback({ success: false, error: 'Caller is not a participant in this direct chat' });
@@ -237,7 +237,7 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
       };
 
       // Emit direct:read to recipient's room
-      chat.participants.forEach((p) => {
+      chat.participants.forEach((p: any) => {
         if (p.userId !== userId) {
           io.to(`user:${p.userId}`).emit(SOCKET_EVENTS.DIRECT_READ, readPayload);
         }
