@@ -124,5 +124,18 @@ describe('Responsive Master-Detail Navigation (Ticket 01)', () => {
       expect(chatAreaContainer.className).not.toMatch(/hidden\s+md:flex/);
       expect(chatAreaContainer.className).toMatch(/flex/);
     });
+
+    // Click mobile Back button
+    const backBtn = screen.getByRole('button', { name: /back to chats/i });
+    expect(backBtn).toBeInTheDocument();
+    expect(backBtn.className).toMatch(/md:hidden/);
+    fireEvent.click(backBtn);
+
+    await waitFor(() => {
+      const sidebar = screen.getByRole('complementary');
+      expect(sidebar.className).toMatch(/w-full/);
+      const chatAreaContainer = screen.getByTestId('chat-area-container');
+      expect(chatAreaContainer.className).toMatch(/hidden\s+md:flex/);
+    });
   });
 });

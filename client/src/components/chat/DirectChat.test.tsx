@@ -316,4 +316,25 @@ describe('Direct Chat Client Components', () => {
 
     expect(screen.queryByTestId('typing-indicator')).not.toBeInTheDocument();
   });
+
+  it('renders a mobile Back button when onBack is provided, hidden on desktop, and invokes callback on click', () => {
+    const onBack = vi.fn();
+
+    renderWithProviders(
+      <ChatArea
+        activeChat={mockChat}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onBack={onBack}
+      />
+    );
+
+    const backButton = screen.getByRole('button', { name: /back to chats/i });
+    expect(backButton).toBeInTheDocument();
+    expect(backButton.className).toMatch(/md:hidden/);
+
+    fireEvent.click(backButton);
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
 });

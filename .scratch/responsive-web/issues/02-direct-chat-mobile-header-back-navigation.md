@@ -5,10 +5,21 @@ Provide a touch-friendly Back navigation button (`ChevronLeft` / `< Chats`) on t
 
 **Blocked by:** 01: Master-Detail Navigation Container & Viewport 100dvh
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Direct chat header component accepts an optional `onBack` callback property.
-- [ ] On mobile viewports (< 768px), a Back button featuring a left arrow icon is rendered immediately preceding the partner avatar.
-- [ ] On desktop viewports (>= 768px), the Back button is hidden (`md:hidden`).
-- [ ] Clicking the Back button on mobile calls `onBack()`, resetting the active direct chat and returning the view to the conversation list.
-- [ ] Unit tests for the direct chat component verify the presence of the Back button under mobile styling and assert that the `onBack` callback is fired on click.
+- [x] Direct chat header component accepts an optional `onBack` callback property.
+- [x] On mobile viewports (< 768px), a Back button featuring a left arrow icon is rendered immediately preceding the partner avatar.
+- [x] On desktop viewports (>= 768px), the Back button is hidden (`md:hidden`).
+- [x] Clicking the Back button on mobile calls `onBack()`, resetting the active direct chat and returning the view to the conversation list.
+- [x] Unit tests for the direct chat component verify the presence of the Back button under mobile styling and assert that the `onBack` callback is fired on click.
+
+## Answer
+
+Ticket 02 has been implemented and verified.
+
+### Deliverables:
+1. **Back Navigation Button**: Added `onBack?: () => void` prop and `ChevronLeft` Back button in `ChatArea.tsx` header before the partner avatar.
+2. **Responsive Visibility**: Styled with `md:hidden`, ensuring it is only displayed on mobile (< 768px) and hidden on desktop (>= 768px).
+3. **Accessible & Touch Friendly**: Meets >= 40px touch hit-target standard (`min-w-[40px] min-h-[40px]`) and includes accessible `aria-label="Back to chats"`.
+4. **Dashboard Integration**: Wired `onBack` in `Dashboard.tsx` to reset active chat/room state, navigating back to full-width Master conversation list.
+5. **Automated Tests**: Added tests in `DirectChat.test.tsx` and `ResponsiveDashboard.test.tsx`. All 49 client tests pass.
