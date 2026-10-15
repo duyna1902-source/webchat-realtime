@@ -513,10 +513,11 @@ describe('Ultra-Compact Dashboard Header and Maximal Chat Workspace (Ticket 03)'
     const statusText = screen.getByText('Connected');
     expect(statusText).toHaveClass('hidden', 'sm:inline');
 
-    // Header displays 24px avatar circle (w-6 h-6 rounded-full bg-google-blue)
+    // Header displays 24px avatar circle (w-6 h-6 rounded-full with deterministic Google color)
     const avatar = screen.getByTestId('header-user-avatar');
     expect(avatar).toBeInTheDocument();
-    expect(avatar).toHaveClass('w-6', 'h-6', 'rounded-full', 'bg-google-blue');
+    expect(avatar).toHaveClass('w-6', 'h-6', 'rounded-full');
+    expect(avatar.className).toMatch(/bg-google-(blue|red|yellow|green)/);
     expect(avatar).toHaveTextContent('AL');
   });
 

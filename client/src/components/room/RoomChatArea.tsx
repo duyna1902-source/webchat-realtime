@@ -272,18 +272,18 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
 
   return (
     <main className="flex-1 flex flex-col h-full bg-google-grey50/50 overflow-hidden">
-      {/* Active Room Header */}
-      <header className="px-4 sm:px-6 py-3 bg-white border-b border-google-grey300 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+      {/* Active Room Header (Slim 42px h-11, total mobile chrome ~84px per spec lines 33 & 37) */}
+      <header className="h-11 px-3 sm:px-4 py-1 bg-white border-b border-google-grey300 flex items-center justify-between shadow-xs shrink-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
           {onBack && <MobileBackButton onClick={onBack} label="Chats" />}
-          <div className="w-10 h-10 rounded-xl bg-google-blue text-white font-bold flex items-center justify-center text-base shadow-sm shrink-0">
-            <Hash className="w-5 h-5" />
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-google-blue text-white font-bold flex items-center justify-center text-xs shadow-xs shrink-0">
+            <Hash className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-gray-900 truncate">
+            <h2 className="text-xs sm:text-sm font-bold text-gray-900 truncate leading-tight">
               {activeRoom.name}
             </h2>
-            <div className="flex items-center gap-2 text-xs text-gray-500 truncate">
+            <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-gray-500 truncate leading-tight">
               <span>{memberCount} {memberCount === 1 ? 'member' : 'members'}</span>
               {activeRoom.description && (
                 <>
@@ -298,9 +298,9 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
         {/* Manage Members Button */}
         <button
           onClick={() => setShowMembersModal(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-google-blue-subtle hover:bg-google-blue-subtle/80 text-google-blue rounded-full text-xs font-semibold transition shrink-0 cursor-pointer"
+          className="flex items-center gap-1 px-2.5 py-1 bg-google-blue-subtle hover:bg-google-blue-subtle/80 text-google-blue rounded-full text-[11px] sm:text-xs font-semibold transition shrink-0 cursor-pointer"
         >
-          <Users className="w-4 h-4" />
+          <Users className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Manage Members</span>
         </button>
       </header>
@@ -313,7 +313,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
         className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3"
       >
         {isLoadingOlder && (
-          <div data-testid="load-older-indicator" className="py-2 flex items-center justify-center gap-1.5 text-xs text-indigo-600">
+          <div data-testid="load-older-indicator" className="py-2 flex items-center justify-center gap-1.5 text-xs text-google-blue">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
             <span>Loading older room messages...</span>
           </div>
@@ -321,12 +321,12 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
 
         {isLoadingMessages ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2">
-            <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+            <Loader2 className="w-6 h-6 animate-spin text-google-blue" />
             <p className="text-xs">Loading room messages...</p>
           </div>
         ) : messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 py-12">
-            <div className="w-12 h-12 rounded-full bg-indigo-50 text-indigo-400 flex items-center justify-center mb-2">
+            <div className="w-12 h-12 rounded-full bg-google-blue-subtle text-google-blue flex items-center justify-center mb-2">
               <MessageSquare className="w-6 h-6" />
             </div>
             <p className="text-sm font-medium text-gray-600">No messages in #{activeRoom.name} yet</p>
@@ -388,9 +388,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                       {readers.length > 0 && (
                         <span
                           data-testid="room-message-read-indicator"
-                          className={`flex items-center gap-0.5 font-medium ml-1 ${
-                            isMe ? 'text-sky-300' : 'text-sky-600'
-                          }`}
+                          className="flex items-center gap-0.5 font-medium ml-1 text-google-blue"
                           title={`Read by: ${readers.map((r) => r.user?.username || r.userId).join(', ')}`}
                         >
                           <CheckCheck className="w-3 h-3" />
@@ -431,15 +429,15 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
         {errorMessage && (
           <div
             data-testid="room-upload-error-alert"
-            className="max-w-4xl mx-auto mb-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center justify-between shadow-xs animate-in fade-in"
+            className="max-w-4xl mx-auto mb-2 p-2.5 bg-google-red-subtle border border-google-red/20 rounded-xl text-google-red text-xs flex items-center justify-between shadow-xs animate-in fade-in"
           >
             <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <AlertCircle className="w-4 h-4 shrink-0 text-google-red" />
               <span>{errorMessage}</span>
             </div>
             <button
               onClick={() => setErrorMessage(null)}
-              className="p-1 hover:bg-rose-100 rounded-lg text-rose-500 hover:text-rose-700 transition cursor-pointer"
+              className="p-1 hover:bg-google-red-subtle/80 rounded-lg text-google-red transition cursor-pointer"
               aria-label="Dismiss error"
             >
               <X className="w-3.5 h-3.5" />

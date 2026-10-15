@@ -264,28 +264,28 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   return (
     <main className="flex-1 flex flex-col h-full bg-google-grey50/50 overflow-hidden">
-      {/* Active Chat Header */}
-      <header className="px-4 sm:px-6 py-3 bg-white border-b border-google-grey300 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-2 sm:gap-3">
+      {/* Active Chat Header (Slim 42px h-11, total mobile chrome ~84px per spec lines 33 & 37) */}
+      <header className="h-11 px-3 sm:px-4 py-1 bg-white border-b border-google-grey300 flex items-center justify-between shadow-xs shrink-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
           {onBack && <MobileBackButton onClick={onBack} label="Chats" />}
-          <div className="relative">
-            <div className={`w-10 h-10 rounded-full font-bold flex items-center justify-center text-sm shadow-xs ${getAvatarColorClass(activeChat.partner.username)}`}>
+          <div className="relative shrink-0">
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full font-bold flex items-center justify-center text-xs shadow-xs ${getAvatarColorClass(activeChat.partner.username)}`}>
               {activeChat.partner.username.slice(0, 2).toUpperCase()}
             </div>
             <span
               data-testid="chat-header-presence-dot"
-              className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                activeChat.partner.isOnline ? 'bg-emerald-500' : 'bg-gray-300'
+              className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-white ${
+                activeChat.partner.isOnline ? 'bg-google-green' : 'bg-gray-300'
               }`}
             />
           </div>
-          <div>
-            <h2 className="text-sm font-bold text-gray-900">{activeChat.partner.username}</h2>
-            <p className="text-xs text-gray-500 flex items-center gap-1.5">
+          <div className="min-w-0">
+            <h2 className="text-xs sm:text-sm font-bold text-gray-900 leading-tight truncate">{activeChat.partner.username}</h2>
+            <p className="text-[10px] sm:text-xs text-gray-500 flex items-center gap-1 leading-tight">
               {activeChat.partner.isOnline ? (
-                <span className="text-emerald-600 font-medium">Online</span>
+                <span className="text-google-green font-medium">Online</span>
               ) : (
-                <span>{formatLastSeen(activeChat.partner.lastSeenAt)}</span>
+                <span className="truncate">{formatLastSeen(activeChat.partner.lastSeenAt)}</span>
               )}
             </p>
           </div>
@@ -300,7 +300,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3"
       >
         {isLoadingOlder && (
-          <div data-testid="load-older-indicator" className="py-2 flex items-center justify-center gap-1.5 text-xs text-indigo-600">
+          <div data-testid="load-older-indicator" className="py-2 flex items-center justify-center gap-1.5 text-xs text-google-blue">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
             <span>Loading older messages...</span>
           </div>
@@ -308,12 +308,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
         {isLoadingMessages ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2">
-            <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+            <Loader2 className="w-6 h-6 animate-spin text-google-blue" />
             <p className="text-xs">Loading message history...</p>
           </div>
         ) : messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 py-12">
-            <div className="w-12 h-12 rounded-full bg-indigo-50 text-indigo-400 flex items-center justify-center mb-2">
+            <div className="w-12 h-12 rounded-full bg-google-blue-subtle text-google-blue flex items-center justify-center mb-2">
               <MessageSquare className="w-6 h-6" />
             </div>
             <p className="text-sm font-medium text-gray-600">No messages here yet</p>
@@ -360,7 +360,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           data-testid="status-read"
                           title="Đã xem"
                           aria-label="Đã xem"
-                          className="flex items-center text-sky-300"
+                          className="flex items-center text-google-blue"
                         >
                           <CheckCheck className="w-3.5 h-3.5" />
                         </span>
@@ -417,15 +417,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         {errorMessage && (
           <div
             data-testid="upload-error-alert"
-            className="max-w-4xl mx-auto mb-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center justify-between shadow-xs animate-in fade-in"
+            className="max-w-4xl mx-auto mb-2 p-2.5 bg-google-red-subtle border border-google-red/20 rounded-xl text-google-red text-xs flex items-center justify-between shadow-xs animate-in fade-in"
           >
             <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <AlertCircle className="w-4 h-4 shrink-0 text-google-red" />
               <span>{errorMessage}</span>
             </div>
             <button
               onClick={() => setErrorMessage(null)}
-              className="p-1 hover:bg-rose-100 rounded-lg text-rose-500 hover:text-rose-700 transition cursor-pointer"
+              className="p-1 hover:bg-google-red-subtle/80 rounded-lg text-google-red transition cursor-pointer"
               aria-label="Dismiss error"
             >
               <X className="w-3.5 h-3.5" />

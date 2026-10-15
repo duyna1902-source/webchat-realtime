@@ -147,7 +147,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-google-blue-subtle text-google-blue flex items-center justify-center">
               <Users className="w-5 h-5" />
             </div>
             <div>
@@ -169,7 +169,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
         </div>
 
         {actionError && (
-          <div className="m-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl">
+          <div className="m-4 p-3 bg-google-red-subtle border border-google-red/20 text-google-red text-xs rounded-xl">
             {actionError}
           </div>
         )}
@@ -192,7 +192,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
             </div>
 
             {isSearching ? (
-              <div className="py-2 flex items-center justify-center gap-2 text-xs text-indigo-600 mt-2">
+              <div className="py-2 flex items-center justify-center gap-2 text-xs text-google-blue mt-2">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 <span>Searching users...</span>
               </div>
@@ -201,7 +201,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
                 {searchResults.map((user) => (
                   <div key={user.id} className="p-2 flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2 truncate">
-                      <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-semibold flex items-center justify-center text-[10px]">
+                      <div className="w-6 h-6 rounded-full bg-google-blue-subtle text-google-blue font-semibold flex items-center justify-center text-[10px]">
                         {user.username.slice(0, 2).toUpperCase()}
                       </div>
                       <span className="font-medium text-gray-900 truncate">{user.username}</span>
@@ -210,7 +210,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
                     <button
                       onClick={() => handleAddUser(user.id)}
                       disabled={isAdding}
-                      className="px-3 py-1.5 sm:py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-medium rounded-lg text-xs transition shrink-0 flex items-center gap-1 min-h-[36px] sm:min-h-0 min-w-[40px] justify-center cursor-pointer"
+                      className="px-3 py-1.5 sm:py-1 bg-google-blue-subtle hover:bg-google-blue-subtle/80 text-google-blue font-medium rounded-lg text-xs transition shrink-0 flex items-center gap-1 min-h-[36px] sm:min-h-0 min-w-[40px] justify-center cursor-pointer"
                     >
                       <UserPlus className="w-3.5 h-3.5" />
                       <span>Add</span>
@@ -262,13 +262,13 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
                 <div className="flex items-center gap-2 shrink-0">
                   {/* Role Badge */}
                   {isTargetOwner ? (
-                    <span className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/60">
-                      <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                    <span className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-google-yellow-subtle text-google-grey900 border border-google-yellow/40">
+                      <ShieldCheck className="w-3.5 h-3.5 text-google-grey900" />
                       <span>Owner</span>
                     </span>
                   ) : isTargetAdmin ? (
-                    <span className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                      <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                    <span className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-google-blue-subtle text-google-blue border border-google-blue/30">
+                      <Shield className="w-3.5 h-3.5 text-google-blue" />
                       <span>Admin</span>
                     </span>
                   ) : (
@@ -287,7 +287,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
                           disabled={isLoading}
                           title="Promote to Admin"
                           aria-label="Promote to Admin"
-                          className="p-2 sm:p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
+                          className="p-2 sm:p-1.5 text-gray-400 hover:text-google-blue hover:bg-google-blue-subtle rounded-lg transition min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
                         >
                           <ArrowUpCircle className="w-4 h-4" />
                         </button>
@@ -297,7 +297,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
                           disabled={isLoading}
                           title="Demote to Member"
                           aria-label="Demote to Member"
-                          className="p-2 sm:p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
+                          className="p-2 sm:p-1.5 text-gray-400 hover:text-google-yellow hover:bg-google-yellow-subtle rounded-lg transition min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
                         >
                           <ArrowDownCircle className="w-4 h-4" />
                         </button>
@@ -314,7 +314,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
                       disabled={isLoading}
                       title="Remove Member"
                       aria-label="Remove Member"
-                      className="p-2 sm:p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
+                      className="p-2 sm:p-1.5 text-gray-400 hover:text-google-red hover:bg-google-red-subtle rounded-lg transition min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -330,7 +330,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
           {isOwner ? (
             <button
               onClick={handleDelete}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer min-h-[40px]"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-google-red hover:bg-google-red-subtle rounded-xl transition cursor-pointer min-h-[40px]"
             >
               <Trash2 className="w-4 h-4" />
               <span>Delete Room</span>
@@ -338,7 +338,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
           ) : (
             <button
               onClick={handleLeave}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer min-h-[40px]"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-google-red hover:bg-google-red-subtle rounded-xl transition cursor-pointer min-h-[40px]"
             >
               <LogOut className="w-4 h-4" />
               <span>Leave Room</span>

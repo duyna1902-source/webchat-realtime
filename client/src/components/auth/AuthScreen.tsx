@@ -154,7 +154,7 @@ export const AuthScreen: React.FC = () => {
                   {error && !isRegister && (
                     <div
                       role="alert"
-                      className="p-2 rounded-xl bg-red-50 border border-red-200 flex items-center gap-1.5 text-red-700 text-xs shrink-0"
+                      className="p-2 rounded-xl bg-google-red-subtle border border-google-red/20 flex items-center gap-1.5 text-google-red text-xs shrink-0"
                     >
                       <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate">{error}</span>
@@ -242,7 +242,7 @@ export const AuthScreen: React.FC = () => {
                   {error && isRegister && (
                     <div
                       role="alert"
-                      className="p-1.5 rounded-xl bg-red-50 border border-red-200 flex items-center gap-1.5 text-red-700 text-xs shrink-0"
+                      className="p-1.5 rounded-xl bg-google-red-subtle border border-google-red/20 flex items-center gap-1.5 text-google-red text-xs shrink-0"
                     >
                       <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate">{error}</span>
