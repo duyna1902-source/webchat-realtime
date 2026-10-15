@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DirectChatListItemDto, RoomListItemDto, UserDto, RoomRole } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { CreateRoomModal } from '../room/CreateRoomModal';
+import { getAvatarColorClass } from '../../utils/avatarColor';
 import {
   Search,
   Plus,
@@ -177,7 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 setSearchQuery(e.target.value);
                 if (activeTab === 'direct') setShowUserSearchModal(true);
               }}
-              className="w-full pl-7 pr-3 py-1 bg-white rounded-full text-xs text-google-grey900 placeholder-google-grey700 focus:outline-none focus:ring-1 focus:ring-google-blue border border-google-grey300 transition-all"
+              className="w-full pl-7 pr-3 py-1 bg-white rounded-full text-xs text-google-grey900 placeholder-google-grey700 focus:outline-none focus:ring-1 focus:ring-google-blue focus:border-google-blue border border-google-grey300 transition-all"
             />
             {searchQuery && (
               <button
@@ -243,7 +244,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   disabled={isStartingChat}
                   className="w-full flex items-center gap-3 p-2 hover:bg-indigo-100/70 rounded-lg text-left transition cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-full bg-indigo-200 text-indigo-800 font-bold flex items-center justify-center text-xs">
+                  <div className={`w-8 h-8 rounded-full font-bold flex items-center justify-center text-xs shadow-xs ${getAvatarColorClass(user.username)}`}>
                     {user.username.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="truncate flex-1">
@@ -272,7 +273,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {isLoadingChats ? (
               <div className="py-8 flex flex-col items-center justify-center gap-2 text-gray-400">
-                <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                <Loader2 className="w-5 h-5 animate-spin text-google-blue" />
                 <span className="text-xs">Loading conversations...</span>
               </div>
             ) : chats.length === 0 ? (
@@ -290,12 +291,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onClick={() => onSelectChat(chat.id)}
                     className={`w-full p-3.5 flex items-start gap-3 text-left transition cursor-pointer ${
                       isSelected
-                        ? 'bg-indigo-50/80 border-r-4 border-indigo-600'
-                        : 'hover:bg-gray-50'
+                        ? 'bg-google-blue-subtle/80 border-r-4 border-google-blue'
+                        : 'hover:bg-google-grey100'
                     }`}
                   >
                     <div className="relative shrink-0">
-                      <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-700 font-semibold flex items-center justify-center text-sm">
+                      <div className={`w-10 h-10 rounded-full font-bold flex items-center justify-center text-sm shadow-xs ${getAvatarColorClass(chat.partner.username)}`}>
                         {chat.partner.username.slice(0, 2).toUpperCase()}
                       </div>
                       <span
@@ -367,11 +368,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onClick={() => onSelectRoom && onSelectRoom(room.id)}
                     className={`w-full p-3.5 flex items-start gap-3 text-left transition cursor-pointer ${
                       isSelected
-                        ? 'bg-indigo-50/80 border-r-4 border-indigo-600'
-                        : 'hover:bg-gray-50'
+                        ? 'bg-google-blue-subtle/80 border-r-4 border-google-blue'
+                        : 'hover:bg-google-grey100'
                     }`}
                   >
-                    <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-sm shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-google-blue-subtle text-google-blue font-bold flex items-center justify-center text-sm shrink-0">
                       <Hash className="w-5 h-5" />
                     </div>
 
@@ -395,7 +396,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             Owner
                           </span>
                         ) : isAdmin ? (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-indigo-50 text-indigo-700 rounded border border-indigo-200">
+                          <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-google-blue-subtle text-google-blue rounded border border-google-blue/30">
                             Admin
                           </span>
                         ) : null}
@@ -447,7 +448,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }
         }}
         aria-label={activeTab === 'direct' ? 'Start new direct chat' : 'Create new room'}
-        className="md:hidden fixed bottom-6 right-6 z-30 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-full shadow-2xl flex items-center justify-center transition cursor-pointer border-2 border-white focus:outline-none"
+        className="md:hidden fixed bottom-6 right-6 z-30 w-14 h-14 bg-google-blue hover:bg-google-blue-hover active:scale-95 text-white rounded-full shadow-2xl flex items-center justify-center transition cursor-pointer border-2 border-white focus:outline-none"
       >
         <Plus className="w-7 h-7" />
       </button>

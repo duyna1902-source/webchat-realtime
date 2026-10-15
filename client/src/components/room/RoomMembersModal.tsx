@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RoomDetailDto, RoomRole, UserDto } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
+import { getAvatarColorClass } from '../../utils/avatarColor';
 import {
   X,
   Users,
@@ -186,7 +187,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
                 placeholder="Search username or email to add..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 focus:border-indigo-500 rounded-xl text-base sm:text-xs outline-none transition"
+                className="w-full pl-9 pr-4 py-2 bg-white border border-google-grey300 focus:border-google-blue focus:ring-1 focus:ring-google-blue rounded-full text-base sm:text-xs outline-none transition"
               />
             </div>
 
@@ -239,7 +240,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
               >
                 {/* Member Info */}
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 font-semibold flex items-center justify-center text-xs shrink-0">
+                  <div className={`w-9 h-9 rounded-full font-semibold flex items-center justify-center text-xs shrink-0 shadow-xs ${getAvatarColorClass(member.user.username)}`}>
                     {member.user.username.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="min-w-0 truncate">
