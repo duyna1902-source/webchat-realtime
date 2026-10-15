@@ -194,3 +194,138 @@ describe('Responsive Master-Detail Navigation (Ticket 01)', () => {
     });
   });
 });
+
+describe('Desktop Dual-Pane Layout & Fixed Sidebar Width (Ticket 01)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/direct-chats')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              id: 'chat-1',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              partner: {
+                id: 'user-bob',
+                username: 'bob',
+                email: 'bob@example.com',
+                isOnline: true,
+              },
+              unreadCount: 0,
+            },
+          ],
+        });
+      }
+      if (url.includes('/api/rooms')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              id: 'room-1',
+              name: 'General Discussion',
+              description: 'General chat room',
+              ownerId: 'user-alice',
+              role: 'OWNER',
+              memberCount: 2,
+              unreadCount: 0,
+            },
+          ],
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({}),
+      });
+    });
+  });
+
+  const renderDashboard = () => {
+    const authValue: any = {
+      currentUser: mockUser,
+      token: 'token-xyz',
+      isLoading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+    };
+
+    const socketValue: any = {
+      socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
+      isConnected: true,
+      isConnecting: false,
+      isReconnecting: false,
+      connectionError: null,
+    };
+
+    return render(
+      <AuthContext.Provider value={authValue}>
+        <SocketContext.Provider value={socketValue}>
+          <Dashboard />
+        </SocketContext.Provider>
+      </AuthContext.Provider>
+    );
+  };
+
+  it('configures 88 spacing scale (22rem / 352px) in Tailwind CSS config', async () => {
+    // @ts-expect-error tailwind.config.js has no type declarations
+    const tailwindConfig = await import('../../../tailwind.config.js');
+    expect(tailwindConfig.default.theme?.extend?.spacing?.['88']).toBe('22rem');
+  });
+
+  it('renders dual-pane layout on initial desktop load with fixed 352px sidebar and idle Direct Chat placeholder', async () => {
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('bob')).toBeInTheDocument();
+    });
+
+    const sidebar = screen.getByRole('complementary');
+    // On desktop, md:w-88 enforces 352px fixed width
+    expect(sidebar.className).toMatch(/md:w-88/);
+    // On mobile, w-full ensures full-width list
+    expect(sidebar.className).toMatch(/w-full/);
+
+    // Detail pane is rendered side-by-side (flex on md:)
+    const chatAreaContainer = screen.getByTestId('chat-area-container');
+    expect(chatAreaContainer.className).toMatch(/md:flex/);
+
+    // Displays the idle Direct Chat placeholder
+    expect(
+      screen.getByRole('heading', { name: /real-time direct messaging/i })
+    ).toBeInTheDocument();
+  });
+
+  it('keeps sidebar fixed at 352px width (md:w-88) without collapsing or layout shift when selecting chat or room', async () => {
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('bob')).toBeInTheDocument();
+    });
+
+    const sidebar = screen.getByRole('complementary');
+    expect(sidebar.className).toMatch(/md:w-88/);
+
+    // Click Bob's chat
+    const chatItem = screen.getByText('bob').closest('div[role="button"]') || screen.getByText('bob');
+    fireEvent.click(chatItem);
+
+    await waitFor(() => {
+      // Sidebar maintains md:w-88 on desktop
+      expect(sidebar.className).toMatch(/md:w-88/);
+    });
+
+    // Back to master list
+    const backBtn = screen.getByRole('button', { name: /back to chats/i });
+    fireEvent.click(backBtn);
+
+    await waitFor(() => {
+      expect(sidebar.className).toMatch(/md:w-88/);
+      expect(sidebar.className).toMatch(/w-full/);
+    });
+  });
+});
+
