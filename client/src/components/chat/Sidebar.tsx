@@ -31,6 +31,7 @@ interface SidebarProps {
   isLoadingRooms?: boolean;
   activeTab?: 'direct' | 'room';
   onTabChange?: (tab: 'direct' | 'room') => void;
+  className?: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -46,6 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isLoadingRooms = false,
   activeTab: externalActiveTab,
   onTabChange,
+  className = '',
 }) => {
   const { currentUser, token, logout } = useAuth();
   const { isConnected, isConnecting } = useSocket();
@@ -129,7 +131,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   );
 
   return (
-    <aside className="w-80 md:w-88 bg-white border-r border-gray-200 flex flex-col h-full shrink-0">
+    <aside className={`bg-white border-r border-gray-200 flex flex-col h-full shrink-0 ${className || 'w-80 md:w-88'}`}>
       {/* Current User Header */}
       <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50">
         <div className="flex items-center gap-3 overflow-hidden">
