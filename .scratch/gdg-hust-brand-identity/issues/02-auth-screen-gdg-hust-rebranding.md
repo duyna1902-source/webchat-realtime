@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Setup Cropped Brand Assets and Google Design Tokens
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Authentication card header renders a solid Google Blue `#4285F4` block (160px) with a 56×56px white rounded badge (`rounded-2xl`) containing the sharp GDG `<>` mark.
 - [ ] Primary title on the authentication card displays "GDG-HUST" and subtitle displays "Google Developer Groups on Campus • Hanoi University of Science and Technology".

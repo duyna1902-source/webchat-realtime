@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Setup Cropped Brand Assets and Google Design Tokens
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Top navigation bar height is constrained to a slim 42px (`h-11`).
 - [ ] Brand lockup renders the 28×28px GDG `<>` code bracket logo and "GDG-HUST" title on a single line with `whitespace-nowrap`, never wrapping into multiple lines on mobile screens down to 320px.
