@@ -307,6 +307,10 @@ export const Dashboard: React.FC = () => {
               isLoadingOlder={isLoadingOlderDirect}
               onLoadOlderMessages={loadOlderDirectMessages}
               onSendMessage={sendDirectMessage}
+              onBack={() => {
+                setActiveChatId(null);
+                setActiveRoomId(null);
+              }}
             />
           )}
         </div>
