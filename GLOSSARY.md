@@ -1,8 +1,29 @@
-# Web Chat Real-Time
+# GDG-HUST Realtime Chat
 
-Hệ thống nhắn tin hai chiều thời gian thực hỗ trợ trò chuyện trực tiếp (1-1) và theo phòng (room chat).
+Hệ thống nhắn tin hai chiều thời gian thực dành cho cộng đồng sinh viên công nghệ Google Developer Groups on Campus • Hanoi University of Science and Technology (GDG-HUST), hỗ trợ trò chuyện trực tiếp (1-1) và theo phòng (room chat).
 
 ## Language
+
+**GDG Brand Identity**:
+Tập hợp các yếu tố nhận diện chính thức của cộng đồng công nghệ `GDG-HUST`, bao gồm biểu trưng góc mở đóng (`<>` bracket mark), tiêu đề định danh rút gọn "GDG-HUST" và tên phân hiệu học xá đầy đủ "Google Developer Groups on Campus • Hanoi University of Science and Technology".
+_Avoid_: Generic Chat Brand, Web Chat Real-Time
+
+**Zero-Shift Auth Architecture**:
+Kiến trúc bố cục giao diện xác thực không xê dịch, cố định chiều cao thẻ đăng nhập (rigid 540px card height), khung chứa biểu mẫu cố định (fixed 275px form container), và ghim nút hành động chính ở tọa độ cố định, đảm bảo 0px layout displacement (hoàn toàn không giật, nhảy khung hình) khi chuyển đổi qua lại giữa tab Đăng nhập và Đăng ký.
+_Avoid_: Bouncing form layout, Variable-height auth card, Dynamic auth jumping
+
+**Google Palette Semantics**:
+Hệ thống mã màu chuẩn hóa theo ngôn ngữ thiết kế Google áp dụng xuyên suốt ứng dụng, gồm Google Blue (`#4285F4` - hành động chính, tab kích hoạt, bong bóng tin nhắn đi), Google Red (`#EA4335` - cảnh báo, đăng xuất, xóa phòng), Google Yellow (`#FBBC04` - vai trò phòng, cảnh báo kết nối lại), Google Green (`#34A853` - trạng thái trực tuyến, kết nối socket), và Google Greys (`#F1F3F4` / `#F8F9FA` / `#202124` - nền giao diện, bong bóng tin nhắn đến và màu chữ).
+_Avoid_: Indigo theme, Generic palette, Custom arbitrary hex colors
+
+**Deterministic 4-Color Avatar**:
+Hệ thống gán màu đại diện người dùng tự động dựa trên hàm băm (hash) tên đăng nhập hoặc mã người dùng, phân bổ đều và nhất quán theo bốn gam màu chủ đạo của Google (Blue, Red, Yellow, Green) khi người dùng chưa thiết lập ảnh đại diện cá nhân.
+_Avoid_: Monocolor avatar, Random avatar colors, Server-stored color flags
+
+**Ultra-Compact Header**:
+Thanh tiêu đề điều hướng tối giản với chiều cao cố định siêu gọn 42px (`h-11`), hiển thị biểu trưng và tên thương hiệu trên một dòng duy nhất (`whitespace-nowrap`), kết hợp chỉ báo kết nối chấm tròn xanh 8px và nút đăng xuất tinh gọn, giúp tối đa hóa không gian hiển thị nội dung trò chuyện (Maximal Chat Workspace) chiếm trên 85% chiều cao màn hình di động.
+_Avoid_: Bloated multi-line header, Stacked navigation bar
+
 
 **User**:
 Tài khoản người dùng đã được định danh và xác thực qua hệ thống bằng JWT.
