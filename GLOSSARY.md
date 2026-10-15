@@ -70,3 +70,11 @@ _Avoid_: Multi-column mobile layout, Split-screen mobile
 **Dynamic Viewport Height**:
 Đơn vị chiều cao động của màn hình web (`100dvh`), tự động co giãn theo sự xuất hiện của thanh công cụ trình duyệt và bàn phím ảo trên thiết bị di động.
 _Avoid_: Fixed 100vh on mobile
+
+**Dual-Pane Desktop Layout**:
+Bố cục giao diện hiển thị đồng thời hai cột song song trên màn hình máy tính (>= 768px): cột danh sách hội thoại cố định bề rộng và cột không gian trò chuyện chi tiết co giãn.
+_Avoid_: Single-pane desktop, Fullscreen sidebar on desktop
+
+**Persistent Detail View**:
+Cơ chế duy trì hiển thị cuộc trò chuyện đang mở tại cột chi tiết khi người dùng duyệt qua lại giữa các tab danh mục ở cột danh sách, chỉ chuyển đổi khi người dùng chọn một cuộc trò chuyện hoặc phòng mới.
+_Avoid_: Tab-resetting view, Fleeting chat view
