@@ -470,7 +470,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-xl transition cursor-pointer disabled:opacity-50"
+              className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-xl transition cursor-pointer disabled:opacity-50 min-w-[40px] min-h-[40px] flex items-center justify-center"
               title="Attach file"
               aria-label="Attach file"
             >
@@ -482,7 +482,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker((prev) => !prev)}
-                className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+                className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-xl transition cursor-pointer min-w-[40px] min-h-[40px] flex items-center justify-center"
                 title="Choose emoji"
                 aria-label="Choose emoji"
               >
@@ -499,7 +499,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <button
               type="button"
               onClick={() => setShowGifModal(true)}
-              className="px-2.5 py-1 text-xs font-bold text-gray-600 hover:text-indigo-600 hover:bg-gray-100 rounded-xl border border-gray-200 transition cursor-pointer flex items-center gap-1 shrink-0"
+              className="px-2.5 py-1 text-xs font-bold text-gray-600 hover:text-indigo-600 hover:bg-gray-100 rounded-xl border border-gray-200 transition cursor-pointer flex items-center gap-1 shrink-0 min-h-[40px]"
               title="Search animated GIFs"
               aria-label="Search animated GIFs"
             >
@@ -523,14 +523,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   ? 'Add a caption (optional)...'
                   : `Message @${activeChat.partner.username}...`
               }
-              className="w-full bg-transparent resize-none outline-none text-sm text-gray-900 placeholder-gray-400 max-h-32"
+              className="w-full bg-transparent resize-none outline-none text-base sm:text-sm text-gray-900 placeholder-gray-400 max-h-24"
             />
           </div>
 
           <button
             type="submit"
             disabled={(!inputText.trim() && !selectedFile) || !isConnected || isUploading}
-            className="p-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shrink-0 cursor-pointer shadow-sm flex items-center justify-center"
+            className="p-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shrink-0 cursor-pointer shadow-sm flex items-center justify-center min-w-[40px] min-h-[40px]"
             title="Send message"
             aria-label="Send message"
           >

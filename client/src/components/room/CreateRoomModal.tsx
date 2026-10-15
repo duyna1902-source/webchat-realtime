@@ -41,8 +41,8 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -52,7 +52,8 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition"
+            className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer"
+            aria-label="Close modal"
           >
             <X className="w-5 h-5" />
           </button>
@@ -76,7 +77,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={isSubmitting}
-              className="w-full px-3.5 py-2.5 bg-gray-50 focus:bg-white border border-gray-200 focus:border-indigo-500 rounded-xl text-sm outline-none transition"
+              className="w-full px-3.5 py-2.5 bg-gray-50 focus:bg-white border border-gray-200 focus:border-indigo-500 rounded-xl text-base sm:text-sm outline-none transition"
               autoFocus
             />
           </div>
@@ -92,7 +93,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               disabled={isSubmitting}
-              className="w-full px-3.5 py-2 bg-gray-50 focus:bg-white border border-gray-200 focus:border-indigo-500 rounded-xl text-sm outline-none transition resize-none"
+              className="w-full px-3.5 py-2 bg-gray-50 focus:bg-white border border-gray-200 focus:border-indigo-500 rounded-xl text-base sm:text-sm outline-none transition resize-none"
             />
           </div>
 
