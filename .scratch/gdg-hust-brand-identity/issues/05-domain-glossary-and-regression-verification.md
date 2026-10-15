@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: Auth Screen Variant B Rebranding with Zero-Shift Architecture, 03: Ultra-Compact Dashboard Header and Maximal Chat Workspace, 04: Mobile Master-Detail Navigation and Google Material Chat Experience
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Project domain glossary (`GLOSSARY.md`) context title is updated to "GDG-HUST Realtime Chat" with vocabulary for GDG identity, zero-shift auth layout, and Google color semantics.
 - [ ] Complete client test suite (`npm run test:client`) passes with zero failures.
