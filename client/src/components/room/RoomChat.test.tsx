@@ -400,4 +400,35 @@ describe('Room Chat Client Components', () => {
 
     expect(await screen.findByText(/bob_admin is typing\.\.\./i)).toBeInTheDocument();
   });
+
+  it('renders a mobile Back button in RoomChatArea when onBack is provided, hidden on desktop, and invokes callback on click', () => {
+    const onBack = vi.fn();
+
+    render(
+      <AuthContext.Provider value={{ currentUser: mockUser, token: 'tok' } as any}>
+        <SocketContext.Provider value={{ socket: null, isConnected: true } as any}>
+          <RoomChatArea
+            activeRoom={mockRoom}
+            roomDetails={null}
+            messages={[]}
+            isLoadingMessages={false}
+            onSendMessage={vi.fn()}
+            onAddMember={vi.fn()}
+            onRemoveMember={vi.fn()}
+            onChangeRole={vi.fn()}
+            onLeaveRoom={vi.fn()}
+            onDeleteRoom={vi.fn()}
+            onBack={onBack}
+          />
+        </SocketContext.Provider>
+      </AuthContext.Provider>
+    );
+
+    const backButton = screen.getByRole('button', { name: /back to chats/i });
+    expect(backButton).toBeInTheDocument();
+    expect(backButton.className).toMatch(/md:hidden/);
+
+    fireEvent.click(backButton);
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
 });

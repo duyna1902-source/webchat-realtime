@@ -29,6 +29,7 @@ import {
   Paperclip,
   AlertCircle,
   X,
+  ChevronLeft,
 } from 'lucide-react';
 
 interface RoomChatAreaProps {
@@ -45,6 +46,7 @@ interface RoomChatAreaProps {
   onChangeRole: (userId: string, role: RoomRole.ADMIN | RoomRole.MEMBER) => Promise<void>;
   onLeaveRoom: () => Promise<void>;
   onDeleteRoom: () => Promise<void>;
+  onBack?: () => void;
 }
 
 export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
@@ -61,6 +63,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   onChangeRole,
   onLeaveRoom,
   onDeleteRoom,
+  onBack,
 }) => {
   const { currentUser, token } = useAuth();
   const { isConnected } = useSocket();
@@ -263,13 +266,24 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
     );
   }
 
-  const memberCount = roomDetails?.members.length ?? activeRoom.memberCount;
+  const memberCount = roomDetails?.members?.length ?? activeRoom.memberCount;
 
   return (
     <main className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden">
       {/* Active Room Header */}
-      <header className="px-6 py-3.5 bg-white border-b border-gray-200 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-3 min-w-0">
+      <header className="px-4 sm:px-6 py-3 bg-white border-b border-gray-200 flex items-center justify-between shadow-xs">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              aria-label="Back to chats"
+              className="md:hidden -ml-1 p-2 rounded-xl text-gray-600 hover:text-indigo-600 hover:bg-gray-100 active:bg-gray-200 transition flex items-center gap-0.5 min-w-[40px] min-h-[40px] justify-center cursor-pointer shrink-0"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              <span className="text-xs font-semibold hidden xs:inline">Chats</span>
+            </button>
+          )}
           <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white font-bold flex items-center justify-center text-base shadow-sm shrink-0">
             <Hash className="w-5 h-5" />
           </div>
