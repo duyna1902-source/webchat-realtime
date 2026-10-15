@@ -102,14 +102,14 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition"
+              className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition min-h-[40px] flex items-center justify-center cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting || !name.trim()}
-              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition flex items-center gap-2 shadow-sm"
+              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition flex items-center gap-2 shadow-sm min-h-[40px] cursor-pointer"
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>Create Room</span>

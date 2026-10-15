@@ -176,7 +176,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             handleTabClick('direct');
             setSearchQuery('');
           }}
-          className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+          className={`flex-1 py-2.5 sm:py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer min-h-[40px] ${
             activeTab === 'direct'
               ? 'bg-white text-indigo-700 shadow-xs border border-gray-200/60'
               : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
@@ -190,7 +190,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             handleTabClick('room');
             setSearchQuery('');
           }}
-          className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+          className={`flex-1 py-2.5 sm:py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer min-h-[40px] ${
             activeTab === 'room'
               ? 'bg-white text-indigo-700 shadow-xs border border-gray-200/60'
               : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
@@ -472,6 +472,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }}
         />
       )}
+
+      {/* Mobile Floating Action Button (FAB) */}
+      <button
+        type="button"
+        data-testid="mobile-fab-button"
+        onClick={() => {
+          if (activeTab === 'direct') {
+            setShowUserSearchModal(true);
+          } else {
+            setShowCreateRoomModal(true);
+          }
+        }}
+        aria-label={activeTab === 'direct' ? 'Start new direct chat' : 'Create new room'}
+        className="md:hidden fixed bottom-6 right-6 z-30 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-full shadow-2xl flex items-center justify-center transition cursor-pointer border-2 border-white focus:outline-none"
+      >
+        <Plus className="w-7 h-7" />
+      </button>
     </aside>
   );
 };
