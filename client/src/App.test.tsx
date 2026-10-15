@@ -1,40 +1,107 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import App from './App';
 
-describe('Client Authentication Flow', () => {
+describe('GDG-HUST Auth Screen & Zero-Shift Authentication Flow', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.restoreAllMocks();
   });
 
-  it('renders login form by default when not logged in', () => {
+  it('renders GDG-HUST branded header with logo, title, and subtitle', () => {
     render(<App />);
 
-    expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/email or username/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+    // Primary title and subtitle
+    const heading = screen.getByRole('heading', { level: 1, name: /gdg-hust/i });
+    expect(heading).toBeInTheDocument();
+    expect(
+      screen.getByText(/Google Developer Groups on Campus • Hanoi University of Science and Technology/i)
+    ).toBeInTheDocument();
+
+    // Sharp GDG brackets logo badge
+    const logoImg = screen.getByAltText(/gdg logo/i);
+    expect(logoImg).toBeInTheDocument();
+    expect(logoImg).toHaveAttribute('src', '/assets/brand/logo-gdg-clean.webp');
+
+    // Solid Google Blue header block (160px)
+    const headerBlock = heading.closest('div');
+    expect(headerBlock).toHaveClass('bg-google-blue');
+    expect(headerBlock).toHaveStyle({ height: '160px' });
   });
 
-  it('can switch between Login and Register tabs', () => {
+  it('renders rigid zero-shift layout with single pill toggle and no bottom toggle link', () => {
     render(<App />);
 
-    const registerTab = screen.getByRole('button', { name: /create account/i });
-    fireEvent.click(registerTab);
+    // Rigid card container locked to 540px (max 90vh)
+    const cardContainer = screen.getByRole('heading', { level: 1, name: /gdg-hust/i }).closest('.auth-card-lock');
+    expect(cardContainer).toBeInTheDocument();
+    expect(cardContainer).toHaveStyle({ height: '540px', maxHeight: '90vh' });
 
-    expect(screen.getByRole('heading', { name: /create account/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^password/i)).toBeInTheDocument();
+    // Single pill toggle at the top of the body
+    const signInTab = screen.getByRole('tab', { name: /^sign in$/i });
+    const createAccountTab = screen.getByRole('tab', { name: /^create account$/i });
+    expect(signInTab).toBeInTheDocument();
+    expect(createAccountTab).toBeInTheDocument();
 
-    const loginTab = screen.getByRole('button', { name: /already have an account\? sign in/i });
-    fireEvent.click(loginTab);
+    // Redundant bottom toggle text link is completely removed
+    expect(screen.queryByText(/already have an account\?/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/don't have an account\?/i)).not.toBeInTheDocument();
 
-    expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument();
+    // Rigid form container locked to 275px
+    const formContainer = screen.getByTestId('auth-form-container');
+    expect(formContainer).toBeInTheDocument();
+    expect(formContainer).toHaveStyle({ height: '275px' });
+
+    // In Sign In mode: Sign In submit button is present
+    const signInSubmitBtn = screen.getByRole('button', { name: /sign in to gdg-hust/i });
+    expect(signInSubmitBtn).toBeInTheDocument();
   });
 
-  it('submits registration and logs into Dashboard', async () => {
+  it('can toggle between Sign In and Create Account tabs with zero shift', () => {
+    render(<App />);
+
+    const signInTab = screen.getByRole('tab', { name: /^sign in$/i });
+    const createAccountTab = screen.getByRole('tab', { name: /^create account$/i });
+
+    // Initial state: Sign In is active
+    expect(signInTab).toHaveAttribute('aria-selected', 'true');
+    expect(createAccountTab).toHaveAttribute('aria-selected', 'false');
+
+    const signInPanel = document.getElementById('panel-signin')!;
+    const registerPanel = document.getElementById('panel-register')!;
+    expect(signInPanel).not.toHaveClass('hidden');
+    expect(registerPanel).toHaveClass('hidden');
+
+    // Switch to Create Account
+    fireEvent.click(createAccountTab);
+
+    expect(createAccountTab).toHaveAttribute('aria-selected', 'true');
+    expect(signInTab).toHaveAttribute('aria-selected', 'false');
+    expect(registerPanel).not.toHaveClass('hidden');
+    expect(signInPanel).toHaveClass('hidden');
+
+    // Create Account fields within registerPanel
+    expect(within(registerPanel).getByLabelText(/^username$/i)).toBeInTheDocument();
+    expect(within(registerPanel).getByLabelText(/email address/i)).toBeInTheDocument();
+    expect(within(registerPanel).getByLabelText(/^password$/i)).toBeInTheDocument();
+
+    // Create Account submit button is visible and fully accessible
+    const createAccountSubmitBtn = within(registerPanel).getByRole('button', { name: /create gdg-hust account/i });
+    expect(createAccountSubmitBtn).toBeInTheDocument();
+
+    // Switch back to Sign In
+    fireEvent.click(signInTab);
+    expect(signInTab).toHaveAttribute('aria-selected', 'true');
+    expect(createAccountTab).toHaveAttribute('aria-selected', 'false');
+    expect(signInPanel).not.toHaveClass('hidden');
+    expect(registerPanel).toHaveClass('hidden');
+
+    // Redundant bottom link remains completely absent
+    expect(screen.queryByText(/already have an account\?/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/don't have an account\?/i)).not.toBeInTheDocument();
+  });
+
+  it('submits registration with Create GDG-HUST Account button and logs into Dashboard', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -42,7 +109,7 @@ describe('Client Authentication Flow', () => {
         user: {
           id: 'user-1',
           username: 'alice_client',
-          email: 'alice@example.com',
+          email: 'alice@gdghust.dev',
           isOnline: true,
           lastSeenAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
@@ -53,14 +120,15 @@ describe('Client Authentication Flow', () => {
 
     render(<App />);
 
-    // Switch to register
-    fireEvent.click(screen.getByRole('button', { name: /create account/i }));
+    // Switch to register tab
+    fireEvent.click(screen.getByRole('tab', { name: /^create account$/i }));
 
-    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: 'alice_client' } });
-    fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: 'alice@example.com' } });
-    fireEvent.change(screen.getByLabelText(/^password/i), { target: { value: 'Secret123!' } });
+    const registerPanel = document.getElementById('panel-register')!;
+    fireEvent.change(within(registerPanel).getByLabelText(/^username$/i), { target: { value: 'alice_client' } });
+    fireEvent.change(within(registerPanel).getByLabelText(/email address/i), { target: { value: 'alice@gdghust.dev' } });
+    fireEvent.change(within(registerPanel).getByLabelText(/^password$/i), { target: { value: 'Secret123!' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /sign up/i }));
+    fireEvent.click(within(registerPanel).getByRole('button', { name: /create gdg-hust account/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/welcome, alice_client/i)).toBeInTheDocument();
@@ -69,7 +137,7 @@ describe('Client Authentication Flow', () => {
     expect(localStorage.getItem('webchat_token')).toBe('fake-jwt-token-123');
   });
 
-  it('submits login and logs into Dashboard', async () => {
+  it('submits login with Sign In to GDG-HUST button and logs into Dashboard', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -77,7 +145,7 @@ describe('Client Authentication Flow', () => {
         user: {
           id: 'user-2',
           username: 'bob_client',
-          email: 'bob@example.com',
+          email: 'bob@gdghust.dev',
           isOnline: true,
           lastSeenAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
@@ -88,10 +156,11 @@ describe('Client Authentication Flow', () => {
 
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText(/email or username/i), { target: { value: 'bob_client' } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'Password123!' } });
+    const signInPanel = document.getElementById('panel-signin')!;
+    fireEvent.change(within(signInPanel).getByLabelText(/email or username/i), { target: { value: 'bob_client' } });
+    fireEvent.change(within(signInPanel).getByLabelText(/^password$/i), { target: { value: 'Password123!' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    fireEvent.click(within(signInPanel).getByRole('button', { name: /sign in to gdg-hust/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/welcome, bob_client/i)).toBeInTheDocument();
@@ -100,14 +169,14 @@ describe('Client Authentication Flow', () => {
     expect(localStorage.getItem('webchat_token')).toBe('fake-jwt-token-login');
   });
 
-  it('can log out from the dashboard', async () => {
+  it('can log out from the dashboard back to GDG-HUST auth screen', async () => {
     localStorage.setItem('webchat_token', 'saved-token');
     localStorage.setItem(
       'webchat_user',
       JSON.stringify({
         id: 'user-3',
         username: 'charlie_client',
-        email: 'charlie@example.com',
+        email: 'charlie@gdghust.dev',
         isOnline: true,
         lastSeenAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
@@ -121,7 +190,7 @@ describe('Client Authentication Flow', () => {
       json: async () => ({
         id: 'user-3',
         username: 'charlie_client',
-        email: 'charlie@example.com',
+        email: 'charlie@gdghust.dev',
         isOnline: true,
         lastSeenAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
@@ -138,6 +207,7 @@ describe('Client Authentication Flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /sign out/i }));
 
     expect(localStorage.getItem('webchat_token')).toBeNull();
-    expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /gdg-hust/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sign in to gdg-hust/i })).toBeInTheDocument();
   });
 });
