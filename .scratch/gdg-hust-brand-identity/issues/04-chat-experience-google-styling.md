@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Setup Cropped Brand Assets and Google Design Tokens, 03: Ultra-Compact Dashboard Header and Maximal Chat Workspace
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] In mobile viewports, tapping any conversation item seamlessly displays the chat detail view with full message history and composer, with zero blank white screens.
 - [ ] Mobile chat view renders a prominent Back button `←` in the header that returns the user to the conversation list upon clicking.
