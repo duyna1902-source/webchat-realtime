@@ -562,4 +562,142 @@ describe('Persistent Detail View Across Sidebar Tab Navigation (Ticket 02)', () 
   });
 });
 
+describe('Mobile Master-Detail Regression & Floating Action Button (Ticket 03)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/direct-chats')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              id: 'chat-1',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              partner: {
+                id: 'user-bob',
+                username: 'bob',
+                email: 'bob@example.com',
+                isOnline: true,
+              },
+              unreadCount: 0,
+            },
+          ],
+        });
+      }
+      if (url.includes('/api/rooms')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              id: 'room-1',
+              name: 'General Discussion',
+              description: 'General chat room',
+              ownerId: 'user-alice',
+              role: 'OWNER',
+              memberCount: 2,
+              unreadCount: 0,
+            },
+          ],
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({}),
+      });
+    });
+  });
+
+  const renderDashboard = () => {
+    const authValue: any = {
+      currentUser: mockUser,
+      token: 'token-xyz',
+      isLoading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+    };
+
+    const socketValue: any = {
+      socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
+      isConnected: true,
+      isConnecting: false,
+      isReconnecting: false,
+      connectionError: null,
+    };
+
+    return render(
+      <AuthContext.Provider value={authValue}>
+        <SocketContext.Provider value={socketValue}>
+          <Dashboard />
+        </SocketContext.Provider>
+      </AuthContext.Provider>
+    );
+  };
+
+  it('renders mobile floating action button (FAB) on master conversation list with md:hidden constraint', async () => {
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('bob')).toBeInTheDocument();
+    });
+
+    const fab = screen.getByTestId('mobile-fab-button');
+    expect(fab).toBeInTheDocument();
+    expect(fab.className).toMatch(/md:hidden/);
+
+    // Switch to rooms tab
+    const roomsTab = screen.getByRole('button', { name: /rooms/i });
+    fireEvent.click(roomsTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('General Discussion')).toBeInTheDocument();
+    });
+
+    const roomFab = screen.getByTestId('mobile-fab-button');
+    expect(roomFab).toBeInTheDocument();
+    expect(roomFab.className).toMatch(/md:hidden/);
+  });
+
+  it('maintains mobile master-detail navigation with full-width chat and working Back button', async () => {
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('bob')).toBeInTheDocument();
+    });
+
+    // Sidebar is full-width when no chat active
+    const sidebar = screen.getByRole('complementary');
+    expect(sidebar.className).toMatch(/w-full/);
+
+    // Click chat
+    const chatItem = screen.getByText('bob').closest('div[role="button"]') || screen.getByText('bob');
+    fireEvent.click(chatItem);
+
+    // On mobile, detail container takes full width and sidebar is hidden
+    await waitFor(() => {
+      expect(sidebar.className).toMatch(/hidden\s+md:flex/);
+      const chatAreaContainer = screen.getByTestId('chat-area-container');
+      expect(chatAreaContainer.className).toMatch(/w-full\s+flex/);
+    });
+
+    // Mobile back button is present and marked md:hidden
+    const backBtn = screen.getByRole('button', { name: /back to chats/i });
+    expect(backBtn).toBeInTheDocument();
+    expect(backBtn.className).toMatch(/md:hidden/);
+
+    // Click back button to return to master list
+    fireEvent.click(backBtn);
+
+    await waitFor(() => {
+      expect(sidebar.className).toMatch(/w-full/);
+      const chatAreaContainer = screen.getByTestId('chat-area-container');
+      expect(chatAreaContainer.className).toMatch(/hidden\s+md:flex/);
+    });
+  });
+});
+
+
 
