@@ -138,4 +138,59 @@ describe('Responsive Master-Detail Navigation (Ticket 01)', () => {
       expect(chatAreaContainer.className).toMatch(/hidden\s+md:flex/);
     });
   });
+
+  it('hides Sidebar on mobile and displays RoomChatArea when a room is selected, then returns on Back click', async () => {
+    (global.fetch as any).mockImplementation((url: string) => {
+      if (url.includes('/api/direct-chats')) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      if (url.includes('/api/rooms')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              id: 'room-1',
+              name: 'General Discussion',
+              description: 'General chat room',
+              ownerId: 'user-alice',
+              role: 'OWNER',
+              memberCount: 2,
+              unreadCount: 0,
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    renderDashboard();
+
+    const roomsTab = screen.getByRole('button', { name: /rooms/i });
+    fireEvent.click(roomsTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('General Discussion')).toBeInTheDocument();
+    });
+
+    const roomItem = screen.getByText('General Discussion').closest('div[role="button"]') || screen.getByText('General Discussion');
+    fireEvent.click(roomItem);
+
+    await waitFor(() => {
+      const sidebar = screen.getByRole('complementary');
+      expect(sidebar.className).toMatch(/hidden\s+md:flex/);
+
+      const chatAreaContainer = screen.getByTestId('chat-area-container');
+      expect(chatAreaContainer.className).toMatch(/flex/);
+    });
+
+    const backBtn = screen.getByRole('button', { name: /back to chats/i });
+    expect(backBtn).toBeInTheDocument();
+    expect(backBtn.className).toMatch(/md:hidden/);
+    fireEvent.click(backBtn);
+
+    await waitFor(() => {
+      const sidebar = screen.getByRole('complementary');
+      expect(sidebar.className).toMatch(/w-full/);
+    });
+  });
 });

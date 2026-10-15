@@ -297,6 +297,10 @@ export const Dashboard: React.FC = () => {
               onChangeRole={changeRole}
               onLeaveRoom={handleLeaveRoom}
               onDeleteRoom={handleDeleteRoom}
+              onBack={() => {
+                setActiveChatId(null);
+                setActiveRoomId(null);
+              }}
             />
           ) : (
             <ChatArea
