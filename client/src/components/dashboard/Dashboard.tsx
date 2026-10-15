@@ -8,7 +8,7 @@ import { useRoomMessages } from '../../hooks/useRoomMessages';
 import { Sidebar } from '../chat/Sidebar';
 import { ChatArea } from '../chat/ChatArea';
 import { RoomChatArea } from '../room/RoomChatArea';
-import { MessageSquare, LogOut, Bell, BellOff } from 'lucide-react';
+import { LogOut, Bell, BellOff } from 'lucide-react';
 import {
   SOCKET_EVENTS,
   DirectReceiveMessagePayload,
@@ -186,76 +186,97 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="h-[100dvh] flex flex-col bg-gray-100 overflow-hidden">
-      {/* Top Navigation Bar */}
-      <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-2.5 flex items-center justify-between shrink-0 z-10">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shrink-0">
-            <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5" />
+      {/* Top Navigation Bar (Slim 42px h-11, Single Line GDG-HUST Lockup) */}
+      <header className="bg-white border-b border-google-grey300 px-3 sm:px-4 h-11 flex items-center justify-between shrink-0 z-20">
+        {/* GDG-HUST Brand Lockup (Guaranteed never to wrap on mobile down to 320px) */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-white border border-google-grey300 flex items-center justify-center p-0.5 shadow-xs shrink-0">
+            <img
+              src="/assets/brand/logo-gdg-clean.webp"
+              alt="GDG Logo"
+              className="w-full h-full object-contain"
+            />
           </div>
-          <div>
-            <h1 className="text-sm sm:text-base font-bold text-gray-900 leading-tight">Web Chat Real-Time</h1>
-            <p className="text-xs text-indigo-600 font-medium hidden sm:block">Welcome, {currentUser.username}!</p>
-          </div>
+          <span className="text-sm font-bold text-gray-900 tracking-tight whitespace-nowrap">
+            GDG-HUST
+          </span>
+          <span className="hidden md:inline-block text-xs text-google-blue font-medium border-l border-google-grey300 pl-2.5 ml-0.5">
+            Welcome, {currentUser.username}!
+          </span>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Right Navigation Controls */}
+        <div className="flex items-center gap-2 shrink-0">
           {/* Notification Toggle Button */}
           <button
             type="button"
             data-testid="notification-toggle-btn"
             onClick={handleToggleNotifications}
-            className={`px-2.5 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs ${
+            className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition cursor-pointer ${
               notificationsEnabled
-                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
-                : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+                ? 'bg-google-blue-subtle text-google-blue hover:bg-google-blue-subtle/80'
+                : 'text-google-grey700 hover:bg-google-grey100'
             }`}
             title={notificationsEnabled ? 'Notifications enabled' : 'Notifications disabled'}
             aria-label="Toggle notifications"
           >
             {notificationsEnabled ? (
-              <Bell className="w-4 h-4 text-indigo-600" />
+              <Bell className="w-4 h-4 shrink-0" />
             ) : (
-              <BellOff className="w-4 h-4 text-gray-400" />
+              <BellOff className="w-4 h-4 shrink-0" />
             )}
-            <span className="hidden md:inline">
-              {notificationsEnabled ? 'Notifications On' : 'Notifications Off'}
-            </span>
           </button>
 
-          {/* Socket Connection Badge */}
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border border-gray-200 bg-gray-50">
-            {isConnected ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-emerald-700 hidden sm:inline">Socket Connected</span>
-              </>
-            ) : isReconnecting ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                <span className="text-amber-700 hidden sm:inline">Reconnecting...</span>
-              </>
-            ) : isConnecting ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                <span className="text-amber-700 hidden sm:inline">Connecting...</span>
-              </>
-            ) : (
-              <>
-                <span className="w-2 h-2 rounded-full bg-rose-500" />
-                <span className="text-rose-700 hidden sm:inline">Disconnected</span>
-              </>
-            )}
+          {/* Socket Connection Badge: Compact 8px pulsing dot with text hidden on mobile */}
+          <div
+            data-testid="socket-connection-badge"
+            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+              isConnected
+                ? 'text-google-green bg-google-green-subtle border-google-green/30'
+                : isReconnecting || isConnecting
+                ? 'text-google-yellow bg-google-yellow-subtle border-google-yellow/30'
+                : 'text-google-red bg-google-red-subtle border-google-red/30'
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                isConnected
+                  ? 'bg-google-green animate-pulse'
+                  : isReconnecting || isConnecting
+                  ? 'bg-google-yellow animate-pulse'
+                  : 'bg-google-red'
+              }`}
+            />
+            <span className="hidden sm:inline">
+              {isConnected
+                ? 'Connected'
+                : isReconnecting
+                ? 'Reconnecting...'
+                : isConnecting
+                ? 'Connecting...'
+                : 'Disconnected'}
+            </span>
           </div>
 
-          {/* User Sign Out Button */}
+          {/* Current User 24px Avatar Circle */}
+          <div
+            className="w-6 h-6 rounded-full bg-google-blue text-white text-[10px] font-bold flex items-center justify-center shadow-xs shrink-0"
+            title={`${currentUser.username} (Online)`}
+            aria-label={`${currentUser.username} (Online)`}
+            data-testid="header-user-avatar"
+          >
+            {currentUser.username.slice(0, 2).toUpperCase()}
+          </div>
+
+          {/* User Sign Out Button: Clean icon button on mobile with Google Red hover */}
           <button
             onClick={logout}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+            className="p-1.5 text-google-grey700 hover:text-google-red hover:bg-google-red-subtle rounded-lg transition cursor-pointer flex items-center gap-1"
             title="Sign Out"
             aria-label="Sign Out"
           >
-            <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline">Sign Out</span>
+            <LogOut className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline text-xs font-medium">Sign Out</span>
           </button>
         </div>
       </header>

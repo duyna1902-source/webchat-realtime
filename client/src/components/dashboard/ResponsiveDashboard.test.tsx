@@ -97,7 +97,7 @@ describe('Responsive Master-Detail Navigation (Ticket 01)', () => {
     const { container } = renderDashboard();
 
     await waitFor(() => {
-      expect(screen.getByText('alice')).toBeInTheDocument();
+      expect(screen.getByText(/alice/i)).toBeInTheDocument();
     });
 
     const rootContainer = container.firstElementChild;
@@ -459,5 +459,99 @@ describe('Mobile Master-Detail Regression & Floating Action Button (Ticket 03)',
       const chatAreaContainer = screen.getByTestId('chat-area-container');
       expect(chatAreaContainer.className).toMatch(/hidden\s+md:flex/);
     });
+  });
+});
+
+describe('Ultra-Compact Dashboard Header and Maximal Chat Workspace (Ticket 03)', () => {
+  it('constrains top navigation header to slim 42px height (h-11) with GDG-HUST brand lockup', async () => {
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('GDG-HUST')).toBeInTheDocument();
+    });
+
+    // Header has slim height h-11
+    const header = screen.getByRole('banner');
+    expect(header).toHaveClass('h-11');
+
+    // GDG logo is rendered with 28x28px mark
+    const logoImg = screen.getByAltText('GDG Logo');
+    expect(logoImg).toBeInTheDocument();
+    expect(logoImg).toHaveAttribute('src', '/assets/brand/logo-gdg-clean.webp');
+    expect(logoImg.parentElement).toHaveClass('w-7', 'h-7');
+
+    // Title GDG-HUST has whitespace-nowrap and font-bold
+    const title = screen.getByText('GDG-HUST');
+    expect(title.className).toMatch(/whitespace-nowrap/);
+    expect(title.className).toMatch(/font-bold/);
+    expect(title.className).toMatch(/text-sm/);
+
+    // Welcome greeting is styled in Google Blue and hidden on narrow mobile screens
+    const greeting = screen.getByText(/Welcome, alice!/i);
+    expect(greeting).toBeInTheDocument();
+    expect(greeting.className).toMatch(/text-google-blue/);
+    expect(greeting.className).toMatch(/hidden\s+(md|sm):/);
+  });
+
+  it('renders compact 8px pulsing green socket connection indicator and 24px user avatar in header', async () => {
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('GDG-HUST')).toBeInTheDocument();
+    });
+
+    // Socket connection status badge
+    const statusBadge = screen.getByTestId('socket-connection-badge');
+    expect(statusBadge).toBeInTheDocument();
+
+    // Contains 8px pulsing green dot (w-2 h-2 rounded-full bg-google-green animate-pulse)
+    const dot = statusBadge.querySelector('span.w-2.h-2');
+    expect(dot).toBeInTheDocument();
+    expect(dot).toHaveClass('rounded-full', 'bg-google-green', 'animate-pulse');
+
+    // Text label is hidden on mobile
+    const statusText = screen.getByText('Connected');
+    expect(statusText).toHaveClass('hidden', 'sm:inline');
+
+    // Header displays 24px avatar circle (w-6 h-6 rounded-full bg-google-blue)
+    const avatar = screen.getByTestId('header-user-avatar');
+    expect(avatar).toBeInTheDocument();
+    expect(avatar).toHaveClass('w-6', 'h-6', 'rounded-full', 'bg-google-blue');
+    expect(avatar).toHaveTextContent('AL');
+  });
+
+  it('renders logout button with Google Red hover styling and clean icon on mobile', async () => {
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('GDG-HUST')).toBeInTheDocument();
+    });
+
+    const logoutBtn = screen.getByRole('button', { name: /sign out/i });
+    expect(logoutBtn).toBeInTheDocument();
+    expect(logoutBtn.className).toMatch(/hover:text-google-red/);
+    expect(logoutBtn.className).toMatch(/hover:bg-google-red-subtle/);
+  });
+
+  it('eliminates duplicate user profile header from Sidebar so tabs start directly at top', async () => {
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('GDG-HUST')).toBeInTheDocument();
+    });
+
+    const sidebar = screen.getByRole('complementary');
+
+    // Sidebar should NOT contain a duplicate user profile header or duplicate logout button
+    const sidebarButtons = sidebar.querySelectorAll('button');
+    const sidebarLogoutBtn = Array.from(sidebarButtons).find(btn =>
+      btn.getAttribute('aria-label')?.toLowerCase() === 'log out' ||
+      btn.getAttribute('title')?.toLowerCase() === 'log out'
+    );
+    expect(sidebarLogoutBtn).toBeUndefined();
+
+    // Verify Direct Chats and Rooms tabs are in the sidebar
+    expect(screen.getByRole('button', { name: /direct chats/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /rooms/i })).toBeInTheDocument();
   });
 });
