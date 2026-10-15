@@ -1,6 +1,6 @@
 # Spec: Desktop Dual-Pane Layout and Persistent Conversation Navigation
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
