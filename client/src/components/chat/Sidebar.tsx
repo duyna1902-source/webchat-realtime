@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { DirectChatListItemDto, RoomListItemDto, UserDto, RoomRole } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
-import { useSocket } from '../../context/SocketContext';
 import { CreateRoomModal } from '../room/CreateRoomModal';
 import {
   Search,
   Plus,
   MessageSquare,
-  LogOut,
   Hash,
   X,
   Loader2,
@@ -49,8 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onTabChange,
   className = '',
 }) => {
-  const { currentUser, token, logout } = useAuth();
-  const { isConnected, isConnecting } = useSocket();
+  const { token } = useAuth();
 
   const [internalTab, setInternalTab] = useState<'direct' | 'room'>('direct');
   const activeTab = externalActiveTab ?? internalTab;
@@ -131,125 +128,90 @@ export const Sidebar: React.FC<SidebarProps> = ({
   );
 
   return (
-    <aside className={`bg-white border-r border-gray-200 flex flex-col h-full shrink-0 ${className || 'w-80 md:w-88'}`}>
-      {/* Current User Header */}
-      <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className="relative shrink-0">
-            <div className="w-10 h-10 rounded-full bg-indigo-600 text-white font-semibold flex items-center justify-center text-sm shadow-sm">
-              {currentUser?.username.slice(0, 2).toUpperCase()}
-            </div>
-            <span
-              className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                isConnected ? 'bg-emerald-500' : 'bg-rose-400'
-              }`}
-            />
-          </div>
-          <div className="truncate">
-            <p className="text-sm font-bold text-gray-900 truncate">{currentUser?.username}</p>
-            <p className="text-xs text-gray-500 truncate flex items-center gap-1">
-              {isConnected ? (
-                <span className="text-emerald-600 font-medium">Online</span>
-              ) : isConnecting ? (
-                <span className="text-amber-500 font-medium">Connecting...</span>
-              ) : (
-                <span className="text-gray-400">Offline</span>
-              )}
-            </p>
-          </div>
+    <aside className={`bg-white border-r border-google-grey300 flex flex-col h-full shrink-0 ${className || 'w-80 md:w-88'}`}>
+      {/* Tabs: Direct Chats vs Rooms & Search Bar (Redundant profile header eliminated) */}
+      <div className="p-2.5 border-b border-google-grey200 bg-google-grey50">
+        <div className="flex gap-1 p-0.5 bg-google-grey100 rounded-full border border-google-grey200 mb-2">
+          <button
+            onClick={() => {
+              handleTabClick('direct');
+              setSearchQuery('');
+            }}
+            className={`flex-1 py-1.5 px-3 rounded-full text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              activeTab === 'direct'
+                ? 'bg-white text-google-blue shadow-xs'
+                : 'text-google-grey700 hover:text-google-grey900'
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span>Direct Chats</span>
+          </button>
+          <button
+            onClick={() => {
+              handleTabClick('room');
+              setSearchQuery('');
+            }}
+            className={`flex-1 py-1.5 px-3 rounded-full text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              activeTab === 'room'
+                ? 'bg-white text-google-blue shadow-xs'
+                : 'text-google-grey700 hover:text-google-grey900'
+            }`}
+          >
+            <Hash className="w-3.5 h-3.5" />
+            <span>Rooms</span>
+          </button>
         </div>
 
-        <button
-          onClick={logout}
-          className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-          title="Log out"
-          aria-label="Log out"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Tabs: Direct Chats vs Rooms */}
-      <div className="px-3 pt-3 pb-2 border-b border-gray-100 flex gap-1 bg-gray-50/50">
-        <button
-          onClick={() => {
-            handleTabClick('direct');
-            setSearchQuery('');
-          }}
-          className={`flex-1 py-2.5 sm:py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer min-h-[40px] ${
-            activeTab === 'direct'
-              ? 'bg-white text-indigo-700 shadow-xs border border-gray-200/60'
-              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-          }`}
-        >
-          <MessageSquare className="w-3.5 h-3.5" />
-          <span>Direct Chats</span>
-        </button>
-        <button
-          onClick={() => {
-            handleTabClick('room');
-            setSearchQuery('');
-          }}
-          className={`flex-1 py-2.5 sm:py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer min-h-[40px] ${
-            activeTab === 'room'
-              ? 'bg-white text-indigo-700 shadow-xs border border-gray-200/60'
-              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-          }`}
-        >
-          <Hash className="w-3.5 h-3.5" />
-          <span>Rooms</span>
-        </button>
-      </div>
-
-      {/* Action / Search Bar */}
-      <div className="p-3 border-b border-gray-100 flex gap-2">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder={activeTab === 'direct' ? 'Search or start new chat...' : 'Filter rooms...'}
-            value={searchQuery}
-            onFocus={() => {
-              if (activeTab === 'direct') setShowUserSearchModal(true);
-            }}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              if (activeTab === 'direct') setShowUserSearchModal(true);
-            }}
-            className="w-full pl-9 pr-4 py-2 bg-gray-100 focus:bg-white border border-transparent focus:border-indigo-400 rounded-xl text-sm transition outline-none"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSearchResults([]);
+        {/* Action / Search Bar */}
+        <div className="relative flex items-center gap-1.5">
+          <div className="relative flex-1">
+            <Search className="w-3.5 h-3.5 text-google-grey700 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder={activeTab === 'direct' ? 'Search or start new chat...' : 'Filter rooms...'}
+              value={searchQuery}
+              onFocus={() => {
+                if (activeTab === 'direct') setShowUserSearchModal(true);
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (activeTab === 'direct') setShowUserSearchModal(true);
+              }}
+              className="w-full pl-7 pr-3 py-1 bg-white rounded-full text-xs text-google-grey900 placeholder-google-grey700 focus:outline-none focus:ring-1 focus:ring-google-blue border border-google-grey300 transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setSearchResults([]);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-google-grey700 hover:text-google-grey900"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          {activeTab === 'direct' ? (
+            <button
+              onClick={() => setShowUserSearchModal(true)}
+              className="p-1.5 bg-google-blue-subtle text-google-blue hover:bg-google-blue-subtle/80 rounded-full transition flex items-center justify-center shrink-0 cursor-pointer"
+              title="Start new direct chat"
+              aria-label="Start new direct chat"
             >
-              <X className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowCreateRoomModal(true)}
+              className="p-1.5 bg-google-blue-subtle text-google-blue hover:bg-google-blue-subtle/80 rounded-full transition flex items-center justify-center shrink-0 cursor-pointer"
+              title="Create new room"
+              aria-label="Create new room"
+            >
+              <Plus className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
-
-        {activeTab === 'direct' ? (
-          <button
-            onClick={() => setShowUserSearchModal(true)}
-            className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl transition flex items-center justify-center shrink-0 cursor-pointer"
-            title="Start new direct chat"
-            aria-label="Start new direct chat"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-        ) : (
-          <button
-            onClick={() => setShowCreateRoomModal(true)}
-            className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl transition flex items-center justify-center shrink-0 cursor-pointer"
-            title="Create new room"
-            aria-label="Create new room"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-        )}
       </div>
 
       {/* User Search Overlay / Dropdown (Direct Chats only) */}
