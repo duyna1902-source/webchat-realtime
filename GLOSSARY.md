@@ -63,4 +63,10 @@ _Avoid_: Offset Pagination
 **Presence Grace Period**:
 Khoảng thời gian đệm (5 giây) trước khi chuyển trạng thái người dùng sang Offline khi ngắt kết nối, nhằm tránh nhấp nháy khi tải lại trang.
 
+**Master-Detail Navigation**:
+Cơ chế điều hướng hiển thị luân phiên giữa danh sách hội thoại (Master) và không gian trò chuyện chi tiết (Detail) trên màn hình hẹp (mobile) mà không làm gián đoạn kết nối thời gian thực.
+_Avoid_: Multi-column mobile layout, Split-screen mobile
 
+**Dynamic Viewport Height**:
+Đơn vị chiều cao động của màn hình web (`100dvh`), tự động co giãn theo sự xuất hiện của thanh công cụ trình duyệt và bàn phím ảo trên thiết bị di động.
+_Avoid_: Fixed 100vh on mobile
