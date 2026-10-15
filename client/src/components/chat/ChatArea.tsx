@@ -10,6 +10,7 @@ import { MessageItemContent } from './MessageItemContent';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { SendDirectMessageOptions } from '../../hooks/useDirectMessages';
 import { MobileBackButton } from '../common/MobileBackButton';
+import { getAvatarColorClass } from '../../utils/avatarColor';
 import {
   Send,
   MessageSquare,
@@ -249,8 +250,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   if (!activeChat) {
     return (
-      <main className="flex-1 bg-slate-50 flex flex-col items-center justify-center p-8 text-center text-gray-500">
-        <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center mb-4 shadow-sm">
+      <main className="flex-1 bg-google-grey50 flex flex-col items-center justify-center p-8 text-center text-gray-500">
+        <div className="w-16 h-16 rounded-2xl bg-google-blue-subtle text-google-blue flex items-center justify-center mb-4 shadow-xs">
           <MessageSquare className="w-8 h-8" />
         </div>
         <h2 className="text-xl font-bold text-gray-800 mb-2">Real-Time Direct Messaging</h2>
@@ -262,13 +263,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   }
 
   return (
-    <main className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden">
+    <main className="flex-1 flex flex-col h-full bg-google-grey50/50 overflow-hidden">
       {/* Active Chat Header */}
-      <header className="px-4 sm:px-6 py-3 bg-white border-b border-gray-200 flex items-center justify-between shadow-xs">
+      <header className="px-4 sm:px-6 py-3 bg-white border-b border-google-grey300 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-2 sm:gap-3">
           {onBack && <MobileBackButton onClick={onBack} label="Chats" />}
           <div className="relative">
-            <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-sm">
+            <div className={`w-10 h-10 rounded-full font-bold flex items-center justify-center text-sm shadow-xs ${getAvatarColorClass(activeChat.partner.username)}`}>
               {activeChat.partner.username.slice(0, 2).toUpperCase()}
             </div>
             <span
@@ -331,11 +332,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   className={`max-w-[85%] sm:max-w-md ${
                     isGif
                       ? isMe
-                        ? 'bg-indigo-600/95 text-white p-1 rounded-2xl rounded-br-xs shadow-xs'
-                        : 'bg-white text-gray-900 border border-gray-200 p-1 rounded-2xl rounded-bl-xs shadow-xs'
+                        ? 'bg-google-blue text-white p-1 rounded-2xl rounded-br-xs shadow-xs'
+                        : 'bg-google-grey100 text-google-grey900 border border-google-grey200 p-1 rounded-2xl rounded-bl-xs shadow-xs'
                       : isMe
-                      ? 'bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-br-xs shadow-xs text-sm break-words whitespace-pre-wrap'
-                      : 'bg-white text-gray-900 border border-gray-200 px-4 py-2.5 rounded-2xl rounded-bl-xs shadow-xs text-sm break-words whitespace-pre-wrap'
+                      ? 'bg-google-blue text-white px-4 py-2.5 rounded-2xl rounded-br-xs shadow-xs text-sm break-words whitespace-pre-wrap'
+                      : 'bg-google-grey100 text-google-grey900 border border-google-grey200 px-4 py-2.5 rounded-2xl rounded-bl-xs shadow-xs text-sm break-words whitespace-pre-wrap'
                   }`}
                 >
                   <MessageItemContent
@@ -349,7 +350,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   />
                   <div
                     className={`flex items-center gap-1 text-[10px] mt-1 ${isGif ? 'px-2 pb-1' : ''} ${
-                      isMe ? 'text-indigo-200 justify-end' : 'text-gray-400 justify-start'
+                      isMe ? 'text-white/80 justify-end' : 'text-google-grey700 justify-start'
                     }`}
                   >
                     <span>{formatMessageTime(msg.createdAt)}</span>
@@ -359,7 +360,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           data-testid="status-read"
                           title="Đã xem"
                           aria-label="Đã xem"
-                          className="flex items-center text-sky-400"
+                          className="flex items-center text-sky-300"
                         >
                           <CheckCheck className="w-3.5 h-3.5" />
                         </span>
@@ -368,7 +369,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           data-testid="status-delivered"
                           title="Delivered"
                           aria-label="Delivered"
-                          className="flex items-center text-gray-400"
+                          className="flex items-center text-white/70"
                         >
                           <CheckCheck className="w-3.5 h-3.5" />
                         </span>
@@ -377,7 +378,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           data-testid="status-sent"
                           title="Sent"
                           aria-label="Sent"
-                          className="flex items-center text-gray-400"
+                          className="flex items-center text-white/70"
                         >
                           <Check className="w-3.5 h-3.5" />
                         </span>
@@ -396,12 +397,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             data-testid="typing-indicator"
             className="flex items-center gap-2 text-xs text-gray-500 italic px-2 py-1"
           >
-            <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-full px-3 py-1.5 shadow-xs">
-              <span className="font-medium text-gray-700">{activeChat.partner.username} is typing</span>
+            <div className="flex items-center gap-1.5 bg-white border border-google-grey200 rounded-full px-3 py-1.5 shadow-xs">
+              <span className="font-medium text-google-grey900">{activeChat.partner.username} is typing</span>
               <span className="flex gap-0.5 ml-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.15s]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" />
+                <span className="w-1.5 h-1.5 rounded-full bg-google-blue animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-google-blue animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-google-blue animate-bounce" />
               </span>
             </div>
           </div>
@@ -411,7 +412,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       </div>
 
       {/* Message Input Footer */}
-      <footer className="p-3 sm:p-4 bg-white border-t border-gray-200">
+      <footer className="p-3 sm:p-4 bg-white border-t border-google-grey300">
         {/* Error Alert */}
         {errorMessage && (
           <div
@@ -461,7 +462,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-xl transition cursor-pointer disabled:opacity-50 min-w-[40px] min-h-[40px] flex items-center justify-center"
+              className="p-2 text-google-grey700 hover:text-google-blue hover:bg-google-grey100 rounded-full transition cursor-pointer disabled:opacity-50 min-w-[40px] min-h-[40px] flex items-center justify-center"
               title="Attach file"
               aria-label="Attach file"
             >
@@ -473,7 +474,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker((prev) => !prev)}
-                className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-xl transition cursor-pointer min-w-[40px] min-h-[40px] flex items-center justify-center"
+                className="p-2 text-google-grey700 hover:text-google-blue hover:bg-google-grey100 rounded-full transition cursor-pointer min-w-[40px] min-h-[40px] flex items-center justify-center"
                 title="Choose emoji"
                 aria-label="Choose emoji"
               >
@@ -490,16 +491,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <button
               type="button"
               onClick={() => setShowGifModal(true)}
-              className="px-2.5 py-1 text-xs font-bold text-gray-600 hover:text-indigo-600 hover:bg-gray-100 rounded-xl border border-gray-200 transition cursor-pointer flex items-center gap-1 shrink-0 min-h-[40px]"
+              className="px-2.5 py-1 text-xs font-bold text-google-grey700 hover:text-google-blue hover:bg-google-grey100 rounded-full border border-google-grey300 transition cursor-pointer flex items-center gap-1 shrink-0 min-h-[40px]"
               title="Search animated GIFs"
               aria-label="Search animated GIFs"
             >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+              <Sparkles className="w-3.5 h-3.5 text-google-blue" />
               <span>GIF</span>
             </button>
           </div>
 
-          <div className="flex-1 bg-gray-50 border border-gray-300 focus-within:border-indigo-500 focus-within:bg-white rounded-2xl transition px-4 py-2">
+          <div className="flex-1 bg-google-grey100 border border-google-grey300 focus-within:border-google-blue focus-within:ring-2 focus-within:ring-google-blue/20 focus-within:bg-white rounded-full transition px-4 py-2">
             <textarea
               ref={textareaRef}
               rows={1}
@@ -514,14 +515,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   ? 'Add a caption (optional)...'
                   : `Message @${activeChat.partner.username}...`
               }
-              className="w-full bg-transparent resize-none outline-none text-base sm:text-sm text-gray-900 placeholder-gray-400 max-h-24"
+              className="w-full bg-transparent resize-none outline-none text-base sm:text-sm text-google-grey900 placeholder-google-grey700 max-h-24"
             />
           </div>
 
           <button
             type="submit"
             disabled={(!inputText.trim() && !selectedFile) || !isConnected || isUploading}
-            className="p-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shrink-0 cursor-pointer shadow-sm flex items-center justify-center min-w-[40px] min-h-[40px]"
+            className="p-3 rounded-full bg-google-blue text-white hover:bg-google-blue-hover disabled:opacity-50 disabled:cursor-not-allowed transition shrink-0 cursor-pointer shadow-md flex items-center justify-center min-w-[40px] min-h-[40px]"
             title="Send message"
             aria-label="Send message"
           >
