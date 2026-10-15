@@ -329,3 +329,237 @@ describe('Desktop Dual-Pane Layout & Fixed Sidebar Width (Ticket 01)', () => {
   });
 });
 
+describe('Persistent Detail View Across Sidebar Tab Navigation (Ticket 02)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/direct-chats')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              id: 'chat-1',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              partner: {
+                id: 'user-bob',
+                username: 'bob',
+                email: 'bob@example.com',
+                isOnline: true,
+              },
+              unreadCount: 0,
+            },
+          ],
+        });
+      }
+      if (url.includes('/api/rooms')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              id: 'room-1',
+              name: 'General Discussion',
+              description: 'General chat room',
+              ownerId: 'user-alice',
+              role: 'OWNER',
+              memberCount: 2,
+              unreadCount: 0,
+            },
+          ],
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({}),
+      });
+    });
+  });
+
+  const renderDashboard = () => {
+    const authValue: any = {
+      currentUser: mockUser,
+      token: 'token-xyz',
+      isLoading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+    };
+
+    const socketValue: any = {
+      socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
+      isConnected: true,
+      isConnecting: false,
+      isReconnecting: false,
+      connectionError: null,
+    };
+
+    return render(
+      <AuthContext.Provider value={authValue}>
+        <SocketContext.Provider value={socketValue}>
+          <Dashboard />
+        </SocketContext.Provider>
+      </AuthContext.Provider>
+    );
+  };
+
+  it('toggles placeholder between Direct Chat and Room Chat when switching tabs without an active conversation', async () => {
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('bob')).toBeInTheDocument();
+    });
+
+    // Initially in Direct Chats tab -> Direct Chat placeholder
+    expect(
+      screen.getByRole('heading', { name: /real-time direct messaging/i })
+    ).toBeInTheDocument();
+
+    // Switch to Rooms tab in sidebar
+    const roomsTab = screen.getByRole('button', { name: /rooms/i });
+    fireEvent.click(roomsTab);
+
+    // Detail workspace now shows Room Chat placeholder
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { name: /room chat/i })
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: /real-time direct messaging/i })
+      ).not.toBeInTheDocument();
+    });
+
+    // Switch back to Direct Chats tab in sidebar
+    const directTab = screen.getByRole('button', { name: /direct chats/i });
+    fireEvent.click(directTab);
+
+    // Detail workspace returns to Direct Chat placeholder
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { name: /real-time direct messaging/i })
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('preserves open Direct Chat in detail workspace when clicking Rooms tab to browse rooms', async () => {
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('bob')).toBeInTheDocument();
+    });
+
+    // Select Bob's chat
+    const chatItem = screen.getByText('bob').closest('div[role="button"]') || screen.getByText('bob');
+    fireEvent.click(chatItem);
+
+    // Bob's active chat header is rendered in detail workspace
+    await waitFor(() => {
+      const headings = screen.getAllByRole('heading', { name: 'bob' });
+      expect(headings.length).toBeGreaterThanOrEqual(1);
+    });
+
+    // User clicks Rooms tab to browse rooms in sidebar
+    const roomsTab = screen.getByRole('button', { name: /rooms/i });
+    fireEvent.click(roomsTab);
+
+    // Rooms list appears in sidebar
+    await waitFor(() => {
+      expect(screen.getByText('General Discussion')).toBeInTheDocument();
+    });
+
+    // Persistent detail view: Bob's chat is STILL displayed in detail workspace!
+    const headingsAfterTab = screen.getAllByRole('heading', { name: 'bob' });
+    expect(headingsAfterTab.length).toBeGreaterThanOrEqual(1);
+    // Neither placeholder should be rendered
+    expect(screen.queryByRole('heading', { name: /room chat/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /real-time direct messaging/i })).not.toBeInTheDocument();
+
+    // Switch back to Direct Chats tab
+    const directTab = screen.getByRole('button', { name: /direct chats/i });
+    fireEvent.click(directTab);
+
+    // Bob's chat remains visible and selected
+    await waitFor(() => {
+      const headingsAfterReturn = screen.getAllByRole('heading', { name: 'bob' });
+      expect(headingsAfterReturn.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it('switches detail workspace to Room Chat when a specific room is clicked while Direct Chat was open', async () => {
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('bob')).toBeInTheDocument();
+    });
+
+    // Open Bob's direct chat
+    const chatItem = screen.getByText('bob').closest('div[role="button"]') || screen.getByText('bob');
+    fireEvent.click(chatItem);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('heading', { name: 'bob' }).length).toBeGreaterThanOrEqual(1);
+    });
+
+    // Click Rooms tab in sidebar
+    const roomsTab = screen.getByRole('button', { name: /rooms/i });
+    fireEvent.click(roomsTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('General Discussion')).toBeInTheDocument();
+    });
+
+    // Select General Discussion room
+    const roomItem = screen.getByText('General Discussion').closest('div[role="button"]') || screen.getByText('General Discussion');
+    fireEvent.click(roomItem);
+
+    // Workspace transitions to General Discussion Room Chat
+    await waitFor(() => {
+      const roomHeading = screen.getByRole('heading', { name: 'General Discussion' });
+      expect(roomHeading).toBeInTheDocument();
+    });
+  });
+
+  it('preserves open Room Chat in detail workspace when clicking Direct Chats tab until a direct chat is clicked', async () => {
+    renderDashboard();
+
+    // Switch to Rooms and select General Discussion
+    const roomsTab = screen.getByRole('button', { name: /rooms/i });
+    fireEvent.click(roomsTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('General Discussion')).toBeInTheDocument();
+    });
+
+    const roomItem = screen.getByText('General Discussion').closest('div[role="button"]') || screen.getByText('General Discussion');
+    fireEvent.click(roomItem);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'General Discussion' })).toBeInTheDocument();
+    });
+
+    // Click Direct Chats tab in sidebar
+    const directTab = screen.getByRole('button', { name: /direct chats/i });
+    fireEvent.click(directTab);
+
+    // Direct Chats list appears in sidebar
+    await waitFor(() => {
+      expect(screen.getByText('bob')).toBeInTheDocument();
+    });
+
+    // Room Chat remains visible in detail workspace
+    expect(screen.getByRole('heading', { name: 'General Discussion' })).toBeInTheDocument();
+
+    // Now click Bob's chat
+    const chatItem = screen.getByText('bob').closest('div[role="button"]') || screen.getByText('bob');
+    fireEvent.click(chatItem);
+
+    // Switches to Bob's direct chat
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'General Discussion' })).not.toBeInTheDocument();
+      expect(screen.getAllByRole('heading', { name: 'bob' }).length).toBeGreaterThanOrEqual(1);
+    });
+  });
+});
+
+
