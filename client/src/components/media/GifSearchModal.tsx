@@ -92,10 +92,10 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="GIF Search"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
     >
       <div
-        className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150"
+        className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-[90dvh] animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -112,7 +112,7 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition cursor-pointer"
+            className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition cursor-pointer min-w-[40px] min-h-[40px] flex items-center justify-center"
             title="Close modal"
             aria-label="Close modal"
           >
@@ -130,7 +130,7 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
               placeholder="Search GIFs on Tenor/Giphy..."
-              className="w-full bg-white border border-gray-300 focus:border-indigo-500 rounded-xl pl-9 pr-9 py-2 text-xs text-gray-900 placeholder-gray-400 outline-none transition shadow-xs"
+              className="w-full bg-white border border-gray-300 focus:border-indigo-500 rounded-xl pl-9 pr-9 py-2 text-base sm:text-xs text-gray-900 placeholder-gray-400 outline-none transition shadow-xs"
             />
             {query && (
               <button

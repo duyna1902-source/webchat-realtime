@@ -270,7 +270,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
       ref={popoverRef}
       role="dialog"
       aria-label="Emoji Picker"
-      className="absolute bottom-full mb-2 left-0 z-50 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col text-gray-900 animate-in fade-in zoom-in-95 duration-100"
+      className="absolute bottom-full mb-2 left-0 z-50 w-72 sm:w-80 max-w-[calc(100vw-1.5rem)] bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col text-gray-900 animate-in fade-in zoom-in-95 duration-100"
     >
       {/* Search Input Bar */}
       <div className="p-2.5 border-b border-gray-100 bg-gray-50/50">

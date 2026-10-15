@@ -141,10 +141,10 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full flex flex-col max-h-[90dvh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between shrink-0">
+        <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
               <Users className="w-5 h-5" />
@@ -160,7 +160,8 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition"
+            className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer"
+            aria-label="Close modal"
           >
             <X className="w-5 h-5" />
           </button>
@@ -185,7 +186,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
                 placeholder="Search username or email to add..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 focus:border-indigo-500 rounded-xl text-xs outline-none transition"
+                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 focus:border-indigo-500 rounded-xl text-base sm:text-xs outline-none transition"
               />
             </div>
 

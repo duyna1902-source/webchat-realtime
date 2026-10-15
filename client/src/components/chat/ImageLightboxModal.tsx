@@ -37,7 +37,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
+        className="relative max-w-4xl max-h-[90dvh] flex flex-col items-center"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Control Bar */}
