@@ -5,11 +5,18 @@ Decouple the right-hand detail workspace from the sidebar's browsing tab so that
 
 **Blocked by:** 01: Desktop Dual-Pane Layout & Fixed Sidebar Width
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] When an active Direct Chat is open on desktop, clicking the Rooms tab in the sidebar switches the sidebar list to rooms while keeping the Direct Chat open in the detail workspace.
-- [ ] When returning to the Direct Chats tab after browsing rooms without picking a room, the previously active Direct Chat remains selected and visually highlighted.
-- [ ] When browsing the Rooms tab with an active Direct Chat open, clicking a specific room cleanly switches the detail workspace to that Room Chat and clears the direct chat selection.
-- [ ] When an active Room Chat is open on desktop, clicking the Direct Chats tab in the sidebar preserves the Room Chat in the detail workspace until a specific direct chat is clicked.
-- [ ] When no conversation is active, switching between Direct Chats and Rooms tabs in the sidebar updates the detail pane placeholder between the Direct Chat placeholder ("Real-Time Direct Messaging") and the Room Chat placeholder ("Room Chat").
-- [ ] Toggling between Direct Chats and Rooms tabs produces zero horizontal layout shift or width flickering in the sidebar.
+- [x] When an active Direct Chat is open on desktop, clicking the Rooms tab in the sidebar switches the sidebar list to rooms while keeping the Direct Chat open in the detail workspace.
+- [x] When returning to the Direct Chats tab after browsing rooms without picking a room, the previously active Direct Chat remains selected and visually highlighted.
+- [x] When browsing the Rooms tab with an active Direct Chat open, clicking a specific room cleanly switches the detail workspace to that Room Chat and clears the direct chat selection.
+- [x] When an active Room Chat is open on desktop, clicking the Direct Chats tab in the sidebar preserves the Room Chat in the detail workspace until a specific direct chat is clicked.
+- [x] When no conversation is active, switching between Direct Chats and Rooms tabs in the sidebar updates the detail pane placeholder between the Direct Chat placeholder ("Real-Time Direct Messaging") and the Room Chat placeholder ("Room Chat").
+- [x] Toggling between Direct Chats and Rooms tabs produces zero horizontal layout shift or width flickering in the sidebar.
+
+## Answer
+
+Decoupled the detail workspace rendering condition in `Dashboard.tsx`:
+`Boolean(activeRoomId) || (!activeChatId && activeTab === 'room')`
+When an active Direct Chat or Room Chat is open, browsing the other sidebar tab maintains the open conversation in the detail workspace. Returning to the original tab retains selection and highlighting. Clicking a specific conversation or room explicitly switches the workspace to that item. When no conversation is active, switching tabs toggles between Direct Chat ("Real-Time Direct Messaging") and Room Chat ("Room Chat") placeholders. Verified with 4 comprehensive automated tests in `ResponsiveDashboard.test.tsx`.
+
