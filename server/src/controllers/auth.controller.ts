@@ -26,46 +26,51 @@ export async function register(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const prisma = getPrisma();
+  try {
+    const prisma = getPrisma();
 
-  // Check unique username
-  const existingUsername = await prisma.user.findUnique({
-    where: { username },
-  });
-  if (existingUsername) {
-    res.status(400).json({ message: 'Username already taken' });
-    return;
+    // Check unique username
+    const existingUsername = await prisma.user.findUnique({
+      where: { username },
+    });
+    if (existingUsername) {
+      res.status(400).json({ message: 'Username already taken' });
+      return;
+    }
+
+    // Check unique email
+    const existingEmail = await prisma.user.findUnique({
+      where: { email },
+    });
+    if (existingEmail) {
+      res.status(400).json({ message: 'Email already registered' });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const newUser = await prisma.user.create({
+      data: {
+        username,
+        email,
+        passwordHash,
+        avatarUrl: avatarUrl || null,
+      },
+    });
+
+    const token = generateToken({
+      userId: newUser.id,
+      username: newUser.username,
+    });
+
+    res.status(201).json({
+      token,
+      user: toUserDto(newUser),
+    });
+  } catch (err: any) {
+    console.error('Registration error:', err);
+    res.status(500).json({ message: err.message || 'Registration failed' });
   }
-
-  // Check unique email
-  const existingEmail = await prisma.user.findUnique({
-    where: { email },
-  });
-  if (existingEmail) {
-    res.status(400).json({ message: 'Email already registered' });
-    return;
-  }
-
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  const newUser = await prisma.user.create({
-    data: {
-      username,
-      email,
-      passwordHash,
-      avatarUrl: avatarUrl || null,
-    },
-  });
-
-  const token = generateToken({
-    userId: newUser.id,
-    username: newUser.username,
-  });
-
-  res.status(201).json({
-    token,
-    user: toUserDto(newUser),
-  });
 }
 
 export async function login(req: Request, res: Response): Promise<void> {
@@ -76,38 +81,43 @@ export async function login(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const prisma = getPrisma();
+  try {
+    const prisma = getPrisma();
 
-  // Search by username or email
-  const user = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { username: emailOrUsername },
-        { email: emailOrUsername },
-      ],
-    },
-  });
+    // Search by username or email
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: emailOrUsername },
+          { email: emailOrUsername },
+        ],
+      },
+    });
 
-  if (!user) {
-    res.status(401).json({ message: 'Invalid credentials' });
-    return;
+    if (!user) {
+      res.status(401).json({ message: 'Invalid credentials' });
+      return;
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isPasswordValid) {
+      res.status(401).json({ message: 'Invalid credentials' });
+      return;
+    }
+
+    const token = generateToken({
+      userId: user.id,
+      username: user.username,
+    });
+
+    res.status(200).json({
+      token,
+      user: toUserDto(user),
+    });
+  } catch (err: any) {
+    console.error('Login error:', err);
+    res.status(500).json({ message: err.message || 'Login failed' });
   }
-
-  const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-  if (!isPasswordValid) {
-    res.status(401).json({ message: 'Invalid credentials' });
-    return;
-  }
-
-  const token = generateToken({
-    userId: user.id,
-    username: user.username,
-  });
-
-  res.status(200).json({
-    token,
-    user: toUserDto(user),
-  });
 }
 
 export async function me(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -116,15 +126,20 @@ export async function me(req: AuthenticatedRequest, res: Response): Promise<void
     return;
   }
 
-  const prisma = getPrisma();
-  const user = await prisma.user.findUnique({
-    where: { id: req.user.userId },
-  });
+  try {
+    const prisma = getPrisma();
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+    });
 
-  if (!user) {
-    res.status(404).json({ message: 'User not found' });
-    return;
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    res.status(200).json(toUserDto(user));
+  } catch (err: any) {
+    console.error('Me error:', err);
+    res.status(500).json({ message: err.message || 'Failed to fetch user' });
   }
-
-  res.status(200).json(toUserDto(user));
 }

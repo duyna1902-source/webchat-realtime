@@ -47,3 +47,10 @@ if (fs.existsSync(clientDistPath)) {
     res.sendFile(path.join(clientDistPath, 'index.html'));
   });
 }
+
+// Global error handler
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled application error:', err);
+  res.status(500).json({ message: err?.message || 'Internal server error' });
+});
+
