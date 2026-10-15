@@ -182,17 +182,19 @@ export const Dashboard: React.FC = () => {
 
   if (!currentUser) return null;
 
+  const isChatActive = Boolean(activeChatId || activeRoomId);
+
   return (
-    <div className="h-screen flex flex-col bg-gray-100 overflow-hidden">
+    <div className="h-[100dvh] flex flex-col bg-gray-100 overflow-hidden">
       {/* Top Navigation Bar */}
       <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-2.5 flex items-center justify-between shrink-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm">
-            <MessageSquare className="w-5 h-5" />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shrink-0">
+            <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-gray-900 leading-tight">Web Chat Real-Time</h1>
-            <p className="text-xs text-indigo-600 font-medium">Welcome, {currentUser.username}!</p>
+            <h1 className="text-sm sm:text-base font-bold text-gray-900 leading-tight">Web Chat Real-Time</h1>
+            <p className="text-xs text-indigo-600 font-medium hidden sm:block">Welcome, {currentUser.username}!</p>
           </div>
         </div>
 
@@ -261,6 +263,7 @@ export const Dashboard: React.FC = () => {
       {/* Main Real-Time Chat Workspace */}
       <div className="flex-1 flex overflow-hidden">
         <Sidebar
+          className={isChatActive ? 'hidden md:flex md:w-88' : 'w-full md:w-88'}
           chats={chats}
           activeChatId={activeChatId}
           onSelectChat={handleSelectChat}
@@ -275,33 +278,38 @@ export const Dashboard: React.FC = () => {
           onTabChange={setActiveTab}
         />
 
-        {activeTab === 'room' || activeRoomId ? (
-          <RoomChatArea
-            activeRoom={activeRoom}
-            roomDetails={roomDetails}
-            messages={roomMessages}
-            isLoadingMessages={isLoadingRoomMessages}
-            hasMore={hasMoreRoom}
-            isLoadingOlder={isLoadingOlderRoom}
-            onLoadOlderMessages={loadOlderRoomMessages}
-            onSendMessage={sendRoomMessage}
-            onAddMember={addMember}
-            onRemoveMember={removeMember}
-            onChangeRole={changeRole}
-            onLeaveRoom={handleLeaveRoom}
-            onDeleteRoom={handleDeleteRoom}
-          />
-        ) : (
-          <ChatArea
-            activeChat={activeChat}
-            messages={directMessages}
-            isLoadingMessages={isLoadingDirectMessages}
-            hasMore={hasMoreDirect}
-            isLoadingOlder={isLoadingOlderDirect}
-            onLoadOlderMessages={loadOlderDirectMessages}
-            onSendMessage={sendDirectMessage}
-          />
-        )}
+        <div
+          data-testid="chat-area-container"
+          className={`flex-1 flex overflow-hidden ${!isChatActive ? 'hidden md:flex' : 'w-full flex'}`}
+        >
+          {activeTab === 'room' || activeRoomId ? (
+            <RoomChatArea
+              activeRoom={activeRoom}
+              roomDetails={roomDetails}
+              messages={roomMessages}
+              isLoadingMessages={isLoadingRoomMessages}
+              hasMore={hasMoreRoom}
+              isLoadingOlder={isLoadingOlderRoom}
+              onLoadOlderMessages={loadOlderRoomMessages}
+              onSendMessage={sendRoomMessage}
+              onAddMember={addMember}
+              onRemoveMember={removeMember}
+              onChangeRole={changeRole}
+              onLeaveRoom={handleLeaveRoom}
+              onDeleteRoom={handleDeleteRoom}
+            />
+          ) : (
+            <ChatArea
+              activeChat={activeChat}
+              messages={directMessages}
+              isLoadingMessages={isLoadingDirectMessages}
+              hasMore={hasMoreDirect}
+              isLoadingOlder={isLoadingOlderDirect}
+              onLoadOlderMessages={loadOlderDirectMessages}
+              onSendMessage={sendDirectMessage}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
