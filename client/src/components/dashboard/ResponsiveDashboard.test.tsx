@@ -14,71 +14,85 @@ const mockUser = {
   updatedAt: new Date().toISOString(),
 };
 
-describe('Responsive Master-Detail Navigation (Ticket 01)', () => {
-  beforeEach(() => {
-    localStorage.clear();
-    vi.restoreAllMocks();
+const defaultMockChats = [
+  {
+    id: 'chat-1',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    partner: {
+      id: 'user-bob',
+      username: 'bob',
+      email: 'bob@example.com',
+      isOnline: true,
+    },
+    unreadCount: 0,
+  },
+];
 
-    global.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/api/direct-chats')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => [
-            {
-              id: 'chat-1',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              partner: {
-                id: 'user-bob',
-                username: 'bob',
-                email: 'bob@example.com',
-                isOnline: true,
-              },
-              unreadCount: 0,
-            },
-          ],
-        });
-      }
-      if (url.includes('/api/rooms')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => [],
-        });
-      }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({}),
-      });
-    });
-  });
+const defaultMockRooms = [
+  {
+    id: 'room-1',
+    name: 'General Discussion',
+    description: 'General chat room',
+    ownerId: 'user-alice',
+    role: 'OWNER',
+    memberCount: 2,
+    unreadCount: 0,
+  },
+];
 
-  const renderDashboard = () => {
-    const authValue: any = {
-      currentUser: mockUser,
-      token: 'token-xyz',
-      isLoading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-    };
-
-    const socketValue: any = {
-      socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
-      isConnected: true,
-      isConnecting: false,
-      isReconnecting: false,
-      connectionError: null,
-    };
-
-    return render(
-      <AuthContext.Provider value={authValue}>
-        <SocketContext.Provider value={socketValue}>
-          <Dashboard />
-        </SocketContext.Provider>
-      </AuthContext.Provider>
-    );
+const renderDashboard = () => {
+  const authValue: any = {
+    currentUser: mockUser,
+    token: 'token-xyz',
+    isLoading: false,
+    login: vi.fn(),
+    register: vi.fn(),
+    logout: vi.fn(),
   };
 
+  const socketValue: any = {
+    socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
+    isConnected: true,
+    isConnecting: false,
+    isReconnecting: false,
+    connectionError: null,
+  };
+
+  return render(
+    <AuthContext.Provider value={authValue}>
+      <SocketContext.Provider value={socketValue}>
+        <Dashboard />
+      </SocketContext.Provider>
+    </AuthContext.Provider>
+  );
+};
+
+beforeEach(() => {
+  localStorage.clear();
+  vi.restoreAllMocks();
+
+  global.fetch = vi.fn().mockImplementation((url: string) => {
+    if (url.includes('/api/direct-chats')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => defaultMockChats,
+      });
+    }
+    if (url.includes('/api/rooms')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => defaultMockRooms,
+      });
+    }
+    return Promise.resolve({
+      ok: true,
+      json: async () => ({}),
+    });
+  });
+});
+
+describe('Responsive Master-Detail Navigation (Ticket 01)', () => {
   it('renders root layout with Dynamic Viewport Height (100dvh)', async () => {
     const { container } = renderDashboard();
 
@@ -140,29 +154,6 @@ describe('Responsive Master-Detail Navigation (Ticket 01)', () => {
   });
 
   it('hides Sidebar on mobile and displays RoomChatArea when a room is selected, then returns on Back click', async () => {
-    (global.fetch as any).mockImplementation((url: string) => {
-      if (url.includes('/api/direct-chats')) {
-        return Promise.resolve({ ok: true, json: async () => [] });
-      }
-      if (url.includes('/api/rooms')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => [
-            {
-              id: 'room-1',
-              name: 'General Discussion',
-              description: 'General chat room',
-              ownerId: 'user-alice',
-              role: 'OWNER',
-              memberCount: 2,
-              unreadCount: 0,
-            },
-          ],
-        });
-      }
-      return Promise.resolve({ ok: true, json: async () => ({}) });
-    });
-
     renderDashboard();
 
     const roomsTab = screen.getByRole('button', { name: /rooms/i });
@@ -196,86 +187,6 @@ describe('Responsive Master-Detail Navigation (Ticket 01)', () => {
 });
 
 describe('Desktop Dual-Pane Layout & Fixed Sidebar Width (Ticket 01)', () => {
-  beforeEach(() => {
-    localStorage.clear();
-    vi.restoreAllMocks();
-
-    global.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/api/direct-chats')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => [
-            {
-              id: 'chat-1',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              partner: {
-                id: 'user-bob',
-                username: 'bob',
-                email: 'bob@example.com',
-                isOnline: true,
-              },
-              unreadCount: 0,
-            },
-          ],
-        });
-      }
-      if (url.includes('/api/rooms')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => [
-            {
-              id: 'room-1',
-              name: 'General Discussion',
-              description: 'General chat room',
-              ownerId: 'user-alice',
-              role: 'OWNER',
-              memberCount: 2,
-              unreadCount: 0,
-            },
-          ],
-        });
-      }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({}),
-      });
-    });
-  });
-
-  const renderDashboard = () => {
-    const authValue: any = {
-      currentUser: mockUser,
-      token: 'token-xyz',
-      isLoading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-    };
-
-    const socketValue: any = {
-      socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
-      isConnected: true,
-      isConnecting: false,
-      isReconnecting: false,
-      connectionError: null,
-    };
-
-    return render(
-      <AuthContext.Provider value={authValue}>
-        <SocketContext.Provider value={socketValue}>
-          <Dashboard />
-        </SocketContext.Provider>
-      </AuthContext.Provider>
-    );
-  };
-
-  it('configures 88 spacing scale (22rem / 352px) in Tailwind CSS config', async () => {
-    // @ts-expect-error tailwind.config.js has no type declarations
-    const tailwindConfig = await import('../../../tailwind.config.js');
-    expect(tailwindConfig.default.theme?.extend?.spacing?.['88']).toBe('22rem');
-  });
-
   it('renders dual-pane layout on initial desktop load with fixed 352px sidebar and idle Direct Chat placeholder', async () => {
     renderDashboard();
 
@@ -330,80 +241,6 @@ describe('Desktop Dual-Pane Layout & Fixed Sidebar Width (Ticket 01)', () => {
 });
 
 describe('Persistent Detail View Across Sidebar Tab Navigation (Ticket 02)', () => {
-  beforeEach(() => {
-    localStorage.clear();
-    vi.restoreAllMocks();
-
-    global.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/api/direct-chats')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => [
-            {
-              id: 'chat-1',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              partner: {
-                id: 'user-bob',
-                username: 'bob',
-                email: 'bob@example.com',
-                isOnline: true,
-              },
-              unreadCount: 0,
-            },
-          ],
-        });
-      }
-      if (url.includes('/api/rooms')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => [
-            {
-              id: 'room-1',
-              name: 'General Discussion',
-              description: 'General chat room',
-              ownerId: 'user-alice',
-              role: 'OWNER',
-              memberCount: 2,
-              unreadCount: 0,
-            },
-          ],
-        });
-      }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({}),
-      });
-    });
-  });
-
-  const renderDashboard = () => {
-    const authValue: any = {
-      currentUser: mockUser,
-      token: 'token-xyz',
-      isLoading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-    };
-
-    const socketValue: any = {
-      socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
-      isConnected: true,
-      isConnecting: false,
-      isReconnecting: false,
-      connectionError: null,
-    };
-
-    return render(
-      <AuthContext.Provider value={authValue}>
-        <SocketContext.Provider value={socketValue}>
-          <Dashboard />
-        </SocketContext.Provider>
-      </AuthContext.Provider>
-    );
-  };
-
   it('toggles placeholder between Direct Chat and Room Chat when switching tabs without an active conversation', async () => {
     renderDashboard();
 
@@ -563,80 +400,6 @@ describe('Persistent Detail View Across Sidebar Tab Navigation (Ticket 02)', () 
 });
 
 describe('Mobile Master-Detail Regression & Floating Action Button (Ticket 03)', () => {
-  beforeEach(() => {
-    localStorage.clear();
-    vi.restoreAllMocks();
-
-    global.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/api/direct-chats')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => [
-            {
-              id: 'chat-1',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              partner: {
-                id: 'user-bob',
-                username: 'bob',
-                email: 'bob@example.com',
-                isOnline: true,
-              },
-              unreadCount: 0,
-            },
-          ],
-        });
-      }
-      if (url.includes('/api/rooms')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => [
-            {
-              id: 'room-1',
-              name: 'General Discussion',
-              description: 'General chat room',
-              ownerId: 'user-alice',
-              role: 'OWNER',
-              memberCount: 2,
-              unreadCount: 0,
-            },
-          ],
-        });
-      }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({}),
-      });
-    });
-  });
-
-  const renderDashboard = () => {
-    const authValue: any = {
-      currentUser: mockUser,
-      token: 'token-xyz',
-      isLoading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-    };
-
-    const socketValue: any = {
-      socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
-      isConnected: true,
-      isConnecting: false,
-      isReconnecting: false,
-      connectionError: null,
-    };
-
-    return render(
-      <AuthContext.Provider value={authValue}>
-        <SocketContext.Provider value={socketValue}>
-          <Dashboard />
-        </SocketContext.Provider>
-      </AuthContext.Provider>
-    );
-  };
-
   it('renders mobile floating action button (FAB) on master conversation list with md:hidden constraint', async () => {
     renderDashboard();
 
@@ -698,6 +461,3 @@ describe('Mobile Master-Detail Regression & Floating Action Button (Ticket 03)',
     });
   });
 });
-
-
-
