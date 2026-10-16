@@ -57,9 +57,21 @@ _Avoid_: Typing Status, Drafting
 Dấu mốc ghi nhận trạng thái người nhận đã xem một tin nhắn cụ thể, được định danh thông qua `lastReadMessageId`.
 _Avoid_: Seen, Message Seen, Delivered Status
 
+**Delivery Status**:
+Trạng thái chuyển phát của một Direct Message từ phía người gửi tới người nhận theo ba nấc: đã gửi lên hệ thống (`SENT`), đã chuyển tới người nhận đang trực tuyến (`DELIVERED`), và người nhận đã mở xem (`READ`).
+_Avoid_: Message State, Ack Status
+
+**Unread Count Badge**:
+Con số hiển thị tổng lượng tin nhắn mới chưa được người dùng xem trong một Direct Chat hoặc Room Chat, tính từ sau dấu mốc `Read Receipt` gần nhất của người dùng đó.
+_Avoid_: Notification Counter, Unseen Badge
+
 **Attachment**:
 Tệp đính kèm (hình ảnh, tài liệu) được lưu trữ trên cloud lưu trữ ngoài (Cloudinary / Supabase Storage) và liên kết vào tin nhắn thông qua URL.
 _Avoid_: File, Media, Upload
+
+**Document Preview**:
+Khả năng xem trực tiếp nội dung hoặc thông tin tóm tắt của tệp tài liệu đính kèm ngay trong không gian ứng dụng trước hoặc thay cho việc tải tệp về thiết bị.
+_Avoid_: External File Opener, Forced Download
 
 **Room Member**:
 Bản ghi thành viên tham gia vào một Room Chat với vai trò xác định (`Room Role`).
