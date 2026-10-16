@@ -26,7 +26,7 @@ function formatUnreadBadgeCount(count?: number) {
 
 **Blocked by:** 01: Checkmark-Free Delivery Status, Auto-Upgrade to Delivered & Single-Watermark Read Receipts
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Shared `RoomMemberChangePayload['action']` union includes `'DELETE'` alongside `'JOIN' | 'LEAVE' | 'KICK' | 'ROLE_CHANGE'`.
 - [ ] Upon socket connection, the server automatically joins the user's socket to all `room:${roomId}` channels they are a member of, and switching active conversations in the client does not emit `room:leave`.
