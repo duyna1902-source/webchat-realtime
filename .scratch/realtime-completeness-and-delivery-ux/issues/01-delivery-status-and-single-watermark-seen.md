@@ -25,12 +25,12 @@ function getDirectStatusWatermark(messages: Array<{ id: string; senderId: string
 
 **Blocked by:** None (can start immediately)
 
-**Status:** claimed
+**Status:** resolved
 
-- [ ] Shared socket contract defines `DIRECT_DELIVERED: 'direct:delivered'` and `DirectDeliveredPayload` (`{ directChatId: string; deliveredToUserId: string }`).
-- [ ] When a user connects to the socket server, any `DirectMessage` records addressed to them with status `SENT` are updated to `DELIVERED` in the database and `direct:delivered` is emitted in real time to each corresponding sender.
-- [ ] Outgoing `Direct Message` bubbles render no checkmark icons; instead, Variant B minimalist English status labels render below the bubble on the light canvas: `Sent` (`data-testid="status-sent"`, `title="Sent"`), `Delivered` (`data-testid="status-delivered"`, `title="Delivered"`), and `Seen` + 16px circular partner Mini-Avatar (`data-testid="status-read"`, `title="Đã xem"`).
-- [ ] Single-watermark rule in `Direct Chat`: `Seen` + Mini-Avatar renders only on the latest outgoing message with status `READ` (`lastReadOutgoingId`), and `Sent` / `Delivered` renders only on the latest outgoing message (`lastOutgoingId`); when a newer outgoing message becomes `READ`, the `Seen` indicator under older messages disappears.
-- [ ] Outgoing `Room Message` rows hide the sender's own 32px avatar circle, render `Sent` below the latest outgoing message when `readers.length === 0`, and render `Seen by N` with up to 3 stacked 16px reader Mini-Avatars (`data-testid="room-message-read-indicator"`, tooltip listing reader usernames) on messages with readers.
-- [ ] Conversation sidebar prefixes outgoing last messages with `You: ` and displays a compact `Sent`, `Delivered`, or partner Mini-Avatar (`Seen`) indicator without checkmarks.
-- [ ] Server and client integration tests verify automatic `SENT` -> `DELIVERED` transition on recipient connect, checkmark-free `Sent` / `Delivered` / `Seen` rendering, single-watermark movement when a newer message is seen, and hidden own avatar in `Room Chat`.
+- [x] Shared socket contract defines `DIRECT_DELIVERED: 'direct:delivered'` and `DirectDeliveredPayload` (`{ directChatId: string; deliveredToUserId: string }`).
+- [x] When a user connects to the socket server, any `DirectMessage` records addressed to them with status `SENT` are updated to `DELIVERED` in the database and `direct:delivered` is emitted in real time to each corresponding sender.
+- [x] Outgoing `Direct Message` bubbles render no checkmark icons; instead, Variant B minimalist English status labels render below the bubble on the light canvas: `Sent` (`data-testid="status-sent"`, `title="Sent"`), `Delivered` (`data-testid="status-delivered"`, `title="Delivered"`), and `Seen` + 16px circular partner Mini-Avatar (`data-testid="status-read"`, `title="Đã xem"`).
+- [x] Single-watermark rule in `Direct Chat`: `Seen` + Mini-Avatar renders only on the latest outgoing message with status `READ` (`lastReadOutgoingId`), and `Sent` / `Delivered` renders only on the latest outgoing message (`lastOutgoingId`); when a newer outgoing message becomes `READ`, the `Seen` indicator under older messages disappears.
+- [x] Outgoing `Room Message` rows hide the sender's own 32px avatar circle, render `Sent` below the latest outgoing message when `readers.length === 0`, and render `Seen by N` with up to 3 stacked 16px reader Mini-Avatars (`data-testid="room-message-read-indicator"`, tooltip listing reader usernames) on messages with readers.
+- [x] Conversation sidebar prefixes outgoing last messages with `You: ` and displays a compact `Sent`, `Delivered`, or partner Mini-Avatar (`Seen`) indicator without checkmarks.
+- [x] Server and client integration tests verify automatic `SENT` -> `DELIVERED` transition on recipient connect, checkmark-free `Sent` / `Delivered` / `Seen` rendering, single-watermark movement when a newer message is seen, and hidden own avatar in `Room Chat`.
