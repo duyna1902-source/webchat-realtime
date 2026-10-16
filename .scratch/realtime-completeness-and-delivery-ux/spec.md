@@ -1,6 +1,6 @@
 # Spec: Real-Time Completeness, Delivery Status UX, and Document Preview
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
