@@ -311,6 +311,17 @@ export async function addRoomMember(req: AuthenticatedRequest, res: Response): P
       role: RoomRole.MEMBER,
     };
     io.to(`room:${id}`).emit(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, payload);
+    io.to(`user:${targetUser.id}`).emit(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, payload);
+
+    const targetRoom = io.sockets.adapter.rooms.get(`user:${targetUser.id}`);
+    if (targetRoom) {
+      for (const socketId of targetRoom) {
+        const s = io.sockets.sockets.get(socketId);
+        if (s) {
+          s.join(`room:${id}`);
+        }
+      }
+    }
   }
 
   res.status(201).json(toRoomMemberDto(newMember));
@@ -393,6 +404,17 @@ export async function removeRoomMember(req: AuthenticatedRequest, res: Response)
       role: targetMember.role as RoomRole,
     };
     io.to(`room:${id}`).emit(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, payload);
+    io.to(`user:${targetMember.userId}`).emit(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, payload);
+
+    const targetRoom = io.sockets.adapter.rooms.get(`user:${targetMember.userId}`);
+    if (targetRoom) {
+      for (const socketId of targetRoom) {
+        const s = io.sockets.sockets.get(socketId);
+        if (s) {
+          s.leave(`room:${id}`);
+        }
+      }
+    }
   }
 
   res.status(200).json({ message: 'Member removed successfully' });
@@ -558,6 +580,18 @@ export async function deleteRoom(req: AuthenticatedRequest, res: Response): Prom
   if (room.ownerId !== currentUserId) {
     res.status(403).json({ message: 'Only room owner can delete the room' });
     return;
+  }
+
+  // Broadcast DELETE event to room before deleting from DB
+  const io = getIO();
+  if (io) {
+    const payload: RoomMemberChangePayload = {
+      roomId: id,
+      action: 'DELETE',
+      userId: currentUserId,
+      username: req.user.username || 'Owner',
+    };
+    io.to(`room:${id}`).emit(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, payload);
   }
 
   // Delete room (cascades to RoomMember and RoomMessage)

@@ -1,8 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { DirectChatListItemDto, RoomListItemDto, UserDto, RoomRole, MessageStatus } from '@webchat/shared';
+import { DirectChatListItemDto, RoomListItemDto, UserDto, RoomRole, MessageStatus, MessageType } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { CreateRoomModal } from '../room/CreateRoomModal';
 import { getAvatarColorClass } from '../../utils/avatarColor';
+
+export function formatSidebarPreview(
+  lastMsg: { senderId: string; type?: string | MessageType; content: string; attachmentName?: string | null } | null,
+  currentUserId: string
+): string {
+  if (!lastMsg) return 'No messages yet';
+  const prefix = currentUserId && lastMsg.senderId === currentUserId ? 'You: ' : '';
+  if (lastMsg.type === MessageType.EMOJI_GIF || lastMsg.type === 'EMOJI_GIF') return prefix + '✨ Sent a GIF';
+  if (lastMsg.content && lastMsg.content.trim()) return prefix + lastMsg.content;
+  if (lastMsg.type === MessageType.IMAGE || lastMsg.type === 'IMAGE') return prefix + '📷 Sent an image';
+  if (lastMsg.type === MessageType.DOCUMENT || lastMsg.type === 'DOCUMENT') return prefix + '📎 ' + (lastMsg.attachmentName || 'Document');
+  return prefix + (lastMsg.content || '');
+}
+
+export function formatUnreadBadgeCount(count?: number): string | null {
+  if (!count || count <= 0) return null;
+  return count > 99 ? '99+' : String(count);
+}
 import {
   Search,
   Plus,
@@ -311,20 +329,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-semibold text-gray-900 truncate">
+                        <span className={`text-sm truncate ${chat.unreadCount && chat.unreadCount > 0 ? 'font-bold text-google-grey900' : 'font-semibold text-gray-900'}`}>
                           {chat.partner.username}
                         </span>
-                        <span className="text-[11px] text-gray-400 shrink-0 ml-1">
-                          {formatMessageTime(chat.lastMessage?.createdAt || chat.updatedAt)}
-                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                          <span className="text-[11px] text-gray-400">
+                            {formatMessageTime(chat.lastMessage?.createdAt || chat.updatedAt)}
+                          </span>
+                          {chat.unreadCount && chat.unreadCount > 0 ? (
+                            <span
+                              data-testid={`unread-badge-${chat.id}`}
+                              className="px-1.5 py-0.2 rounded-full bg-google-blue text-white text-[10px] font-bold shadow-xs min-w-4 text-center"
+                            >
+                              {formatUnreadBadgeCount(chat.unreadCount)}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                       <div className="flex items-center justify-between gap-1 text-xs text-gray-500">
-                        <p className="truncate flex-1">
+                        <p className={`truncate flex-1 ${chat.unreadCount && chat.unreadCount > 0 ? 'font-bold text-google-grey900' : 'text-gray-500'}`}>
                           {chat.lastMessage ? (
-                            <>
-                              {chat.lastMessage.senderId === currentUser?.id ? 'You: ' : ''}
-                              {chat.lastMessage.content}
-                            </>
+                            formatSidebarPreview(chat.lastMessage, currentUser?.id || '')
                           ) : (
                             <span className="italic text-gray-400">No messages yet</span>
                           )}
@@ -407,12 +432,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-bold text-gray-900 truncate">
+                        <span className={`text-sm truncate ${room.unreadCount && room.unreadCount > 0 ? 'font-extrabold text-google-grey900' : 'font-bold text-gray-900'}`}>
                           {room.name}
                         </span>
-                        <span className="text-[11px] text-gray-400 shrink-0 ml-1">
-                          {formatMessageTime(room.lastMessage?.createdAt || room.updatedAt)}
-                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                          <span className="text-[11px] text-gray-400">
+                            {formatMessageTime(room.lastMessage?.createdAt || room.updatedAt)}
+                          </span>
+                          {room.unreadCount && room.unreadCount > 0 ? (
+                            <span
+                              data-testid={`unread-badge-${room.id}`}
+                              className="px-1.5 py-0.2 rounded-full bg-google-blue text-white text-[10px] font-bold shadow-xs min-w-4 text-center"
+                            >
+                              {formatUnreadBadgeCount(room.unreadCount)}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-1.5 mb-1">
@@ -431,11 +466,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         ) : null}
                       </div>
 
-                      <p className="text-xs text-gray-500 truncate">
+                      <p className={`text-xs truncate ${room.unreadCount && room.unreadCount > 0 ? 'font-bold text-google-grey900' : 'text-gray-500'}`}>
                         {room.lastMessage ? (
                           <>
-                            <span className="font-medium text-gray-700">{room.lastMessage.sender.username}: </span>
-                            {room.lastMessage.content}
+                            <span className="font-medium text-gray-700">
+                              {room.lastMessage.senderId === currentUser?.id ? 'You: ' : `${room.lastMessage.sender.username}: `}
+                            </span>
+                            {formatSidebarPreview(room.lastMessage, '')}
                           </>
                         ) : (
                           <span className="italic text-gray-400">No messages yet</span>

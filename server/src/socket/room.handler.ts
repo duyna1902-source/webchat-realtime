@@ -12,6 +12,23 @@ import {
   MessageType,
 } from '@webchat/shared';
 
+export async function autoJoinUserRooms(io: Server, socket: AuthenticatedSocket): Promise<void> {
+  const userId = socket.data?.user?.userId;
+  if (!userId) return;
+  try {
+    const prisma = getPrisma();
+    const memberships = await prisma.roomMember.findMany({
+      where: { userId },
+      select: { roomId: true },
+    });
+    for (const m of memberships) {
+      socket.join(`room:${m.roomId}`);
+    }
+  } catch (err) {
+    console.error(`Error auto-joining user ${userId} rooms:`, err);
+  }
+}
+
 export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket): void {
   const userId = socket.data.user.userId;
 

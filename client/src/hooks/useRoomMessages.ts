@@ -236,7 +236,6 @@ export function useRoomMessages(activeRoomId: string | null) {
     socket.on('connect', handleConnect);
 
     return () => {
-      socket.emit(SOCKET_EVENTS.ROOM_LEAVE, { roomId: activeRoomId });
       socket.off(SOCKET_EVENTS.ROOM_RECEIVE, handleRoomReceive);
       socket.off(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, handleMemberChange);
       socket.off(SOCKET_EVENTS.ROOM_READ, handleRoomRead);

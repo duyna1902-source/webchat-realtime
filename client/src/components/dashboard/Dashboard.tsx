@@ -13,6 +13,7 @@ import {
   SOCKET_EVENTS,
   DirectReceiveMessagePayload,
   RoomReceiveMessagePayload,
+  RoomMemberChangePayload,
   MessageType,
 } from '@webchat/shared';
 import { showBrowserNotification, playNotificationSound } from '../../utils/notifications';
@@ -66,7 +67,7 @@ export const Dashboard: React.FC = () => {
     chats,
     isLoading: isLoadingChats,
     createOrOpenChat,
-  } = useDirectChats();
+  } = useDirectChats(activeChatId);
 
   const {
     messages: directMessages,
@@ -83,7 +84,7 @@ export const Dashboard: React.FC = () => {
     isLoading: isLoadingRooms,
     createRoom,
     refreshRooms,
-  } = useRooms();
+  } = useRooms(activeRoomId);
 
   const {
     messages: roomMessages,
@@ -99,6 +100,23 @@ export const Dashboard: React.FC = () => {
     leaveRoom,
     deleteRoom,
   } = useRoomMessages(activeRoomId);
+
+  // Close active room if deleted or current user is kicked
+  useEffect(() => {
+    if (!socket) return;
+    const handleMemberChange = (payload: RoomMemberChangePayload) => {
+      if (
+        (payload.action === 'DELETE' && payload.roomId === activeRoomId) ||
+        (payload.action === 'KICK' && payload.userId === currentUser?.id && payload.roomId === activeRoomId)
+      ) {
+        setActiveRoomId(null);
+      }
+    };
+    socket.on(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, handleMemberChange);
+    return () => {
+      socket.off(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, handleMemberChange);
+    };
+  }, [socket, activeRoomId, currentUser?.id]);
 
   // Background audio ping and HTML5 Web Notifications listener
   useEffect(() => {

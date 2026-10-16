@@ -26,12 +26,12 @@ function formatUnreadBadgeCount(count?: number) {
 
 **Blocked by:** 01: Checkmark-Free Delivery Status, Auto-Upgrade to Delivered & Single-Watermark Read Receipts
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Shared `RoomMemberChangePayload['action']` union includes `'DELETE'` alongside `'JOIN' | 'LEAVE' | 'KICK' | 'ROLE_CHANGE'`.
-- [ ] Upon socket connection, the server automatically joins the user's socket to all `room:${roomId}` channels they are a member of, and switching active conversations in the client does not emit `room:leave`.
-- [ ] Adding a member (`JOIN`), removing a member (`KICK`), or deleting a room (`DELETE`) emits `room:member_change` so affected users see the room added or removed in their sidebar in real time, and if the user was viewing a kicked or deleted room, the detail view returns to the idle placeholder.
-- [ ] Sidebar rows for `Direct Chat` and `Room Chat` render a Google Blue `Unread Count Badge` (`99+` cap) and bold preview text whenever `unreadCount > 0`.
-- [ ] Incoming messages from other users for any conversation not currently active increment `unreadCount` by 1 in real time, and opening a conversation or marking it read resets its `unreadCount` to `0`.
-- [ ] Captionless media messages in the sidebar preview display `📷 Sent an image` (`IMAGE`), `📎 <filename>` (`DOCUMENT`), and `✨ Sent a GIF` (`EMOJI_GIF`).
-- [ ] Server and client integration tests verify background room message reception, real-time `JOIN` / `KICK` / `DELETE` sidebar & detail transitions, `Unread Count Badge` increments/resets, and media snippet formatting.
+- [x] Shared `RoomMemberChangePayload['action']` union includes `'DELETE'` alongside `'JOIN' | 'LEAVE' | 'KICK' | 'ROLE_CHANGE'`.
+- [x] Upon socket connection, the server automatically joins the user's socket to all `room:${roomId}` channels they are a member of, and switching active conversations in the client does not emit `room:leave`.
+- [x] Adding a member (`JOIN`), removing a member (`KICK`), or deleting a room (`DELETE`) emits `room:member_change` so affected users see the room added or removed in their sidebar in real time, and if the user was viewing a kicked or deleted room, the detail view returns to the idle placeholder.
+- [x] Sidebar rows for `Direct Chat` and `Room Chat` render a Google Blue `Unread Count Badge` (`99+` cap) and bold preview text whenever `unreadCount > 0`.
+- [x] Incoming messages from other users for any conversation not currently active increment `unreadCount` by 1 in real time, and opening a conversation or marking it read resets its `unreadCount` to `0`.
+- [x] Captionless media messages in the sidebar preview display `📷 Sent an image` (`IMAGE`), `📎 <filename>` (`DOCUMENT`), and `✨ Sent a GIF` (`EMOJI_GIF`).
+- [x] Server and client integration tests verify background room message reception, real-time `JOIN` / `KICK` / `DELETE` sidebar & detail transitions, `Unread Count Badge` increments/resets, and media snippet formatting.
