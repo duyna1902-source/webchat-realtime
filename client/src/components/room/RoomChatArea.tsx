@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   RoomListItemDto,
   RoomReceiveMessagePayload,
@@ -87,6 +87,15 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   const prevMessagesLengthRef = useRef(messages.length);
 
   const { isTyping, typingText, handleTyping, stopTyping } = useRoomTyping(activeRoom?.id ?? null);
+
+  const lastOutgoingRoomMsgId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].senderId === currentUser?.id) {
+        return messages[i].id;
+      }
+    }
+    return null;
+  }, [messages, currentUser?.id]);
 
   const scrollToBottom = () => {
     if (typeof messagesEndRef.current?.scrollIntoView === 'function') {
@@ -345,10 +354,12 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                 key={msg.id}
                 className={`flex gap-2.5 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
               >
-                {/* Sender Avatar */}
-                <div className={`w-8 h-8 rounded-full font-semibold flex items-center justify-center text-xs shrink-0 self-end mb-1 shadow-xs ${getAvatarColorClass(msg.sender.username)}`}>
-                  {msg.sender.username.slice(0, 2).toUpperCase()}
-                </div>
+                {/* Sender Avatar (hidden on outgoing messages) */}
+                {!isMe && (
+                  <div className={`w-8 h-8 rounded-full font-semibold flex items-center justify-center text-xs shrink-0 self-end mb-1 shadow-xs ${getAvatarColorClass(msg.sender.username)}`}>
+                    {msg.sender.username.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
 
                 <div className={`flex flex-col max-w-[85%] sm:max-w-md ${isMe ? 'items-end' : 'items-start'}`}>
                   {/* Sender Name (shown above bubble for other users) */}
@@ -384,19 +395,37 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                       }`}
                     >
                       <span>{formatMessageTime(msg.createdAt)}</span>
-                      {isMe && <Check className="w-3 h-3 text-white/80" />}
-                      {readers.length > 0 && (
-                        <span
-                          data-testid="room-message-read-indicator"
-                          className="flex items-center gap-0.5 font-medium ml-1 text-google-blue"
-                          title={`Read by: ${readers.map((r) => r.user?.username || r.userId).join(', ')}`}
-                        >
-                          <CheckCheck className="w-3 h-3" />
-                          <span>{readers.length}</span>
-                        </span>
-                      )}
                     </div>
                   </div>
+
+                  {/* Room Delivery & Read Indicators below bubble */}
+                  {readers.length === 0 && isMe && msg.id === lastOutgoingRoomMsgId && (
+                    <div data-testid="status-sent" title="Sent" className="mt-0.5 text-[11px] text-google-grey700/80">
+                      Sent
+                    </div>
+                  )}
+                  {readers.length > 0 && (
+                    <div
+                      data-testid="room-message-read-indicator"
+                      title={`Seen by: ${readers.map((r) => r.user?.username || r.userId).join(', ')}`}
+                      className="mt-1 flex items-center justify-end gap-1.5 text-[11px] font-semibold text-google-blue"
+                    >
+                      <span>Seen by {readers.length}</span>
+                      <div className="flex -space-x-1">
+                        {readers.slice(0, 3).map((r) => {
+                          const uName = r.user?.username || 'User';
+                          return (
+                            <span
+                              key={r.userId}
+                              className={`w-4 h-4 rounded-full ${getAvatarColorClass(uName)} text-[8px] font-bold flex items-center justify-center ring-1 ring-white shadow-2xs text-white`}
+                            >
+                              {uName.slice(0, 2).toUpperCase()}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );

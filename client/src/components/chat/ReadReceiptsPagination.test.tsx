@@ -3,6 +3,7 @@ import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import React from 'react';
 import { ChatArea } from './ChatArea';
 import { RoomChatArea } from '../room/RoomChatArea';
+import { Sidebar } from './Sidebar';
 import { Dashboard } from '../dashboard/Dashboard';
 import { AuthContext } from '../../context/AuthContext';
 import { SocketContext } from '../../context/SocketContext';
@@ -116,8 +117,8 @@ function renderWithProviders(ui: React.ReactElement, socketMock?: any) {
 }
 
 describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
-  describe('1-1 Direct Chat Message Delivery Checkmarks', () => {
-    it('renders single gray checkmark for SENT status', () => {
+  describe('1-1 Direct Chat Message Delivery Status (Variant B Checkmark-Free & Watermark)', () => {
+    it('renders minimalist text "Sent" below bubble for SENT status', () => {
       const sentMessage: DirectReceiveMessagePayload = {
         id: 'msg-sent',
         directChatId: 'chat-alice-bob',
@@ -138,12 +139,13 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         />
       );
 
-      const sentCheckmark = screen.getByTestId('status-sent');
-      expect(sentCheckmark).toBeInTheDocument();
-      expect(sentCheckmark).toHaveAttribute('title', 'Sent');
+      const sentStatus = screen.getByTestId('status-sent');
+      expect(sentStatus).toBeInTheDocument();
+      expect(sentStatus).toHaveAttribute('title', 'Sent');
+      expect(sentStatus.textContent).toBe('Sent');
     });
 
-    it('renders double gray checkmark for DELIVERED status', () => {
+    it('renders minimalist text "Delivered" below bubble for DELIVERED status', () => {
       const deliveredMessage: DirectReceiveMessagePayload = {
         id: 'msg-delivered',
         directChatId: 'chat-alice-bob',
@@ -164,12 +166,13 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         />
       );
 
-      const deliveredCheckmark = screen.getByTestId('status-delivered');
-      expect(deliveredCheckmark).toBeInTheDocument();
-      expect(deliveredCheckmark).toHaveAttribute('title', 'Delivered');
+      const deliveredStatus = screen.getByTestId('status-delivered');
+      expect(deliveredStatus).toBeInTheDocument();
+      expect(deliveredStatus).toHaveAttribute('title', 'Delivered');
+      expect(deliveredStatus.textContent).toBe('Delivered');
     });
 
-    it('renders double blue checkmark or "Đã xem" for READ status', () => {
+    it('renders "Seen" paired with partner Mini-Avatar for READ status', () => {
       const readMessage: DirectReceiveMessagePayload = {
         id: 'msg-read',
         directChatId: 'chat-alice-bob',
@@ -190,15 +193,130 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         />
       );
 
-      const readCheckmark = screen.getByTestId('status-read');
-      expect(readCheckmark).toBeInTheDocument();
-      // Should indicate Read / Đã xem in title or aria-label
-      expect(readCheckmark.getAttribute('title')).toMatch(/Đã xem|Read/i);
+      const readStatus = screen.getByTestId('status-read');
+      expect(readStatus).toBeInTheDocument();
+      expect(readStatus.getAttribute('title')).toMatch(/Đã xem|Read/i);
+      expect(readStatus.textContent).toMatch(/Seen/i);
+      // Partner Bob initials 'BO' in mini avatar
+      expect(readStatus.textContent).toMatch(/BO/);
+    });
+
+    it('enforces single read watermark: Seen moves down to newest seen message and disappears from older messages', () => {
+      const msg1: DirectReceiveMessagePayload = {
+        id: 'msg-1',
+        directChatId: 'chat-alice-bob',
+        senderId: mockCurrentUser.id,
+        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username, avatarUrl: null },
+        content: 'First message',
+        type: MessageType.TEXT,
+        status: MessageStatus.READ,
+        createdAt: new Date(Date.now() - 5000).toISOString(),
+      };
+
+      const msg2: DirectReceiveMessagePayload = {
+        id: 'msg-2',
+        directChatId: 'chat-alice-bob',
+        senderId: mockCurrentUser.id,
+        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username, avatarUrl: null },
+        content: 'Second message',
+        type: MessageType.TEXT,
+        status: MessageStatus.SENT,
+        createdAt: new Date().toISOString(),
+      };
+
+      const { rerender } = renderWithProviders(
+        <ChatArea
+          activeChat={mockDirectChat}
+          messages={[msg1, msg2]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+        />
+      );
+
+      // Initially, msg1 is READ so it shows status-read, msg2 is SENT so it shows status-sent
+      expect(screen.getByTestId('status-read')).toBeInTheDocument();
+      expect(screen.getByTestId('status-sent')).toBeInTheDocument();
+      expect(screen.getAllByTestId('status-read')).toHaveLength(1);
+
+      // Now Bob reads msg2 as well
+      const msg2Read: DirectReceiveMessagePayload = {
+        ...msg2,
+        status: MessageStatus.READ,
+      };
+
+      rerender(
+        <AuthContext.Provider
+          value={{
+            currentUser: mockCurrentUser,
+            token: 'jwt-alice-token',
+            isLoading: false,
+            login: vi.fn(),
+            register: vi.fn(),
+            logout: vi.fn(),
+          } as any}
+        >
+          <SocketContext.Provider
+            value={{
+              socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() } as any,
+              isConnected: true,
+              isConnecting: false,
+              connectionError: null,
+            }}
+          >
+            <ChatArea
+              activeChat={mockDirectChat}
+              messages={[msg1, msg2Read]}
+              isLoadingMessages={false}
+              onSendMessage={vi.fn()}
+            />
+          </SocketContext.Provider>
+        </AuthContext.Provider>
+      );
+
+      // Single watermark: only exactly ONE status-read exists, belonging to the newest message msg2
+      const readIndicators = screen.getAllByTestId('status-read');
+      expect(readIndicators).toHaveLength(1);
+      expect(screen.queryByTestId('status-sent')).not.toBeInTheDocument();
     });
   });
 
-  describe('Room Chat Read Indicators', () => {
-    it('displays read indicator for messages read by room members', () => {
+  describe('Room Chat Read Indicators & Outgoing Message Layout', () => {
+    it('hides sender own 32px avatar circle on outgoing room messages and renders Sent when 0 readers', () => {
+      const roomMessage: RoomReceiveMessagePayload = {
+        id: 'room-msg-sent',
+        roomId: 'room-1',
+        senderId: mockCurrentUser.id,
+        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username, avatarUrl: null },
+        content: 'Message waiting for readers',
+        type: MessageType.TEXT,
+        createdAt: new Date().toISOString(),
+      };
+
+      renderWithProviders(
+        <RoomChatArea
+          activeRoom={mockRoom}
+          roomDetails={{ ...mockRoomDetails, members: [] }}
+          messages={[roomMessage]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+          onAddMember={vi.fn()}
+          onRemoveMember={vi.fn()}
+          onChangeRole={vi.fn()}
+          onLeaveRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+        />
+      );
+
+      // Alice is sender, so 'AL' avatar circle is NOT rendered
+      expect(screen.queryByText('AL')).not.toBeInTheDocument();
+
+      // Displays Sent below outgoing message when 0 readers
+      const sentIndicator = screen.getByTestId('status-sent');
+      expect(sentIndicator).toBeInTheDocument();
+      expect(sentIndicator.textContent).toBe('Sent');
+    });
+
+    it('displays Seen by N with reader Mini-Avatars for messages read by room members', () => {
       const roomMessage: RoomReceiveMessagePayload = {
         id: 'room-msg-1',
         roomId: 'room-1',
@@ -227,7 +345,74 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
       // Member Bob has lastReadMessageId = 'room-msg-1'
       const readIndicator = screen.getByTestId('room-message-read-indicator');
       expect(readIndicator).toBeInTheDocument();
-      expect(readIndicator.textContent).toMatch(/1/); // 1 reader (Bob)
+      expect(readIndicator.textContent).toMatch(/Seen by 1/i);
+      expect(readIndicator.textContent).toMatch(/BO/); // Bob mini-avatar initials
+    });
+  });
+
+  describe('Sidebar Outgoing Delivery Status & "You:" Prefix', () => {
+    it('prefixes outgoing last message with "You: " and renders partner mini-avatar for READ status', () => {
+      const chatWithReadOutgoing: DirectChatListItemDto = {
+        ...mockDirectChat,
+        lastMessage: {
+          id: 'last-msg-1',
+          content: 'Hello Bob from Alice',
+          senderId: mockCurrentUser.id,
+          createdAt: new Date().toISOString(),
+          status: MessageStatus.READ,
+          type: MessageType.TEXT,
+        } as any,
+      };
+
+      renderWithProviders(
+        <Sidebar
+          chats={[chatWithReadOutgoing]}
+          rooms={[]}
+          activeChatId={null}
+          activeRoomId={null}
+          onSelectChat={vi.fn()}
+          onSelectRoom={vi.fn()}
+          onStartChat={vi.fn()}
+          onCreateRoom={vi.fn()}
+        />
+      );
+
+      // Verify "You: Hello Bob from Alice"
+      expect(screen.getByText(/You: Hello Bob from Alice/i)).toBeInTheDocument();
+      // Verify partner mini-avatar or Seen indicator in sidebar
+      const partnerMiniAvatar = screen.getByTitle(`Seen by ${mockPartnerUser.username}`);
+      expect(partnerMiniAvatar).toBeInTheDocument();
+      expect(partnerMiniAvatar.textContent).toBe('BO');
+    });
+
+    it('prefixes outgoing last message with "You: " and renders "Delivered" for DELIVERED status', () => {
+      const chatWithDeliveredOutgoing: DirectChatListItemDto = {
+        ...mockDirectChat,
+        lastMessage: {
+          id: 'last-msg-2',
+          content: 'Waiting for Bob to read',
+          senderId: mockCurrentUser.id,
+          createdAt: new Date().toISOString(),
+          status: MessageStatus.DELIVERED,
+          type: MessageType.TEXT,
+        } as any,
+      };
+
+      renderWithProviders(
+        <Sidebar
+          chats={[chatWithDeliveredOutgoing]}
+          rooms={[]}
+          activeChatId={null}
+          activeRoomId={null}
+          onSelectChat={vi.fn()}
+          onSelectRoom={vi.fn()}
+          onStartChat={vi.fn()}
+          onCreateRoom={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText(/You: Waiting for Bob to read/i)).toBeInTheDocument();
+      expect(screen.getByText('Delivered')).toBeInTheDocument();
     });
   });
 

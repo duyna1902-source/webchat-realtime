@@ -7,6 +7,7 @@ import {
   MessageStatus,
   DirectSendMessagePayload,
   DirectReadPayload,
+  DirectDeliveredPayload,
 } from '@webchat/shared';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -185,6 +186,19 @@ export function useDirectMessages(activeChatId: string | null) {
       }
     };
 
+    const handleDelivered = (payload: DirectDeliveredPayload) => {
+      if (payload.directChatId === activeChatId) {
+        setMessages((prev) => {
+          return prev.map((m) => {
+            if (m.senderId === currentUser?.id && m.status === MessageStatus.SENT) {
+              return { ...m, status: MessageStatus.DELIVERED };
+            }
+            return m;
+          });
+        });
+      }
+    };
+
     const handleConnect = () => {
       // If socket.recovered is false, connection state was unrecovered; catch up missed messages
       if (!socket.recovered) {
@@ -194,11 +208,13 @@ export function useDirectMessages(activeChatId: string | null) {
 
     socket.on(SOCKET_EVENTS.DIRECT_RECEIVE, handleReceive);
     socket.on(SOCKET_EVENTS.DIRECT_READ, handleReadReceipt);
+    socket.on(SOCKET_EVENTS.DIRECT_DELIVERED, handleDelivered);
     socket.on('connect', handleConnect);
 
     return () => {
       socket.off(SOCKET_EVENTS.DIRECT_RECEIVE, handleReceive);
       socket.off(SOCKET_EVENTS.DIRECT_READ, handleReadReceipt);
+      socket.off(SOCKET_EVENTS.DIRECT_DELIVERED, handleDelivered);
       socket.off('connect', handleConnect);
     };
   }, [socket, activeChatId, currentUser?.id, syncCatchup]);

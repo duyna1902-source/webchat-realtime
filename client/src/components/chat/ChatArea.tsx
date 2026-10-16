@@ -1,5 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { DirectChatListItemDto, DirectReceiveMessagePayload, MessageType, MessageStatus } from '@webchat/shared';
+
+function getDirectStatusWatermark(messages: Array<{ id: string; senderId: string; status: string }>, currentUserId: string) {
+  let lastReadOutgoingId: string | null = null;
+  let lastOutgoingId: string | null = null;
+  for (const m of messages) {
+    if (m.senderId === currentUserId) {
+      lastOutgoingId = m.id;
+      if (m.status === MessageStatus.READ) {
+        lastReadOutgoingId = m.id;
+      }
+    }
+  }
+  return { lastReadOutgoingId, lastOutgoingId };
+}
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { useTyping } from '../../hooks/useTyping';
@@ -65,6 +79,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const prevMessagesLengthRef = useRef(messages.length);
 
   const { isPartnerTyping, handleTyping, stopTyping } = useTyping(activeChat?.id ?? null);
+
+  const watermark = useMemo(
+    () => getDirectStatusWatermark(messages, currentUser?.id || ''),
+    [messages, currentUser?.id]
+  );
 
   const scrollToBottom = () => {
     if (typeof messagesEndRef.current?.scrollIntoView === 'function') {
@@ -354,38 +373,53 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     }`}
                   >
                     <span>{formatMessageTime(msg.createdAt)}</span>
-                    {isMe && (
-                      msg.status === MessageStatus.READ ? (
-                        <span
-                          data-testid="status-read"
-                          title="Đã xem"
-                          aria-label="Đã xem"
-                          className="flex items-center text-google-blue"
-                        >
-                          <CheckCheck className="w-3.5 h-3.5" />
-                        </span>
-                      ) : msg.status === MessageStatus.DELIVERED ? (
-                        <span
-                          data-testid="status-delivered"
-                          title="Delivered"
-                          aria-label="Delivered"
-                          className="flex items-center text-white/70"
-                        >
-                          <CheckCheck className="w-3.5 h-3.5" />
-                        </span>
-                      ) : (
-                        <span
-                          data-testid="status-sent"
-                          title="Sent"
-                          aria-label="Sent"
-                          className="flex items-center text-white/70"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </span>
-                      )
-                    )}
                   </div>
                 </div>
+
+                {/* Delivery Status below bubble on light canvas */}
+                {isMe && (
+                  <>
+                    {msg.status === MessageStatus.READ && msg.id === watermark.lastReadOutgoingId && (
+                      <div
+                        data-testid="status-read"
+                        title="Đã xem"
+                        aria-label="Đã xem"
+                        className="mt-1 flex items-center justify-end gap-1 text-[11px] font-semibold text-google-blue"
+                      >
+                        <span>Seen</span>
+                        {activeChat?.partner?.username && (
+                          <span
+                            className={`w-4 h-4 rounded-full ${getAvatarColorClass(activeChat.partner.username)} text-[8px] font-bold flex items-center justify-center text-white shadow-xs`}
+                          >
+                            {activeChat.partner.username.slice(0, 2).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {msg.status === MessageStatus.DELIVERED && msg.id === watermark.lastOutgoingId && (
+                      <div
+                        data-testid="status-delivered"
+                        title="Delivered"
+                        aria-label="Delivered"
+                        className="mt-0.5 text-[11px] font-semibold text-google-grey700"
+                      >
+                        Delivered
+                      </div>
+                    )}
+
+                    {msg.status === MessageStatus.SENT && msg.id === watermark.lastOutgoingId && (
+                      <div
+                        data-testid="status-sent"
+                        title="Sent"
+                        aria-label="Sent"
+                        className="mt-0.5 text-[11px] text-google-grey700/80"
+                      >
+                        Sent
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             );
           })

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DirectChatListItemDto, RoomListItemDto, UserDto, RoomRole } from '@webchat/shared';
+import { DirectChatListItemDto, RoomListItemDto, UserDto, RoomRole, MessageStatus } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { CreateRoomModal } from '../room/CreateRoomModal';
 import { getAvatarColorClass } from '../../utils/avatarColor';
@@ -48,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onTabChange,
   className = '',
 }) => {
-  const { token } = useAuth();
+  const { token, currentUser } = useAuth();
 
   const [internalTab, setInternalTab] = useState<'direct' | 'room'>('direct');
   const activeTab = externalActiveTab ?? internalTab;
@@ -318,9 +318,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           {formatMessageTime(chat.lastMessage?.createdAt || chat.updatedAt)}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-500 truncate">
-                        {chat.lastMessage ? chat.lastMessage.content : <span className="italic text-gray-400">No messages yet</span>}
-                      </p>
+                      <div className="flex items-center justify-between gap-1 text-xs text-gray-500">
+                        <p className="truncate flex-1">
+                          {chat.lastMessage ? (
+                            <>
+                              {chat.lastMessage.senderId === currentUser?.id ? 'You: ' : ''}
+                              {chat.lastMessage.content}
+                            </>
+                          ) : (
+                            <span className="italic text-gray-400">No messages yet</span>
+                          )}
+                        </p>
+                        {chat.lastMessage && chat.lastMessage.senderId === currentUser?.id && (
+                          <div className="shrink-0 flex items-center ml-1">
+                            {chat.lastMessage.status === MessageStatus.READ ? (
+                              <span
+                                className={`w-3.5 h-3.5 rounded-full ${getAvatarColorClass(chat.partner.username)} text-[7px] font-bold flex items-center justify-center shrink-0 text-white shadow-2xs`}
+                                title={`Seen by ${chat.partner.username}`}
+                              >
+                                {chat.partner.username.slice(0, 2).toUpperCase()}
+                              </span>
+                            ) : chat.lastMessage.status === MessageStatus.DELIVERED ? (
+                              <span className="text-[10px] font-semibold text-google-grey700 shrink-0">
+                                Delivered
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-google-grey700/80 shrink-0">
+                                Sent
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </button>
                 );

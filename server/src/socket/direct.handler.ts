@@ -6,11 +6,60 @@ import {
   SOCKET_EVENTS,
   DirectSendMessagePayload,
   DirectReceiveMessagePayload,
+  DirectDeliveredPayload,
   DirectTypingPayload,
   DirectReadPayload,
   MessageType,
   MessageStatus,
 } from '@webchat/shared';
+
+export async function handleDirectMessagesDeliveryOnConnect(io: Server, userId: string): Promise<void> {
+  try {
+    const prisma = getPrisma();
+    const pendingMessages = await prisma.directMessage.findMany({
+      where: {
+        directChat: {
+          participants: {
+            some: { userId },
+          },
+        },
+        senderId: { not: userId },
+        status: MessageStatus.SENT,
+      },
+      select: {
+        id: true,
+        directChatId: true,
+        senderId: true,
+      },
+    });
+
+    if (pendingMessages.length === 0) return;
+
+    await prisma.directMessage.updateMany({
+      where: {
+        id: { in: pendingMessages.map((m) => m.id) },
+      },
+      data: {
+        status: MessageStatus.DELIVERED,
+      },
+    });
+
+    const notifiedPairs = new Set<string>();
+    for (const msg of pendingMessages) {
+      const key = `${msg.directChatId}:${msg.senderId}`;
+      if (!notifiedPairs.has(key)) {
+        notifiedPairs.add(key);
+        const payload: DirectDeliveredPayload = {
+          directChatId: msg.directChatId,
+          deliveredToUserId: userId,
+        };
+        io.to(`user:${msg.senderId}`).emit(SOCKET_EVENTS.DIRECT_DELIVERED, payload);
+      }
+    }
+  } catch (err) {
+    console.error(`Error delivering pending direct messages on connect for user ${userId}:`, err);
+  }
+}
 
 export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSocket): void {
   const userId = socket.data.user.userId;

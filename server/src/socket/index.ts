@@ -1,7 +1,7 @@
 import http from 'http';
 import { Server, Socket } from 'socket.io';
 import { verifyToken, JwtPayload } from '../lib/jwt.js';
-import { registerDirectChatHandlers } from './direct.handler.js';
+import { registerDirectChatHandlers, handleDirectMessagesDeliveryOnConnect } from './direct.handler.js';
 import { registerRoomHandlers } from './room.handler.js';
 import { handleUserConnect, handleUserDisconnect } from './presence.handler.js';
 
@@ -58,6 +58,11 @@ export function setupSocketServer(httpServer: http.Server): Server {
 
     // Track user presence
     await handleUserConnect(io, authSocket);
+
+    // Auto-deliver any pending direct messages sent to this user while offline
+    if (authSocket.data?.user?.userId) {
+      await handleDirectMessagesDeliveryOnConnect(io, authSocket.data.user.userId);
+    }
 
     // Register direct chat events
     registerDirectChatHandlers(io, authSocket);

@@ -232,6 +232,64 @@ describe('Read Receipts Socket Integration (direct:read and room:read)', () => {
     });
   });
 
+  describe('direct:delivered socket event on recipient connect', () => {
+    it('automatically upgrades SENT messages to DELIVERED and emits direct:delivered when offline recipient connects', async () => {
+      const prisma = getPrisma();
+
+      // Create an offline user Dan and a chat between Alice and Dan
+      const userDan = await prisma.user.create({
+        data: { username: 'dan', email: 'dan@test.com', passwordHash: 'hash', isOnline: false },
+      });
+      const [u1, u2] = normalizeDirectChatPair(userAlice.id, userDan.id);
+      const chatDan = await prisma.directChat.create({
+        data: {
+          user1Id: u1,
+          user2Id: u2,
+          participants: {
+            create: [{ userId: userAlice.id }, { userId: userDan.id }],
+          },
+        },
+      });
+
+      // Alice sends a message to Dan while Dan is offline
+      const sentMsg = await prisma.directMessage.create({
+        data: {
+          directChatId: chatDan.id,
+          senderId: userAlice.id,
+          content: 'Hello Dan, you are offline!',
+          type: MessageType.TEXT,
+          status: MessageStatus.SENT,
+        },
+      });
+
+      expect(sentMsg.status).toBe(MessageStatus.SENT);
+
+      // Alice sets up listener for direct:delivered
+      const deliveredPromise = waitForEvent(clientAlice, SOCKET_EVENTS.DIRECT_DELIVERED);
+
+      // Now Dan connects to socket server
+      const tokenDan = generateToken({ userId: userDan.id, username: userDan.username });
+      const clientDan = ClientSocket(`http://localhost:${serverPort}`, {
+        auth: { token: tokenDan },
+        transports: ['websocket'],
+      });
+
+      try {
+        const payload = await deliveredPromise;
+        expect(payload).toMatchObject({
+          directChatId: chatDan.id,
+          deliveredToUserId: userDan.id,
+        });
+
+        // Verify DB message status upgraded to DELIVERED
+        const updatedMsg = await prisma.directMessage.findUnique({ where: { id: sentMsg.id } });
+        expect(updatedMsg?.status).toBe(MessageStatus.DELIVERED);
+      } finally {
+        if (clientDan.connected) clientDan.disconnect();
+      }
+    });
+  });
+
   describe('room:read socket event', () => {
     it('updates caller RoomMember lastReadMessageId and broadcasts room:read to room members', async () => {
       const prisma = getPrisma();

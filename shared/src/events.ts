@@ -7,6 +7,7 @@ export const SOCKET_EVENTS = {
   // Direct Chat
   DIRECT_SEND: 'direct:send',
   DIRECT_RECEIVE: 'direct:receive',
+  DIRECT_DELIVERED: 'direct:delivered',
   DIRECT_TYPING: 'direct:typing',
   DIRECT_READ: 'direct:read',
 
@@ -52,6 +53,11 @@ export interface DirectReceiveMessagePayload {
   attachmentName?: string | null;
   attachmentSize?: number | null;
   createdAt: string; // ISO String
+}
+
+export interface DirectDeliveredPayload {
+  directChatId: string;
+  deliveredToUserId: string;
 }
 
 export interface DirectTypingPayload {
