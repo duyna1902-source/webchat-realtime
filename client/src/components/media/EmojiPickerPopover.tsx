@@ -281,7 +281,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search emojis..."
-            className="w-full bg-white border border-gray-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-500 transition"
+            className="w-full bg-white border border-gray-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-google-blue transition"
             autoFocus
           />
         </div>
@@ -297,7 +297,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
               onClick={() => setActiveCategory(cat.id)}
               className={`p-1.5 rounded-lg text-sm transition cursor-pointer ${
                 activeCategory === cat.id
-                  ? 'bg-indigo-50 text-indigo-600 scale-110 shadow-xs'
+                  ? 'bg-google-blue-subtle text-google-blue scale-110 shadow-xs'
                   : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
               }`}
               title={cat.name}
@@ -331,7 +331,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
                     }}
                     title={item.name}
                     aria-label={item.name}
-                    className="w-8 h-8 flex items-center justify-center text-lg rounded-lg hover:bg-indigo-50 hover:scale-115 active:scale-95 transition cursor-pointer font-sans"
+                    className="w-8 h-8 flex items-center justify-center text-lg rounded-lg hover:bg-google-blue-subtle hover:scale-115 active:scale-95 transition cursor-pointer font-sans"
                   >
                     {item.emoji}
                   </button>
@@ -356,7 +356,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
                       }}
                       title={item.name}
                       aria-label={item.name}
-                      className="w-8 h-8 flex items-center justify-center text-lg rounded-lg hover:bg-indigo-50 hover:scale-115 active:scale-95 transition cursor-pointer font-sans"
+                      className="w-8 h-8 flex items-center justify-center text-lg rounded-lg hover:bg-google-blue-subtle hover:scale-115 active:scale-95 transition cursor-pointer font-sans"
                     >
                       {item.emoji}
                     </button>

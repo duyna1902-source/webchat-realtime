@@ -101,7 +101,7 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
         {/* Modal Header */}
         <header className="px-5 py-3.5 border-b border-gray-200 flex items-center justify-between bg-white">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-google-blue-subtle text-google-blue flex items-center justify-center">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
@@ -130,7 +130,7 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
               placeholder="Search GIFs on Tenor/Giphy..."
-              className="w-full bg-white border border-gray-300 focus:border-indigo-500 rounded-xl pl-9 pr-9 py-2 text-base sm:text-xs text-gray-900 placeholder-gray-400 outline-none transition shadow-xs"
+              className="w-full bg-white border border-gray-300 focus:border-google-blue rounded-xl pl-9 pr-9 py-2 text-base sm:text-xs text-gray-900 placeholder-gray-400 outline-none transition shadow-xs"
             />
             {query && (
               <button
@@ -150,7 +150,7 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
         <div className="flex-1 overflow-y-auto p-3 min-h-[300px]">
           {isLoading && gifs.length === 0 ? (
             <div className="h-64 flex flex-col items-center justify-center text-gray-400 gap-2">
-              <Loader2 className="w-7 h-7 animate-spin text-indigo-600" />
+              <Loader2 className="w-7 h-7 animate-spin text-google-blue" />
               <p className="text-xs">Finding GIFs...</p>
             </div>
           ) : error && gifs.length === 0 ? (
@@ -159,7 +159,7 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
               <p className="text-xs font-medium">{error}</p>
               <button
                 onClick={() => fetchGifs(query)}
-                className="px-3 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-semibold cursor-pointer"
+                className="px-3 py-1 bg-google-blue-subtle text-google-blue hover:bg-google-blue/10 rounded-lg text-xs font-semibold cursor-pointer"
               >
                 Retry
               </button>
@@ -180,7 +180,7 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
                     onClose();
                   }}
                   title={gif.title}
-                  className="group relative rounded-xl overflow-hidden aspect-video bg-gray-100 hover:ring-2 hover:ring-indigo-500 transition cursor-pointer shadow-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="group relative rounded-xl overflow-hidden aspect-video bg-gray-100 hover:ring-2 hover:ring-google-blue transition cursor-pointer shadow-xs focus:outline-none focus:ring-2 focus:ring-google-blue"
                 >
                   <img
                     src={gif.previewUrl || gif.url}

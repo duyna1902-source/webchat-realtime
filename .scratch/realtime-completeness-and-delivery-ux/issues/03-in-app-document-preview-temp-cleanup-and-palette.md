@@ -12,11 +12,11 @@ On the server, when uploading an `Attachment` via external cloud storage adapter
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Clicking a document `Attachment` in `Direct Chat` or `Room Chat` opens `DocumentPreviewModal` with header metadata, a Download button, and a Close button (including `Escape` key and backdrop click dismissal).
-- [ ] `DocumentPreviewModal` renders `.pdf` files inline via an `<iframe />`, fetches and renders `.txt`, `.md`, `.csv`, `.json`, and `.xml` files in a scrollable `<pre>` viewer, and renders a metadata summary card with a **"Download to view"** action for binary formats (`.docx`, `.xlsx`, `.pptx`, `.zip`).
-- [ ] Cloud storage upload adapters (`CloudinaryStorageAdapter` and `SupabaseStorageAdapter`) delete the temporary local file via `fs.promises.unlink` in a `finally` block after uploading, while `LocalStorageAdapter` retains the local file.
-- [ ] No legacy `indigo-*` classes remain in attachment cards, composer attachment preview bars, emoji picker popovers, GIF search modals, or loading screens; all use `google-blue` and `google-grey` tokens.
-- [ ] The top navigation bar in `Dashboard.tsx` (`[GDG Logo] GDG-HUST | Welcome, <username>!` on the left and `[Notification Bell] [● Connected] [User Avatar] [Sign Out]` on the right) remains 100% unchanged.
-- [ ] Server and client tests verify `DocumentPreviewModal` rendering across PDF, text, and binary document types and confirm temporary file cleanup after cloud upload.
+- [x] Clicking a document `Attachment` in `Direct Chat` or `Room Chat` opens `DocumentPreviewModal` with header metadata, a Download button, and a Close button (including `Escape` key and backdrop click dismissal).
+- [x] `DocumentPreviewModal` renders `.pdf` files inline via an `<iframe />`, fetches and renders `.txt`, `.md`, `.csv`, `.json`, and `.xml` files in a scrollable `<pre>` viewer, and renders a metadata summary card with a **"Download to view"** action for binary formats (`.docx`, `.xlsx`, `.pptx`, `.zip`).
+- [x] Cloud storage upload adapters (`CloudinaryStorageAdapter` and `SupabaseStorageAdapter`) delete the temporary local file via `fs.promises.unlink` in a `finally` block after uploading, while `LocalStorageAdapter` retains the local file.
+- [x] No legacy `indigo-*` classes remain in attachment cards, composer attachment preview bars, emoji picker popovers, GIF search modals, or loading screens; all use `google-blue` and `google-grey` tokens.
+- [x] The top navigation bar in `Dashboard.tsx` (`[GDG Logo] GDG-HUST | Welcome, <username>!` on the left and `[Notification Bell] [● Connected] [User Avatar] [Sign Out]` on the right) remains 100% unchanged.
+- [x] Server and client tests verify `DocumentPreviewModal` rendering across PDF, text, and binary document types and confirm temporary file cleanup after cloud upload.
