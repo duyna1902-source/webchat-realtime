@@ -25,7 +25,7 @@ function getDirectStatusWatermark(messages: Array<{ id: string; senderId: string
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Shared socket contract defines `DIRECT_DELIVERED: 'direct:delivered'` and `DirectDeliveredPayload` (`{ directChatId: string; deliveredToUserId: string }`).
 - [ ] When a user connects to the socket server, any `DirectMessage` records addressed to them with status `SENT` are updated to `DELIVERED` in the database and `direct:delivered` is emitted in real time to each corresponding sender.
