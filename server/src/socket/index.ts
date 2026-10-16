@@ -2,7 +2,7 @@ import http from 'http';
 import { Server, Socket } from 'socket.io';
 import { verifyToken, JwtPayload } from '../lib/jwt.js';
 import { registerDirectChatHandlers, handleDirectMessagesDeliveryOnConnect } from './direct.handler.js';
-import { registerRoomHandlers } from './room.handler.js';
+import { registerRoomHandlers, autoJoinUserRooms } from './room.handler.js';
 import { handleUserConnect, handleUserDisconnect } from './presence.handler.js';
 
 export interface AuthenticatedSocket extends Socket {
@@ -68,6 +68,8 @@ export function setupSocketServer(httpServer: http.Server): Server {
     registerDirectChatHandlers(io, authSocket);
     // Register room chat events
     registerRoomHandlers(io, authSocket);
+    // Automatically subscribe to user's rooms in the background
+    await autoJoinUserRooms(io, authSocket);
 
     // Client is successfully authenticated and connected
     socket.on('disconnect', () => {

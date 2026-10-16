@@ -127,7 +127,7 @@ export interface RoomReadPayload {
 
 export interface RoomMemberChangePayload {
   roomId: string;
-  action: 'JOIN' | 'LEAVE' | 'KICK' | 'ROLE_CHANGE';
+  action: 'JOIN' | 'LEAVE' | 'KICK' | 'ROLE_CHANGE' | 'DELETE';
   userId: string;
   username: string;
   role?: RoomRole;

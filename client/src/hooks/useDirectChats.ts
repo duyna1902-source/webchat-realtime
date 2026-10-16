@@ -4,13 +4,14 @@ import {
   SOCKET_EVENTS,
   DirectReceiveMessagePayload,
   PresenceUpdatePayload,
+  DirectReadPayload,
   UserDto,
 } from '@webchat/shared';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 
-export function useDirectChats() {
-  const { token } = useAuth();
+export function useDirectChats(activeChatId?: string | null) {
+  const { token, currentUser } = useAuth();
   const { socket } = useSocket();
   const [chats, setChats] = useState<DirectChatListItemDto[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -44,17 +45,35 @@ export function useDirectChats() {
     fetchChats();
   }, [fetchChats]);
 
-  // Real-time update on incoming direct:receive
+  // Reset unreadCount when activeChatId changes
+  useEffect(() => {
+    if (activeChatId) {
+      setChats((prev) =>
+        prev.map((c) => (c.id === activeChatId && c.unreadCount !== 0 ? { ...c, unreadCount: 0 } : c))
+      );
+    }
+  }, [activeChatId]);
+
+  // Real-time update on incoming direct:receive, direct:read, presence, and reconnection
   useEffect(() => {
     if (!socket) return;
 
     const handleReceive = (msg: DirectReceiveMessagePayload) => {
       setChats((prevChats) => {
         const existingIndex = prevChats.findIndex((c) => c.id === msg.directChatId);
+        const isOther = msg.senderId !== currentUser?.id;
+        const isInactive = msg.directChatId !== activeChatId;
+
         if (existingIndex !== -1) {
+          const existing = prevChats[existingIndex];
+          const newUnread = isOther && isInactive
+            ? (existing.unreadCount || 0) + 1
+            : (msg.directChatId === activeChatId ? 0 : (existing.unreadCount || 0));
+
           const updatedChat = {
-            ...prevChats[existingIndex],
+            ...existing,
             lastMessage: msg,
+            unreadCount: newUnread,
             updatedAt: msg.createdAt,
           };
           // Move this chat to the top
@@ -67,7 +86,13 @@ export function useDirectChats() {
       });
     };
 
-    socket.on(SOCKET_EVENTS.DIRECT_RECEIVE, handleReceive);
+    const handleRead = (payload: DirectReadPayload) => {
+      if (payload.userId === currentUser?.id || payload.readByUserId === currentUser?.id) {
+        setChats((prev) =>
+          prev.map((c) => (c.id === payload.directChatId ? { ...c, unreadCount: 0 } : c))
+        );
+      }
+    };
 
     const handlePresence = (presence: PresenceUpdatePayload) => {
       if (!presence || !presence.userId) return;
@@ -88,13 +113,22 @@ export function useDirectChats() {
       );
     };
 
+    const handleConnect = () => {
+      fetchChats();
+    };
+
+    socket.on(SOCKET_EVENTS.DIRECT_RECEIVE, handleReceive);
+    socket.on(SOCKET_EVENTS.DIRECT_READ, handleRead);
     socket.on(SOCKET_EVENTS.PRESENCE_UPDATE, handlePresence);
+    socket.on('connect', handleConnect);
 
     return () => {
       socket.off(SOCKET_EVENTS.DIRECT_RECEIVE, handleReceive);
+      socket.off(SOCKET_EVENTS.DIRECT_READ, handleRead);
       socket.off(SOCKET_EVENTS.PRESENCE_UPDATE, handlePresence);
+      socket.off('connect', handleConnect);
     };
-  }, [socket, fetchChats]);
+  }, [socket, activeChatId, currentUser?.id, fetchChats]);
 
   const createOrOpenChat = async (targetUserId: string): Promise<string> => {
     if (!token) throw new Error('Not authenticated');

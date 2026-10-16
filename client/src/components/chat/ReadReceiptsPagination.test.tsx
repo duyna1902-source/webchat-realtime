@@ -260,6 +260,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
               socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() } as any,
               isConnected: true,
               isConnecting: false,
+              isReconnecting: false,
               connectionError: null,
             }}
           >
@@ -374,6 +375,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
           onSelectRoom={vi.fn()}
           onStartChat={vi.fn()}
           onCreateRoom={vi.fn()}
+          isLoadingChats={false}
         />
       );
 
@@ -408,6 +410,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
           onSelectRoom={vi.fn()}
           onStartChat={vi.fn()}
           onCreateRoom={vi.fn()}
+          isLoadingChats={false}
         />
       );
 

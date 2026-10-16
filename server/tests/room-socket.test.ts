@@ -268,4 +268,42 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
     expect(outsiderRes.success).toBe(false);
     expect(outsiderRes.error).toMatch(/not a member/i);
   });
+
+  it('automatically joins member socket to room channel on connect so they receive room messages without explicit room:join', async () => {
+    // Both Alice (Owner) and Bob (Member) are connected. Neither emitted room:join.
+    const bobReceivePromise = waitForEvent(clientMember, SOCKET_EVENTS.ROOM_RECEIVE);
+
+    clientOwner.emit(SOCKET_EVENTS.ROOM_SEND, {
+      roomId: testRoom.id,
+      content: 'Background broadcast to team!',
+    });
+
+    const received = await bobReceivePromise;
+    expect(received).toMatchObject({
+      roomId: testRoom.id,
+      content: 'Background broadcast to team!',
+      senderId: ownerUser.id,
+    });
+  });
+
+  it('broadcasts room:member_change with action: DELETE to room members when room is deleted', async () => {
+    const bobDeletePromise = waitForEvent(clientMember, SOCKET_EVENTS.ROOM_MEMBER_CHANGE);
+
+    // Alice deletes the room via REST API
+    const tokenOwner = generateToken({ userId: ownerUser.id, username: ownerUser.username });
+    const res = await fetch(`http://localhost:${serverPort}/api/rooms/${testRoom.id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${tokenOwner}`,
+      },
+    });
+
+    expect(res.status).toBe(200);
+
+    const payload = await bobDeletePromise;
+    expect(payload).toMatchObject({
+      roomId: testRoom.id,
+      action: 'DELETE',
+    });
+  });
 });

@@ -337,4 +337,137 @@ describe('Direct Chat Client Components', () => {
     fireEvent.click(backButton);
     expect(onBack).toHaveBeenCalledTimes(1);
   });
+
+  it('renders Google Blue Unread Count Badge when unreadCount > 0 and caps at 99+', () => {
+    const chatWithUnread: DirectChatListItemDto = {
+      ...mockChat,
+      id: 'chat-unread',
+      unreadCount: 5,
+    };
+
+    const chatWithHugeUnread: DirectChatListItemDto = {
+      ...mockChat,
+      id: 'chat-huge',
+      unreadCount: 120,
+    };
+
+    const { rerender } = renderWithProviders(
+      <Sidebar
+        chats={[chatWithUnread]}
+        activeChatId={null}
+        onSelectChat={vi.fn()}
+        onStartChat={vi.fn()}
+        isLoadingChats={false}
+      />
+    );
+
+    const badge = screen.getByTestId('unread-badge-chat-unread');
+    expect(badge).toBeInTheDocument();
+    expect(badge.textContent).toBe('5');
+    expect(badge.className).toMatch(/bg-google-blue/);
+
+    rerender(
+      <AuthContext.Provider
+        value={{
+          currentUser: mockUser,
+          token: 'token-xyz',
+          isLoading: false,
+          login: vi.fn(),
+          register: vi.fn(),
+          logout: vi.fn(),
+        } as any}
+      >
+        <SocketContext.Provider
+          value={{
+            socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() } as any,
+            isConnected: true,
+            isConnecting: false,
+            isReconnecting: false,
+            connectionError: null,
+          }}
+        >
+          <Sidebar
+            chats={[chatWithHugeUnread]}
+            activeChatId={null}
+            onSelectChat={vi.fn()}
+            onStartChat={vi.fn()}
+            isLoadingChats={false}
+          />
+        </SocketContext.Provider>
+      </AuthContext.Provider>
+    );
+
+    const hugeBadge = screen.getByTestId('unread-badge-chat-huge');
+    expect(hugeBadge.textContent).toBe('99+');
+  });
+
+  it('formats friendly media snippets in sidebar preview for IMAGE, DOCUMENT and GIF', () => {
+    const chatImage: DirectChatListItemDto = {
+      ...mockChat,
+      id: 'chat-img',
+      lastMessage: {
+        id: 'msg-img',
+        directChatId: 'chat-img',
+        senderId: 'partner-user-id',
+        sender: { id: 'partner-user-id', username: 'bobpartner', avatarUrl: null },
+        content: '',
+        type: MessageType.IMAGE,
+        status: MessageStatus.DELIVERED,
+        attachmentUrl: 'https://example.com/photo.png',
+        attachmentName: 'photo.png',
+        attachmentSize: 1024,
+        createdAt: new Date().toISOString(),
+      },
+    };
+
+    const chatDoc: DirectChatListItemDto = {
+      ...mockChat,
+      id: 'chat-doc',
+      lastMessage: {
+        id: 'msg-doc',
+        directChatId: 'chat-doc',
+        senderId: 'partner-user-id',
+        sender: { id: 'partner-user-id', username: 'bobpartner', avatarUrl: null },
+        content: '',
+        type: MessageType.DOCUMENT,
+        status: MessageStatus.DELIVERED,
+        attachmentUrl: 'https://example.com/spec.pdf',
+        attachmentName: 'Project_Spec.pdf',
+        attachmentSize: 2048,
+        createdAt: new Date().toISOString(),
+      },
+    };
+
+    const chatGif: DirectChatListItemDto = {
+      ...mockChat,
+      id: 'chat-gif',
+      lastMessage: {
+        id: 'msg-gif',
+        directChatId: 'chat-gif',
+        senderId: 'partner-user-id',
+        sender: { id: 'partner-user-id', username: 'bobpartner', avatarUrl: null },
+        content: 'https://media.giphy.com/media/test.gif',
+        type: MessageType.EMOJI_GIF,
+        status: MessageStatus.DELIVERED,
+        attachmentUrl: null,
+        attachmentName: null,
+        attachmentSize: null,
+        createdAt: new Date().toISOString(),
+      },
+    };
+
+    renderWithProviders(
+      <Sidebar
+        chats={[chatImage, chatDoc, chatGif]}
+        activeChatId={null}
+        onSelectChat={vi.fn()}
+        onStartChat={vi.fn()}
+        isLoadingChats={false}
+      />
+    );
+
+    expect(screen.getByText(/📷 Sent an image/i)).toBeInTheDocument();
+    expect(screen.getByText(/📎 Project_Spec.pdf/i)).toBeInTheDocument();
+    expect(screen.getByText(/✨ Sent a GIF/i)).toBeInTheDocument();
+  });
 });
