@@ -45,7 +45,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[90dvh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-google-blue-subtle text-google-blue flex items-center justify-center">
               <Hash className="w-5 h-5" />
             </div>
             <h3 className="text-base font-bold text-gray-900">Create New Room</h3>
@@ -77,7 +77,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={isSubmitting}
-              className="w-full px-3.5 py-2.5 bg-gray-50 focus:bg-white border border-gray-200 focus:border-indigo-500 rounded-xl text-base sm:text-sm outline-none transition"
+              className="w-full px-3.5 py-2.5 bg-gray-50 focus:bg-white border border-gray-200 focus:border-google-blue rounded-xl text-base sm:text-sm outline-none transition"
               autoFocus
             />
           </div>
@@ -93,7 +93,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               disabled={isSubmitting}
-              className="w-full px-3.5 py-2 bg-gray-50 focus:bg-white border border-gray-200 focus:border-indigo-500 rounded-xl text-base sm:text-sm outline-none transition resize-none"
+              className="w-full px-3.5 py-2 bg-gray-50 focus:bg-white border border-gray-200 focus:border-google-blue rounded-xl text-base sm:text-sm outline-none transition resize-none"
             />
           </div>
 
@@ -109,7 +109,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || !name.trim()}
-              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition flex items-center gap-2 shadow-sm min-h-[40px] cursor-pointer"
+              className="px-5 py-2 bg-google-blue hover:bg-google-blue-hover disabled:opacity-50 text-white text-sm font-medium rounded-xl transition flex items-center gap-2 shadow-sm min-h-[40px] cursor-pointer"
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>Create Room</span>

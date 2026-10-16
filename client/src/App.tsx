@@ -13,8 +13,8 @@ const MainLayout: React.FC = () => {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
-          <p className="text-sm text-gray-500 font-medium">Verifying session...</p>
+          <Loader2 className="w-8 h-8 text-google-blue animate-spin" />
+          <p className="text-sm text-google-grey700 font-medium">Verifying session...</p>
         </div>
       </div>
     );

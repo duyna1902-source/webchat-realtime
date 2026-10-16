@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { ChatArea } from './ChatArea';
 import { AuthContext } from '../../context/AuthContext';
 import { SocketContext } from '../../context/SocketContext';
@@ -213,5 +213,157 @@ describe('File Attachments, Image Preview & Message Cards', () => {
     const downloadLink = screen.getByRole('link', { name: /download annual-report\.pdf|download file/i });
     expect(downloadLink).toBeInTheDocument();
     expect(downloadLink).toHaveAttribute('href', '/uploads/annual-report.pdf');
+  });
+
+  describe('In-App Document Preview Modal (Ticket 03)', () => {
+    it('clicking a PDF document opens DocumentPreviewModal with inline iframe and dismisses on close button', async () => {
+      const pdfMessage: DirectReceiveMessagePayload = {
+        id: 'doc-pdf-1',
+        directChatId: 'chat-1',
+        senderId: 'partner-user-id',
+        sender: { id: 'partner-user-id', username: 'bob', avatarUrl: null },
+        content: 'Project Specification',
+        type: MessageType.DOCUMENT,
+        status: MessageStatus.SENT,
+        attachmentUrl: '/uploads/spec.pdf',
+        attachmentName: 'spec.pdf',
+        attachmentSize: 1024 * 1024 * 1.5,
+        createdAt: new Date().toISOString(),
+      };
+
+      renderWithProviders(
+        <ChatArea
+          activeChat={mockChat}
+          messages={[pdfMessage]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+        />
+      );
+
+      // Document card should be rendered
+      const docCard = screen.getByTestId('document-attachment-card');
+      expect(docCard).toBeInTheDocument();
+
+      // Click card to open modal
+      fireEvent.click(docCard);
+
+      const modal = await screen.findByTestId('document-preview-modal');
+      expect(modal).toBeInTheDocument();
+      expect(screen.getByTestId('pdf-preview-frame')).toBeInTheDocument();
+      expect(screen.getByTestId('pdf-preview-frame')).toHaveAttribute('src', '/uploads/spec.pdf');
+
+      // Close modal
+      const closeButton = screen.getByRole('button', { name: /close document preview/i });
+      fireEvent.click(closeButton);
+
+      expect(screen.queryByTestId('document-preview-modal')).not.toBeInTheDocument();
+    });
+
+    it('fetches and displays text document in monospace pre container', async () => {
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        text: async () => 'Hello Antigravity Text Preview\nLine 2 of notes',
+      } as any);
+
+      const textMessage: DirectReceiveMessagePayload = {
+        id: 'doc-txt-1',
+        directChatId: 'chat-1',
+        senderId: 'partner-user-id',
+        sender: { id: 'partner-user-id', username: 'bob', avatarUrl: null },
+        content: 'Notes file',
+        type: MessageType.DOCUMENT,
+        status: MessageStatus.SENT,
+        attachmentUrl: '/uploads/notes.txt',
+        attachmentName: 'notes.txt',
+        attachmentSize: 1024 * 5,
+        createdAt: new Date().toISOString(),
+      };
+
+      renderWithProviders(
+        <ChatArea
+          activeChat={mockChat}
+          messages={[textMessage]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+        />
+      );
+
+      fireEvent.click(screen.getByTestId('document-attachment-card'));
+
+      const preElement = await screen.findByTestId('text-preview-content');
+      expect(preElement).toBeInTheDocument();
+      expect(preElement.textContent).toContain('Hello Antigravity Text Preview');
+      expect(preElement.textContent).toContain('Line 2 of notes');
+
+      fetchSpy.mockRestore();
+    });
+
+    it('renders binary metadata summary card with "Download to view" for docx/zip', async () => {
+      const zipMessage: DirectReceiveMessagePayload = {
+        id: 'doc-zip-1',
+        directChatId: 'chat-1',
+        senderId: 'partner-user-id',
+        sender: { id: 'partner-user-id', username: 'bob', avatarUrl: null },
+        content: 'Release archive',
+        type: MessageType.DOCUMENT,
+        status: MessageStatus.SENT,
+        attachmentUrl: '/uploads/release-v1.zip',
+        attachmentName: 'release-v1.zip',
+        attachmentSize: 1024 * 1024 * 5,
+        createdAt: new Date().toISOString(),
+      };
+
+      renderWithProviders(
+        <ChatArea
+          activeChat={mockChat}
+          messages={[zipMessage]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+        />
+      );
+
+      fireEvent.click(screen.getByTestId('document-attachment-card'));
+
+      const binaryCard = await screen.findByTestId('binary-preview-card');
+      expect(binaryCard).toBeInTheDocument();
+      expect(within(binaryCard).getByText('release-v1.zip')).toBeInTheDocument();
+      expect(within(binaryCard).getByText('ZIP')).toBeInTheDocument();
+      expect(within(binaryCard).getByRole('link', { name: /download to view/i })).toBeInTheDocument();
+
+      // Dismiss via Escape key
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(screen.queryByTestId('document-preview-modal')).not.toBeInTheDocument();
+    });
+
+    it('closes modal on backdrop click', async () => {
+      const docMessage: DirectReceiveMessagePayload = {
+        id: 'doc-pdf-2',
+        directChatId: 'chat-1',
+        senderId: 'partner-user-id',
+        sender: { id: 'partner-user-id', username: 'bob', avatarUrl: null },
+        content: 'Agreement',
+        type: MessageType.DOCUMENT,
+        status: MessageStatus.SENT,
+        attachmentUrl: '/uploads/contract.pdf',
+        attachmentName: 'contract.pdf',
+        attachmentSize: 1024 * 200,
+        createdAt: new Date().toISOString(),
+      };
+
+      renderWithProviders(
+        <ChatArea
+          activeChat={mockChat}
+          messages={[docMessage]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+        />
+      );
+
+      fireEvent.click(screen.getByTestId('document-attachment-card'));
+      const modalBackdrop = await screen.findByTestId('document-preview-modal');
+
+      fireEvent.click(modalBackdrop);
+      expect(screen.queryByTestId('document-preview-modal')).not.toBeInTheDocument();
+    });
   });
 });

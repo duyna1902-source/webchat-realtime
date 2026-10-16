@@ -14,6 +14,7 @@ import { GifSearchModal } from '../media/GifSearchModal';
 import { AttachmentPreview } from '../chat/AttachmentPreview';
 import { MessageItemContent } from '../chat/MessageItemContent';
 import { ImageLightboxModal } from '../chat/ImageLightboxModal';
+import { DocumentPreviewModal } from '../chat/DocumentPreviewModal';
 import { SendRoomMessageOptions } from '../../hooks/useRoomMessages';
 import { useRoomTyping } from '../../hooks/useRoomTyping';
 import { MobileBackButton } from '../common/MobileBackButton';
@@ -78,6 +79,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name?: string | null } | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{ url: string; name?: string | null; size?: number | null } | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -388,6 +390,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                       attachmentSize={msg.attachmentSize}
                       isMe={isMe}
                       onImageClick={(url, name) => setLightboxImage({ url, name })}
+                      onDocumentClick={(url, name, size) => setPreviewDoc({ url, name, size })}
                     />
                     <div
                       className={`flex items-center gap-1.5 text-[10px] mt-1 ${isGif ? 'px-2 pb-1' : ''} ${
@@ -582,6 +585,15 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
         imageUrl={lightboxImage?.url || ''}
         imageName={lightboxImage?.name}
         onClose={() => setLightboxImage(null)}
+      />
+
+      {/* Document Preview Modal */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewDoc)}
+        documentUrl={previewDoc?.url || ''}
+        documentName={previewDoc?.name}
+        documentSize={previewDoc?.size}
+        onClose={() => setPreviewDoc(null)}
       />
 
       {/* GIF Search Modal */}

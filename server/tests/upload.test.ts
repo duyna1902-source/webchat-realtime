@@ -1,5 +1,8 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 import { app } from '../src/app.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { generateToken } from '../src/lib/jwt.js';
@@ -158,6 +161,134 @@ describe('File Upload REST API (POST /api/upload)', () => {
       process.env.SUPABASE_SERVICE_ROLE_KEY = 'secret-service-key';
       const supabaseAdapter = getStorageAdapter();
       expect(supabaseAdapter.name).toBe('supabase');
+    });
+
+    it('CloudinaryStorageAdapter unlinks ephemeral local file on success and failure', async () => {
+      const { CloudinaryStorageAdapter } = await import('../src/lib/storage.js');
+      process.env.CLOUDINARY_CLOUD_NAME = 'test-cloud';
+      const adapter = new CloudinaryStorageAdapter();
+
+      // Create a temp file on disk
+      const tmpFilePath = path.join(os.tmpdir(), `test-cloudinary-${Date.now()}.png`);
+      fs.writeFileSync(tmpFilePath, 'fake image data');
+      expect(fs.existsSync(tmpFilePath)).toBe(true);
+
+      const mockFile: any = {
+        path: tmpFilePath,
+        originalname: 'test.png',
+        filename: 'test.png',
+        size: 15,
+        mimetype: 'image/png',
+      };
+
+      // Mock successful fetch
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          secure_url: 'https://cloudinary.com/fake.png',
+          public_id: 'fake_id',
+          bytes: 15,
+        }),
+      } as any);
+
+      const result = await adapter.upload(mockFile);
+      expect(result.url).toBe('https://cloudinary.com/fake.png');
+      expect(fs.existsSync(tmpFilePath)).toBe(false);
+
+      // Verify unlinks on failure
+      const tmpFailPath = path.join(os.tmpdir(), `test-cloudinary-fail-${Date.now()}.png`);
+      fs.writeFileSync(tmpFailPath, 'fake error data');
+      expect(fs.existsSync(tmpFailPath)).toBe(true);
+
+      const mockFailFile: any = {
+        path: tmpFailPath,
+        originalname: 'fail.png',
+        filename: 'fail.png',
+        size: 15,
+        mimetype: 'image/png',
+      };
+
+      fetchSpy.mockResolvedValueOnce({
+        ok: false,
+        text: async () => 'Invalid credentials',
+      } as any);
+
+      await expect(adapter.upload(mockFailFile)).rejects.toThrow();
+      expect(fs.existsSync(tmpFailPath)).toBe(false);
+
+      fetchSpy.mockRestore();
+    });
+
+    it('SupabaseStorageAdapter unlinks ephemeral local file on success and failure', async () => {
+      const { SupabaseStorageAdapter } = await import('../src/lib/storage.js');
+      process.env.SUPABASE_URL = 'https://fake.supabase.co';
+      process.env.SUPABASE_SERVICE_ROLE_KEY = 'secret-key';
+      const adapter = new SupabaseStorageAdapter();
+
+      const tmpFilePath = path.join(os.tmpdir(), `test-supabase-${Date.now()}.pdf`);
+      fs.writeFileSync(tmpFilePath, 'fake pdf data');
+      expect(fs.existsSync(tmpFilePath)).toBe(true);
+
+      const mockFile: any = {
+        path: tmpFilePath,
+        originalname: 'test.pdf',
+        filename: 'test.pdf',
+        size: 13,
+        mimetype: 'application/pdf',
+      };
+
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+      } as any);
+
+      const result = await adapter.upload(mockFile);
+      expect(result.url).toContain('https://fake.supabase.co/storage/v1/object/public/attachments/');
+      expect(fs.existsSync(tmpFilePath)).toBe(false);
+
+      // Verify unlinks on failure
+      const tmpFailPath = path.join(os.tmpdir(), `test-supabase-fail-${Date.now()}.pdf`);
+      fs.writeFileSync(tmpFailPath, 'fake error pdf');
+      expect(fs.existsSync(tmpFailPath)).toBe(true);
+
+      const mockFailFile: any = {
+        path: tmpFailPath,
+        originalname: 'fail.pdf',
+        filename: 'fail.pdf',
+        size: 14,
+        mimetype: 'application/pdf',
+      };
+
+      fetchSpy.mockResolvedValueOnce({
+        ok: false,
+        text: async () => 'Bucket not found',
+      } as any);
+
+      await expect(adapter.upload(mockFailFile)).rejects.toThrow();
+      expect(fs.existsSync(tmpFailPath)).toBe(false);
+
+      fetchSpy.mockRestore();
+    });
+
+    it('LocalStorageAdapter retains local file on disk', async () => {
+      const { LocalStorageAdapter } = await import('../src/lib/storage.js');
+      const adapter = new LocalStorageAdapter();
+
+      const tmpFilePath = path.join(os.tmpdir(), `test-local-${Date.now()}.txt`);
+      fs.writeFileSync(tmpFilePath, 'local data');
+      expect(fs.existsSync(tmpFilePath)).toBe(true);
+
+      const mockFile: any = {
+        path: tmpFilePath,
+        originalname: 'local.txt',
+        filename: 'local.txt',
+        size: 10,
+        mimetype: 'text/plain',
+      };
+
+      await adapter.upload(mockFile);
+      // Local storage adapter must retain the file
+      expect(fs.existsSync(tmpFilePath)).toBe(true);
+      fs.unlinkSync(tmpFilePath);
     });
   });
 });

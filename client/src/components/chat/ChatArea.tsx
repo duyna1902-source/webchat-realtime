@@ -22,6 +22,7 @@ import { GifSearchModal } from '../media/GifSearchModal';
 import { AttachmentPreview } from './AttachmentPreview';
 import { MessageItemContent } from './MessageItemContent';
 import { ImageLightboxModal } from './ImageLightboxModal';
+import { DocumentPreviewModal } from './DocumentPreviewModal';
 import { SendDirectMessageOptions } from '../../hooks/useDirectMessages';
 import { MobileBackButton } from '../common/MobileBackButton';
 import { getAvatarColorClass } from '../../utils/avatarColor';
@@ -70,6 +71,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name?: string | null } | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{ url: string; name?: string | null; size?: number | null } | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -366,6 +368,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     attachmentSize={msg.attachmentSize}
                     isMe={isMe}
                     onImageClick={(url, name) => setLightboxImage({ url, name })}
+                    onDocumentClick={(url, name, size) => setPreviewDoc({ url, name, size })}
                   />
                   <div
                     className={`flex items-center gap-1 text-[10px] mt-1 ${isGif ? 'px-2 pb-1' : ''} ${
@@ -575,6 +578,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         imageUrl={lightboxImage?.url || ''}
         imageName={lightboxImage?.name}
         onClose={() => setLightboxImage(null)}
+      />
+
+      {/* Document Preview Modal */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewDoc)}
+        documentUrl={previewDoc?.url || ''}
+        documentName={previewDoc?.name}
+        documentSize={previewDoc?.size}
+        onClose={() => setPreviewDoc(null)}
       />
 
       {/* GIF Search Modal */}

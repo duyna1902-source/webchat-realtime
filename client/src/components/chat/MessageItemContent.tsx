@@ -11,6 +11,7 @@ interface MessageItemContentProps {
   attachmentSize?: number | null;
   isMe?: boolean;
   onImageClick?: (url: string, name?: string | null) => void;
+  onDocumentClick?: (url: string, name?: string | null, size?: number | null) => void;
 }
 
 export const MessageItemContent: React.FC<MessageItemContentProps> = ({
@@ -21,6 +22,7 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
   attachmentSize,
   isMe = false,
   onImageClick,
+  onDocumentClick,
 }) => {
   const isImage = type === MessageType.IMAGE;
   const isDocument = type === MessageType.DOCUMENT;
@@ -62,15 +64,17 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
     return (
       <div className="flex flex-col gap-2">
         <div
-          className={`flex items-center gap-3 p-2.5 rounded-xl border ${
+          data-testid="document-attachment-card"
+          onClick={() => onDocumentClick?.(attachmentUrl, attachmentName, attachmentSize)}
+          className={`flex items-center gap-3 p-2.5 rounded-xl border transition cursor-pointer ${
             isMe
-              ? 'bg-indigo-700/40 border-indigo-400/40 text-white'
-              : 'bg-gray-50 border-gray-200 text-gray-900'
+              ? 'bg-blue-700/40 border-blue-400/40 text-white hover:bg-blue-700/50'
+              : 'bg-google-grey50 border-google-grey200 text-google-grey900 hover:bg-google-grey100'
           }`}
         >
           <div
             className={`p-2 rounded-lg shrink-0 ${
-              isMe ? 'bg-indigo-800 text-white' : 'bg-white text-indigo-600 shadow-xs'
+              isMe ? 'bg-blue-800 text-white' : 'bg-white text-google-blue shadow-xs'
             }`}
           >
             <FileText className="w-5 h-5" />
@@ -80,7 +84,7 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
             <p className="text-xs font-semibold truncate max-w-[160px] sm:max-w-[200px]">
               {attachmentName || 'document'}
             </p>
-            <p className={`text-[10px] mt-0.5 ${isMe ? 'text-indigo-200' : 'text-gray-500'}`}>
+            <p className={`text-[10px] mt-0.5 ${isMe ? 'text-blue-200' : 'text-google-grey700'}`}>
               {formatFileSize(attachmentSize)}
             </p>
           </div>
@@ -90,9 +94,10 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
             download={attachmentName || 'document'}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
             aria-label={`Download ${attachmentName || 'file'}`}
             className={`p-2 rounded-lg transition shrink-0 cursor-pointer ${
-              isMe ? 'hover:bg-indigo-600 text-white' : 'hover:bg-gray-200 text-gray-700'
+              isMe ? 'hover:bg-blue-600 text-white' : 'hover:bg-google-grey200 text-google-grey700'
             }`}
             title="Download file"
           >

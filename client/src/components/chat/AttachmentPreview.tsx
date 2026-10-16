@@ -32,7 +32,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
             className="w-14 h-14 object-cover rounded-lg border border-gray-200 shrink-0"
           />
         ) : (
-          <div className="w-14 h-14 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+          <div className="w-14 h-14 rounded-lg bg-google-blue-subtle text-google-blue flex items-center justify-center shrink-0 border border-google-blue/20">
             <FileText className="w-7 h-7" />
           </div>
         )}
@@ -45,7 +45,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
             {formatFileSize(file.size)}
           </p>
           {isUploading && (
-            <p className="text-[11px] text-indigo-600 font-medium flex items-center gap-1 mt-0.5">
+            <p className="text-[11px] text-google-blue font-medium flex items-center gap-1 mt-0.5">
               <Loader2 className="w-3 h-3 animate-spin" />
               Uploading...
             </p>
@@ -58,7 +58,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
           <button
             type="button"
             onClick={onSend}
-            className="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer"
+            className="p-2 rounded-lg bg-google-blue hover:bg-google-blue-hover text-white transition cursor-pointer"
             title="Send attachment"
             aria-label="Send attachment"
           >
