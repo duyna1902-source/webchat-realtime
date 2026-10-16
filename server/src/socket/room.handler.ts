@@ -29,6 +29,27 @@ export async function autoJoinUserRooms(io: Server, socket: AuthenticatedSocket)
   }
 }
 
+export function syncUserSocketsRoomMembership(
+  io: Server,
+  userId: string,
+  roomId: string,
+  action: 'join' | 'leave'
+): void {
+  const targetRoom = io.sockets.adapter.rooms.get(`user:${userId}`);
+  if (targetRoom) {
+    for (const socketId of targetRoom) {
+      const s = io.sockets.sockets.get(socketId);
+      if (s) {
+        if (action === 'join') {
+          s.join(`room:${roomId}`);
+        } else {
+          s.leave(`room:${roomId}`);
+        }
+      }
+    }
+  }
+}
+
 export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket): void {
   const userId = socket.data.user.userId;
 

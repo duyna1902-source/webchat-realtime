@@ -30,14 +30,11 @@ import {
   Send,
   MessageSquare,
   Loader2,
-  Check,
-  CheckCheck,
   Smile,
   Sparkles,
   Paperclip,
   AlertCircle,
   X,
-  ChevronLeft,
 } from 'lucide-react';
 
 interface ChatAreaProps {

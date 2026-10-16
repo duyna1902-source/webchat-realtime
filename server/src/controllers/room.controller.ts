@@ -14,6 +14,7 @@ import {
 } from '@webchat/shared';
 import { toUserDto } from './user.controller.js';
 import { getIO } from '../socket/index.js';
+import { syncUserSocketsRoomMembership } from '../socket/room.handler.js';
 import { parsePaginationParams, fetchPaginatedMessages } from '../lib/pagination.js';
 
 export function toRoomReceiveMessagePayload(msg: any): RoomReceiveMessagePayload {
@@ -313,15 +314,7 @@ export async function addRoomMember(req: AuthenticatedRequest, res: Response): P
     io.to(`room:${id}`).emit(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, payload);
     io.to(`user:${targetUser.id}`).emit(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, payload);
 
-    const targetRoom = io.sockets.adapter.rooms.get(`user:${targetUser.id}`);
-    if (targetRoom) {
-      for (const socketId of targetRoom) {
-        const s = io.sockets.sockets.get(socketId);
-        if (s) {
-          s.join(`room:${id}`);
-        }
-      }
-    }
+    syncUserSocketsRoomMembership(io, targetUser.id, id, 'join');
   }
 
   res.status(201).json(toRoomMemberDto(newMember));
@@ -406,15 +399,7 @@ export async function removeRoomMember(req: AuthenticatedRequest, res: Response)
     io.to(`room:${id}`).emit(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, payload);
     io.to(`user:${targetMember.userId}`).emit(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, payload);
 
-    const targetRoom = io.sockets.adapter.rooms.get(`user:${targetMember.userId}`);
-    if (targetRoom) {
-      for (const socketId of targetRoom) {
-        const s = io.sockets.sockets.get(socketId);
-        if (s) {
-          s.leave(`room:${id}`);
-        }
-      }
-    }
+    syncUserSocketsRoomMembership(io, targetMember.userId, id, 'leave');
   }
 
   res.status(200).json({ message: 'Member removed successfully' });

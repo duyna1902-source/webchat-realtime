@@ -5,7 +5,7 @@ import { useDirectChats } from '../../hooks/useDirectChats';
 import { useDirectMessages } from '../../hooks/useDirectMessages';
 import { useRooms } from '../../hooks/useRooms';
 import { useRoomMessages } from '../../hooks/useRoomMessages';
-import { Sidebar } from '../chat/Sidebar';
+import { Sidebar, formatSidebarPreview } from '../chat/Sidebar';
 import { ChatArea } from '../chat/ChatArea';
 import { RoomChatArea } from '../room/RoomChatArea';
 import { LogOut, Bell, BellOff } from 'lucide-react';
@@ -149,21 +149,13 @@ export const Dashboard: React.FC = () => {
     };
 
     const handleDirectReceive = (msg: DirectReceiveMessagePayload) => {
-      let snippet = msg.content;
-      if (msg.type === MessageType.IMAGE) snippet = '📷 Sent an image';
-      else if (msg.type === MessageType.DOCUMENT) snippet = '📎 Sent a document';
-      else if (msg.type === MessageType.EMOJI_GIF) snippet = '✨ Sent a GIF';
-
+      const snippet = formatSidebarPreview(msg, '');
       const isCurrent = activeChatId !== null && msg.directChatId === activeChatId;
       handleIncoming(msg.sender.username, snippet, msg.senderId, isCurrent, msg.sender.avatarUrl);
     };
 
     const handleRoomReceive = (msg: RoomReceiveMessagePayload) => {
-      let snippet = msg.content;
-      if (msg.type === MessageType.IMAGE) snippet = '📷 Sent an image';
-      else if (msg.type === MessageType.DOCUMENT) snippet = '📎 Sent a document';
-      else if (msg.type === MessageType.EMOJI_GIF) snippet = '✨ Sent a GIF';
-
+      const snippet = formatSidebarPreview(msg, '');
       const isCurrent = activeRoomId !== null && msg.roomId === activeRoomId;
       handleIncoming(msg.sender.username, snippet, msg.senderId, isCurrent, msg.sender.avatarUrl);
     };

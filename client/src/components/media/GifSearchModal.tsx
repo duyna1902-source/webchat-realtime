@@ -92,7 +92,7 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="GIF Search"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
     >
       <div
         className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-[90dvh] animate-in zoom-in-95 duration-150"

@@ -339,7 +339,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           {chat.unreadCount && chat.unreadCount > 0 ? (
                             <span
                               data-testid={`unread-badge-${chat.id}`}
-                              className="px-1.5 py-0.2 rounded-full bg-google-blue text-white text-[10px] font-bold shadow-xs min-w-4 text-center"
+                              className="px-1.5 py-0.5 rounded-full bg-google-blue text-white text-[10px] font-bold shadow-xs min-w-4 text-center"
                             >
                               {formatUnreadBadgeCount(chat.unreadCount)}
                             </span>
@@ -442,7 +442,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           {room.unreadCount && room.unreadCount > 0 ? (
                             <span
                               data-testid={`unread-badge-${room.id}`}
-                              className="px-1.5 py-0.2 rounded-full bg-google-blue text-white text-[10px] font-bold shadow-xs min-w-4 text-center"
+                              className="px-1.5 py-0.5 rounded-full bg-google-blue text-white text-[10px] font-bold shadow-xs min-w-4 text-center"
                             >
                               {formatUnreadBadgeCount(room.unreadCount)}
                             </span>
@@ -456,11 +456,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           <span>{room.memberCount}</span>
                         </span>
                         {isOwner ? (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-google-yellow-subtle text-google-grey900 rounded border border-google-yellow/40">
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-google-yellow-subtle text-google-grey900 rounded border border-google-yellow/40">
                             Owner
                           </span>
                         ) : isAdmin ? (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-google-blue-subtle text-google-blue rounded border border-google-blue/30">
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-google-blue-subtle text-google-blue rounded border border-google-blue/30">
                             Admin
                           </span>
                         ) : null}

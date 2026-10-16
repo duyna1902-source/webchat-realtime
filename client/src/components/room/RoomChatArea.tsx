@@ -25,14 +25,11 @@ import {
   Send,
   Loader2,
   MessageSquare,
-  Check,
-  CheckCheck,
   Smile,
   Sparkles,
   Paperclip,
   AlertCircle,
   X,
-  ChevronLeft,
 } from 'lucide-react';
 
 interface RoomChatAreaProps {
