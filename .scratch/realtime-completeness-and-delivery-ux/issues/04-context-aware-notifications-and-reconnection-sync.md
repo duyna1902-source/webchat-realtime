@@ -13,11 +13,11 @@ When the socket connection drops and reconnects after a network interruption:
 
 **Blocked by:** 02: Persistent Background Room Subscriptions, Real-Time Unread Count Badges & Friendly Media Snippets
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] When notifications are enabled and a message from another user arrives while `document.hidden === true`, both the audio ping and HTML5 Browser Notification fire.
-- [ ] When notifications are enabled and a message from another user arrives while `document.hidden === false` for a conversation other than the currently open conversation (`chatId !== activeChatId` or `roomId !== activeRoomId`), the discreet audio ping fires without triggering an HTML5 Browser Notification.
-- [ ] No notification or audio ping fires for outgoing messages sent by the current user or for incoming messages in the currently open foreground conversation.
-- [ ] On socket reconnection (`connect` event), both `Direct Chat` and `Room Chat` sidebar lists refresh automatically to sync `Presence` and `Unread Count Badge` state.
-- [ ] On unrecovered socket reconnection, `Catch-up Sync` in the active `Direct Chat` or `Room Chat` fetches missed messages even when the conversation had `0` messages prior to disconnection.
-- [ ] Client integration tests verify foreground-inactive vs. background-tab notification behavior and reconnection catch-up sync from an empty initial message list.
+- [x] When notifications are enabled and a message from another user arrives while `document.hidden === true`, both the audio ping and HTML5 Browser Notification fire.
+- [x] When notifications are enabled and a message from another user arrives while `document.hidden === false` for a conversation other than the currently open conversation (`chatId !== activeChatId` or `roomId !== activeRoomId`), the discreet audio ping fires without triggering an HTML5 Browser Notification.
+- [x] No notification or audio ping fires for outgoing messages sent by the current user or for incoming messages in the currently open foreground conversation.
+- [x] On socket reconnection (`connect` event), both `Direct Chat` and `Room Chat` sidebar lists refresh automatically to sync `Presence` and `Unread Count Badge` state.
+- [x] On unrecovered socket reconnection, `Catch-up Sync` in the active `Direct Chat` or `Room Chat` fetches missed messages even when the conversation had `0` messages prior to disconnection.
+- [x] Client integration tests verify foreground-inactive vs. background-tab notification behavior and reconnection catch-up sync from an empty initial message list.

@@ -313,6 +313,93 @@ describe('Reconnection & Catch-up Sync Client Features', () => {
       // Verify no catch-up sync was fetched
       expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining('after='));
     });
+
+    it('triggers catch-up sync with limit=50 on socket connect even when local message list was empty', async () => {
+      const socketListeners: Record<string, Function> = {};
+      const mockSocket: any = {
+        recovered: false,
+        on: vi.fn((event, handler) => {
+          socketListeners[event] = handler;
+        }),
+        off: vi.fn((event) => {
+          delete socketListeners[event];
+        }),
+        emit: vi.fn(),
+      };
+
+      const fetchedMessage = {
+        id: 'msg-empty-init',
+        directChatId: 'chat-empty',
+        senderId: 'user-2',
+        sender: { id: 'user-2', username: 'bob', avatarUrl: null },
+        content: 'Recovered after empty init',
+        type: MessageType.TEXT,
+        status: MessageStatus.SENT,
+        createdAt: '2026-01-01T10:05:00.000Z',
+      };
+
+      let initialLoaded = false;
+      const fetchSpy = vi.fn().mockImplementation((url: string) => {
+        if (url.includes('limit=50')) {
+          if (!initialLoaded) {
+            initialLoaded = true;
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({ messages: [], hasMore: false }),
+            });
+          }
+          // On reconnection catch-up sync
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ messages: [fetchedMessage], hasMore: false }),
+          });
+        }
+        return Promise.reject(new Error(`Unexpected fetch URL: ${url}`));
+      });
+      global.fetch = fetchSpy;
+
+      render(
+        <AuthContext.Provider
+          value={{
+            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
+            token: 'test-token',
+            isLoading: false,
+            login: vi.fn(),
+            register: vi.fn(),
+            logout: vi.fn(),
+          }}
+        >
+          <SocketContext.Provider
+            value={{
+              socket: mockSocket,
+              isConnected: true,
+              isConnecting: false,
+              isReconnecting: false,
+              connectionError: null,
+            }}
+          >
+            <TestDirectMessagesComponent chatId="chat-empty" />
+          </SocketContext.Provider>
+        </AuthContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('direct-message-count').textContent).toBe('0');
+      });
+
+      // Trigger socket reconnect
+      mockSocket.recovered = false;
+      await act(async () => {
+        if (socketListeners['connect']) {
+          await socketListeners['connect']();
+        }
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('direct-msg-msg-empty-init')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('direct-message-count').textContent).toBe('1');
+    });
   });
 
   describe('useRoomMessages Catch-up Sync & Deduplication', () => {
