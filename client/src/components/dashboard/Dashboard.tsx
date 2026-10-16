@@ -118,21 +118,34 @@ export const Dashboard: React.FC = () => {
     };
   }, [socket, activeRoomId, currentUser?.id]);
 
-  // Background audio ping and HTML5 Web Notifications listener
+  // Context-aware audio ping and HTML5 Web Notifications listener (Ticket 04)
   useEffect(() => {
     if (!socket || !notificationsEnabled) return;
 
-    const handleIncoming = (senderName: string, snippet: string, senderId: string, avatarUrl?: string | null) => {
+    const handleIncoming = (
+      senderName: string,
+      snippet: string,
+      senderId: string,
+      isCurrentConversation: boolean,
+      avatarUrl?: string | null
+    ) => {
       if (senderId === currentUser?.id) return;
 
-      // Trigger notification and audio ping when document is hidden / tab inactive
-      if (typeof document !== 'undefined' && document.hidden) {
+      const isHidden = typeof document !== 'undefined' && document.hidden;
+
+      if (isHidden) {
+        // Tab is hidden: play audio ping and trigger HTML5 browser notification
         playNotificationSound();
         showBrowserNotification(senderName, {
           body: snippet || 'Sent a new message',
           icon: avatarUrl || undefined,
         });
+      } else if (!isCurrentConversation) {
+        // Tab is visible, but incoming message is in an inactive conversation:
+        // Play discreet audio notification ping without spawning OS popup
+        playNotificationSound();
       }
+      // If tab is visible and isCurrentConversation, do nothing
     };
 
     const handleDirectReceive = (msg: DirectReceiveMessagePayload) => {
@@ -141,7 +154,8 @@ export const Dashboard: React.FC = () => {
       else if (msg.type === MessageType.DOCUMENT) snippet = '📎 Sent a document';
       else if (msg.type === MessageType.EMOJI_GIF) snippet = '✨ Sent a GIF';
 
-      handleIncoming(msg.sender.username, snippet, msg.senderId, msg.sender.avatarUrl);
+      const isCurrent = activeChatId !== null && msg.directChatId === activeChatId;
+      handleIncoming(msg.sender.username, snippet, msg.senderId, isCurrent, msg.sender.avatarUrl);
     };
 
     const handleRoomReceive = (msg: RoomReceiveMessagePayload) => {
@@ -150,7 +164,8 @@ export const Dashboard: React.FC = () => {
       else if (msg.type === MessageType.DOCUMENT) snippet = '📎 Sent a document';
       else if (msg.type === MessageType.EMOJI_GIF) snippet = '✨ Sent a GIF';
 
-      handleIncoming(msg.sender.username, snippet, msg.senderId, msg.sender.avatarUrl);
+      const isCurrent = activeRoomId !== null && msg.roomId === activeRoomId;
+      handleIncoming(msg.sender.username, snippet, msg.senderId, isCurrent, msg.sender.avatarUrl);
     };
 
     socket.on(SOCKET_EVENTS.DIRECT_RECEIVE, handleDirectReceive);
@@ -160,7 +175,7 @@ export const Dashboard: React.FC = () => {
       socket.off(SOCKET_EVENTS.DIRECT_RECEIVE, handleDirectReceive);
       socket.off(SOCKET_EVENTS.ROOM_RECEIVE, handleRoomReceive);
     };
-  }, [socket, notificationsEnabled, currentUser?.id]);
+  }, [socket, notificationsEnabled, currentUser?.id, activeChatId, activeRoomId]);
 
   const safeChats = Array.isArray(chats) ? chats : [];
   const activeChat = safeChats.find((c) => c.id === activeChatId) || null;

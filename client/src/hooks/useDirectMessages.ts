@@ -109,15 +109,17 @@ export function useDirectMessages(activeChatId: string | null) {
     }
   }, [token, activeChatId, isLoadingOlder, hasMore, messages]);
 
-  // Catch-up Sync: fetches messages strictly newer than the latest local message
+  // Catch-up Sync: fetches messages strictly newer than latest local message, or initial batch if empty
   const syncCatchup = useCallback(async () => {
     if (!token || !activeChatId) return;
     const currentMsgs = messagesRef.current;
-    if (currentMsgs.length === 0) return;
-    const latestMessage = currentMsgs[currentMsgs.length - 1];
+    const url =
+      currentMsgs.length > 0
+        ? `/api/direct-chats/${activeChatId}/messages?after=${currentMsgs[currentMsgs.length - 1].id}`
+        : `/api/direct-chats/${activeChatId}/messages?limit=50`;
 
     try {
-      const res = await fetch(`/api/direct-chats/${activeChatId}/messages?after=${latestMessage.id}`, {
+      const res = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -127,10 +129,16 @@ export function useDirectMessages(activeChatId: string | null) {
         const data: PaginatedMessagesDto<DirectReceiveMessagePayload> = await res.json();
         if (data && Array.isArray(data.messages) && data.messages.length > 0) {
           setMessages((prev) => {
+            if (prev.length === 0) {
+              return data.messages;
+            }
             const existingIds = new Set(prev.map((m) => m.id));
             const newItems = data.messages.filter((m) => !existingIds.has(m.id));
             return [...prev, ...newItems];
           });
+          if (currentMsgs.length === 0) {
+            setHasMore(Boolean(data.hasMore));
+          }
         }
       }
     } catch (err) {

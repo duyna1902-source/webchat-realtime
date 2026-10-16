@@ -18,6 +18,7 @@ import {
   MessageStatus,
   SOCKET_EVENTS,
 } from '@webchat/shared';
+import * as notificationUtils from '../../utils/notifications';
 
 const mockCurrentUser = {
   id: 'user-alice-id',
@@ -486,6 +487,177 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
       });
 
       expect((window as any).Notification.requestPermission).toHaveBeenCalled();
+    });
+
+    it('plays sound and displays browser notification when document.hidden === true', async () => {
+      const socketListeners: Record<string, Function[]> = {};
+      const mockSocket: any = {
+        emit: vi.fn(),
+        on: vi.fn((event, handler) => {
+          if (!socketListeners[event]) socketListeners[event] = [];
+          socketListeners[event].push(handler);
+        }),
+        off: vi.fn((event, handler) => {
+          if (socketListeners[event]) {
+            socketListeners[event] = socketListeners[event].filter((h) => h !== handler);
+          }
+        }),
+      };
+
+      (window as any).Notification.permission = 'granted';
+      localStorage.setItem('webchat_notifications_enabled', 'true');
+      Object.defineProperty(document, 'hidden', { value: true, configurable: true, writable: true });
+
+      const playSpy = vi.spyOn(notificationUtils, 'playNotificationSound').mockImplementation(() => {});
+      const showSpy = vi.spyOn(notificationUtils, 'showBrowserNotification').mockImplementation(() => null);
+
+      global.fetch = vi.fn((url: any) => {
+        if (url.includes('/api/direct-chats')) {
+          return Promise.resolve({ ok: true, json: async () => [mockDirectChat] });
+        }
+        if (url.includes('/api/rooms')) {
+          return Promise.resolve({ ok: true, json: async () => [mockRoom] });
+        }
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }) as any;
+
+      renderWithProviders(<Dashboard />, mockSocket);
+
+      await act(async () => {
+        socketListeners[SOCKET_EVENTS.DIRECT_RECEIVE]?.forEach((fn) =>
+          fn({
+            id: 'msg-notif-1',
+            directChatId: 'chat-other',
+            senderId: 'user-bob-id',
+            sender: mockPartnerUser,
+            content: 'Hello in background',
+            type: MessageType.TEXT,
+            status: MessageStatus.SENT,
+            createdAt: new Date().toISOString(),
+          })
+        );
+      });
+
+      expect(playSpy).toHaveBeenCalled();
+      expect(showSpy).toHaveBeenCalledWith('bob', expect.objectContaining({
+        body: 'Hello in background',
+      }));
+
+      playSpy.mockRestore();
+      showSpy.mockRestore();
+    });
+
+    it('plays sound without browser notification when document.hidden === false and message is in inactive conversation', async () => {
+      const socketListeners: Record<string, Function[]> = {};
+      const mockSocket: any = {
+        emit: vi.fn(),
+        on: vi.fn((event, handler) => {
+          if (!socketListeners[event]) socketListeners[event] = [];
+          socketListeners[event].push(handler);
+        }),
+        off: vi.fn((event, handler) => {
+          if (socketListeners[event]) {
+            socketListeners[event] = socketListeners[event].filter((h) => h !== handler);
+          }
+        }),
+      };
+
+      (window as any).Notification.permission = 'granted';
+      localStorage.setItem('webchat_notifications_enabled', 'true');
+      Object.defineProperty(document, 'hidden', { value: false, configurable: true, writable: true });
+
+      const playSpy = vi.spyOn(notificationUtils, 'playNotificationSound').mockImplementation(() => {});
+      const showSpy = vi.spyOn(notificationUtils, 'showBrowserNotification').mockImplementation(() => null);
+
+      global.fetch = vi.fn((url: any) => {
+        if (url.includes('/api/direct-chats')) {
+          return Promise.resolve({ ok: true, json: async () => [mockDirectChat] });
+        }
+        if (url.includes('/api/rooms')) {
+          return Promise.resolve({ ok: true, json: async () => [mockRoom] });
+        }
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }) as any;
+
+      renderWithProviders(<Dashboard />, mockSocket);
+
+      await act(async () => {
+        socketListeners[SOCKET_EVENTS.DIRECT_RECEIVE]?.forEach((fn) =>
+          fn({
+            id: 'msg-notif-2',
+            directChatId: 'chat-other',
+            senderId: 'user-bob-id',
+            sender: mockPartnerUser,
+            content: 'Hello in another chat',
+            type: MessageType.TEXT,
+            status: MessageStatus.SENT,
+            createdAt: new Date().toISOString(),
+          })
+        );
+      });
+
+      expect(playSpy).toHaveBeenCalled();
+      expect(showSpy).not.toHaveBeenCalled();
+
+      playSpy.mockRestore();
+      showSpy.mockRestore();
+    });
+
+    it('does NOT play sound or show notification for outgoing messages or messages in active chat', async () => {
+      const socketListeners: Record<string, Function[]> = {};
+      const mockSocket: any = {
+        emit: vi.fn(),
+        on: vi.fn((event, handler) => {
+          if (!socketListeners[event]) socketListeners[event] = [];
+          socketListeners[event].push(handler);
+        }),
+        off: vi.fn((event, handler) => {
+          if (socketListeners[event]) {
+            socketListeners[event] = socketListeners[event].filter((h) => h !== handler);
+          }
+        }),
+      };
+
+      (window as any).Notification.permission = 'granted';
+      localStorage.setItem('webchat_notifications_enabled', 'true');
+      Object.defineProperty(document, 'hidden', { value: false, configurable: true, writable: true });
+
+      const playSpy = vi.spyOn(notificationUtils, 'playNotificationSound').mockImplementation(() => {});
+      const showSpy = vi.spyOn(notificationUtils, 'showBrowserNotification').mockImplementation(() => null);
+
+      global.fetch = vi.fn((url: any) => {
+        if (url.includes('/api/direct-chats')) {
+          return Promise.resolve({ ok: true, json: async () => [mockDirectChat] });
+        }
+        if (url.includes('/api/rooms')) {
+          return Promise.resolve({ ok: true, json: async () => [mockRoom] });
+        }
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }) as any;
+
+      renderWithProviders(<Dashboard />, mockSocket);
+
+      // Outgoing message sent by Alice herself
+      await act(async () => {
+        socketListeners[SOCKET_EVENTS.DIRECT_RECEIVE]?.forEach((fn) =>
+          fn({
+            id: 'msg-outgoing',
+            directChatId: 'chat-alice-bob',
+            senderId: mockCurrentUser.id,
+            sender: mockCurrentUser,
+            content: 'My own message',
+            type: MessageType.TEXT,
+            status: MessageStatus.SENT,
+            createdAt: new Date().toISOString(),
+          })
+        );
+      });
+
+      expect(playSpy).not.toHaveBeenCalled();
+      expect(showSpy).not.toHaveBeenCalled();
+
+      playSpy.mockRestore();
+      showSpy.mockRestore();
     });
   });
 });
