@@ -3,7 +3,7 @@
     <br/>
     <br/> 
     <img src="image_gdg\logo-gdg-clean.webp" alt="App Logo" width="150"/>
-<div>
+</div>
 
 # Web Chat Real-Time
 
