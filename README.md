@@ -1,8 +1,8 @@
 <div align="center">
-    <img src="webchat-realtime\image_gdg\gdg-hust-lockup-clean.webp" alt="Background Banner" width="100%"/>  
+    <img src="image_gdg\gdg-hust-lockup-clean.webp" alt="Background Banner" width="100%"/>  
     <br/>
     <br/> 
-    <img src="Web\webchat-realtime\image_gdg\logo-gdg-clean.webp" alt="App Logo" width="150"/>
+    <img src="image_gdg\logo-gdg-clean.webp" alt="App Logo" width="150"/>
 <div>
 
 # Web Chat Real-Time
