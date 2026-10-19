@@ -1,8 +1,8 @@
 <div align="center">
-    <img src="image_gdg\gdg-hust-lockup-clean.webp" alt="Background Banner" width="100%"/>  
+    <img src="image_gdg/gdg-hust-lockup-clean.webp" alt="Background Banner" width="100%"/>  
     <br/>
     <br/> 
-    <img src="image_gdg\logo-gdg-clean.webp" alt="App Logo" width="150"/>
+    <img src="image_gdg/logo-gdg-clean.webp" alt="App Logo" width="150"/>
 </div>
 
 # Web Chat Real-Time
@@ -105,11 +105,11 @@ npm install
 ```
 
 ### 3. Environment Configuration
-Create `.env` configuration files for both the server and client:
+Create `.env` configuration files (or copy from `.env.example`):
 
-* **`server/.env`**:
+* **`server/.env`** (or root `.env`):
   ```env
-  PORT=5000
+  PORT=4000
   DATABASE_URL="postgresql://user:password@host:port/dbname?sslmode=require"
   JWT_SECRET="your_super_secret_jwt_key"
   STORAGE_PROVIDER="local" # Options: local | supabase | cloudinary
@@ -127,7 +127,7 @@ Start both the backend server and frontend client concurrently:
 npm run dev
 ```
 * **Frontend**: `http://localhost:5173`
-* **Backend API / WebSocket**: `http://localhost:5000`
+* **Backend API / WebSocket**: `http://localhost:4000`
 
 ---
 
@@ -157,4 +157,4 @@ For deep technical dives into our design patterns, data models, and architectura
 
 ## License
 
-Distributed under the [MIT License](LISENCE.md).
+Distributed under the [MIT License](LICENSE).
