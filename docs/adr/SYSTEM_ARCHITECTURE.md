@@ -142,8 +142,7 @@ webchat-realtime/
 ├── vercel.json                  # Cấu hình định tuyến SPA cho Vercel
 ├── GLOSSARY.md                  # Danh mục thuật ngữ chuẩn hóa của hệ thống
 ├── docs/                        # Tài liệu hệ thống và các bản ADR
-│   ├── adr/                     # Architecture Decision Records (0001 - 0005)
-│   └── SYSTEM_ARCHITECTURE.md   # Tài liệu kiến trúc toàn diện này
+│   └── adr/                     # Architecture Decision Records (0001 - 0005) & SYSTEM_ARCHITECTURE.md
 ├── shared/                      # Package dùng chung giữa Client và Server
 │   └── src/
 │       ├── dtos.ts              # Định nghĩa DTOs cho User, DirectChat, Room, Pagination
@@ -287,7 +286,7 @@ erDiagram
 
 ### 5.1. Bắt tay & Xác thực (Handshake Authentication)
 - Client truyền JWT qua đối tượng `auth: { token }` khi kết nối Socket.
-- Middleware [`io.use`](file:///d:/Project/webchat-realtime/server/src/socket/index.ts#L35-L54) xác thực tính hợp lệ của token. Nếu token hết hạn hoặc sai chữ ký, socket bị ngắt kết nối ngay lập tức với lỗi xác thực.
+- Middleware [`io.use`](../../server/src/socket/index.ts#L35-L54) xác thực tính hợp lệ của token. Nếu token hết hạn hoặc sai chữ ký, socket bị ngắt kết nối ngay lập tức với lỗi xác thực.
 - Thông tin người dùng được giải mã và lưu trữ trong `socket.data.user`.
 
 ### 5.2. Danh mục Sự kiện (Socket Events Catalog)
@@ -424,10 +423,10 @@ Client được xây dựng bằng **React 18** và **TypeScript**, phối hợp
 
 ### 8.1. Mô hình Quản lý Trạng thái (State Management)
 Toàn bộ trạng thái toàn cục được tinh gọn trong 2 React Context chính:
-1. **`AuthContext`** ([`client/src/context/AuthContext.tsx`](file:///d:/Project/webchat-realtime/client/src/context/AuthContext.tsx)):
+1. **`AuthContext`** ([`client/src/context/AuthContext.tsx`](../../client/src/context/AuthContext.tsx)):
    - Quản lý thông tin tài khoản hiện tại (`currentUser`), JWT token, và trạng thái đăng nhập.
    - Tự động đồng bộ và khôi phục phiên làm việc qua `localStorage`.
-2. **`SocketContext`** ([`client/src/context/SocketContext.tsx`](file:///d:/Project/webchat-realtime/client/src/context/SocketContext.tsx)):
+2. **`SocketContext`** ([`client/src/context/SocketContext.tsx`](../../client/src/context/SocketContext.tsx)):
    - Quản lý vòng đời socket client singleton.
    - Cung cấp các cờ trạng thái: `isConnected`, `isConnecting`, `isReconnecting`, `connectionError`.
 
@@ -494,16 +493,16 @@ Hệ thống hỗ trợ 2 phương án triển khai linh hoạt:
 Dự án áp dụng triệt để phương pháp kiểm thử hướng hành vi (Behavior-Driven / Integration Boundary Testing). Kiểm thử tập trung vào tính đúng đắn của hợp đồng dữ liệu và các luồng nghiệp vụ ngoại vi, không bám vào chi tiết cài đặt nội bộ.
 
 ### Danh mục Bộ Kiểm thử Tích hợp (Server Test Suites):
-1. [`auth.test.ts`](file:///d:/Project/webchat-realtime/server/tests/auth.test.ts): Đăng ký tài khoản, mã hóa mật khẩu, kiểm tra trùng username/email, đăng nhập và cấp phát JWT.
-2. [`socket-auth.test.ts`](file:///d:/Project/webchat-realtime/server/tests/socket-auth.test.ts): Xác thực bắt tay Socket, từ chối socket không có token hoặc token sai.
-3. [`direct-chat-socket.test.ts`](file:///d:/Project/webchat-realtime/server/tests/direct-chat-socket.test.ts): Kết nối đồng thời nhiều `socket.io-client` thật, phát tán tin nhắn 1-1, kiểm tra trạng thái `SENT` và `DELIVERED`.
-4. [`room-socket.test.ts`](file:///d:/Project/webchat-realtime/server/tests/room-socket.test.ts): Tham gia phòng, phát tán tin nhắn nhóm, xác thực quyền hạn thành viên.
-5. [`presence.test.ts`](file:///d:/Project/webchat-realtime/server/tests/presence.test.ts): Kiểm tra cập nhật trạng thái Online/Offline và kiểm chứng cơ chế Grace Period 5 giây khi ngắt kết nối.
-6. [`typing.test.ts`](file:///d:/Project/webchat-realtime/server/tests/typing.test.ts): Phát và nhận tín hiệu Typing Indicator cho cả Direct Chat và Room Chat.
-7. [`read-receipts.test.ts`](file:///d:/Project/webchat-realtime/server/tests/read-receipts.test.ts): Phát sự kiện đã đọc, cập nhật `lastReadMessageId` và chuyển đổi trạng thái tin nhắn thành `READ`.
-8. [`catchup-sync.test.ts`](file:///d:/Project/webchat-realtime/server/tests/catchup-sync.test.ts): Kiểm tra tính đúng đắn của endpoint bù đắp tin nhắn sau ngắt kết nối dài (`?after=...`).
-9. [`pagination.test.ts`](file:///d:/Project/webchat-realtime/server/tests/pagination.test.ts): Kiểm tra phân trang con trỏ (`?before=...`) theo lô 50 tin nhắn.
-10. [`upload.test.ts`](file:///d:/Project/webchat-realtime/server/tests/upload.test.ts): Kiểm tra upload ảnh/tài liệu và xác nhận chặn tệp vượt quá 10MB.
+1. [`auth.test.ts`](../../server/tests/auth.test.ts): Đăng ký tài khoản, mã hóa mật khẩu, kiểm tra trùng username/email, đăng nhập và cấp phát JWT.
+2. [`socket-auth.test.ts`](../../server/tests/socket-auth.test.ts): Xác thực bắt tay Socket, từ chối socket không có token hoặc token sai.
+3. [`direct-chat-socket.test.ts`](../../server/tests/direct-chat-socket.test.ts): Kết nối đồng thời nhiều `socket.io-client` thật, phát tán tin nhắn 1-1, kiểm tra trạng thái `SENT` và `DELIVERED`.
+4. [`room-socket.test.ts`](../../server/tests/room-socket.test.ts): Tham gia phòng, phát tán tin nhắn nhóm, xác thực quyền hạn thành viên.
+5. [`presence.test.ts`](../../server/tests/presence.test.ts): Kiểm tra cập nhật trạng thái Online/Offline và kiểm chứng cơ chế Grace Period 5 giây khi ngắt kết nối.
+6. [`typing.test.ts`](../../server/tests/typing.test.ts): Phát và nhận tín hiệu Typing Indicator cho cả Direct Chat và Room Chat.
+7. [`read-receipts.test.ts`](../../server/tests/read-receipts.test.ts): Phát sự kiện đã đọc, cập nhật `lastReadMessageId` và chuyển đổi trạng thái tin nhắn thành `READ`.
+8. [`catchup-sync.test.ts`](../../server/tests/catchup-sync.test.ts): Kiểm tra tính đúng đắn của endpoint bù đắp tin nhắn sau ngắt kết nối dài (`?after=...`).
+9. [`pagination.test.ts`](../../server/tests/pagination.test.ts): Kiểm tra phân trang con trỏ (`?before=...`) theo lô 50 tin nhắn.
+10. [`upload.test.ts`](../../server/tests/upload.test.ts): Kiểm tra upload ảnh/tài liệu và xác nhận chặn tệp vượt quá 10MB.
 
 ---
 
