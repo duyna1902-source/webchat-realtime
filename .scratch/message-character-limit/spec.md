@@ -1,6 +1,6 @@
 # Spec: Anti-Spam Message Character Limit with Visual In-Box Counter
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
