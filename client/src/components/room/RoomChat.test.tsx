@@ -541,21 +541,21 @@ describe('Room Chat Client Components', () => {
     // 90% (1800) -> yellow
     fireEvent.change(memberTextarea, { target: { value: 'a'.repeat(1800) } });
     expect(memberCounter.textContent).toBe('1800/2000');
-    expect(memberCounter.className).toContain('text-amber-500');
+    expect(memberCounter.className).toContain('text-google-yellow');
 
     // 1999 (< 100%) -> yellow
     fireEvent.change(memberTextarea, { target: { value: 'a'.repeat(1999) } });
     expect(memberCounter.textContent).toBe('1999/2000');
-    expect(memberCounter.className).toContain('text-amber-500');
+    expect(memberCounter.className).toContain('text-google-yellow');
 
     // 100% (2000) -> red
     fireEvent.change(memberTextarea, { target: { value: 'a'.repeat(2000) } });
     expect(memberCounter.textContent).toBe('2000/2000');
     expect(memberCounter.className).toContain('text-google-red');
 
-    // Exceeding limit (2001) -> red
+    // Exceeding limit (2001) -> clamped to 2000
     fireEvent.change(memberTextarea, { target: { value: 'a'.repeat(2001) } });
-    expect(memberCounter.textContent).toBe('2001/2000');
+    expect(memberCounter.textContent).toBe('2000/2000');
     expect(memberCounter.className).toContain('text-google-red');
 
     unmount();
@@ -589,7 +589,7 @@ describe('Room Chat Client Components', () => {
     // 3600 (90%) -> yellow
     fireEvent.change(leaderTextarea, { target: { value: 'a'.repeat(3600) } });
     expect(leaderCounter.textContent).toBe('3600/4000');
-    expect(leaderCounter.className).toContain('text-amber-500');
+    expect(leaderCounter.className).toContain('text-google-yellow');
 
     // 4000 (100%) -> red
     fireEvent.change(leaderTextarea, { target: { value: 'a'.repeat(4000) } });
@@ -630,9 +630,9 @@ describe('Room Chat Client Components', () => {
     fireEvent.change(textarea, { target: { value: 'm'.repeat(2000) } });
     expect(sendBtn).not.toBeDisabled();
 
-    // Exceeding limit 2001 -> disabled
+    // Exceeding limit 2001 -> clamped to 2000, send button remains enabled
     fireEvent.change(textarea, { target: { value: 'm'.repeat(2001) } });
-    expect(sendBtn).toBeDisabled();
+    expect(sendBtn).not.toBeDisabled();
   });
 
   it('automatically trims pasted clipboard text to fit active role character quota', () => {
@@ -876,23 +876,23 @@ describe('Room Chat Client Components', () => {
     // Edit down to 1800 chars (90% threshold)
     fireEvent.change(textarea, { target: { value: 'a'.repeat(1800) } });
     expect(counter.textContent).toBe('1800/2000');
-    expect(counter.className).toContain('text-amber-500');
+    expect(counter.className).toContain('text-google-yellow');
     expect(sendBtn).not.toBeDisabled();
   });
 
   it('allows manually dismissing the draft demotion warning without altering the draft', () => {
-    const memberRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.MEMBER };
-    const memberRoomDetail: RoomDetailDto = {
+    const adminRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.ADMIN };
+    const adminRoomDetail: RoomDetailDto = {
       ...mockRoomDetail,
       members: mockRoomDetail.members.map((m) =>
-        m.userId === mockAdminUser.id ? { ...m, role: RoomRole.MEMBER } : m
+        m.userId === mockAdminUser.id ? { ...m, role: RoomRole.ADMIN } : m
       ),
     };
 
-    renderWithProviders(
+    const { rerender } = renderWithProviders(
       <RoomChatArea
-        activeRoom={memberRoom}
-        roomDetails={memberRoomDetail}
+        activeRoom={adminRoom}
+        roomDetails={adminRoomDetail}
         messages={[]}
         isLoadingMessages={false}
         onSendMessage={vi.fn()}
@@ -909,9 +909,32 @@ describe('Room Chat Client Components', () => {
     const textarea = screen.getByPlaceholderText(/message #engineering\.\.\./i) as HTMLTextAreaElement;
     const sendBtn = screen.getByRole('button', { name: /send room message/i });
 
-    // Simulate holding 2200 chars
+    // Draft 2200 chars as Admin
     fireEvent.change(textarea, { target: { value: 'x'.repeat(2200) } });
 
+    // Demote to Member
+    const memberRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.MEMBER };
+    const memberRoomDetail: RoomDetailDto = {
+      ...mockRoomDetail,
+      members: mockRoomDetail.members.map((m) =>
+        m.userId === mockAdminUser.id ? { ...m, role: RoomRole.MEMBER } : m
+      ),
+    };
+
+    rerender(
+      <RoomChatArea
+        activeRoom={memberRoom}
+        roomDetails={memberRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />
+    );
     expect(screen.getByTestId('draft-demotion-warning')).toBeInTheDocument();
     expect(sendBtn).toBeDisabled();
 

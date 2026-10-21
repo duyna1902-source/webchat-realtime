@@ -11,6 +11,7 @@ import {
   RoomTypingPayload,
   MessageType,
   MESSAGE_LIMITS,
+  RoomRole,
 } from '@webchat/shared';
 
 export async function autoJoinUserRooms(io: Server, socket: AuthenticatedSocket): Promise<void> {
@@ -140,7 +141,7 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket): v
       }
 
       const limit =
-        member.role === 'OWNER' || member.role === 'ADMIN'
+        member.role === RoomRole.OWNER || member.role === RoomRole.ADMIN
           ? MESSAGE_LIMITS.ROOM_LEADER
           : MESSAGE_LIMITS.ROOM_MEMBER;
 

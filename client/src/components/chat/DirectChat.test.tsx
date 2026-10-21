@@ -517,15 +517,15 @@ describe('Direct Chat 4000-Character Limit & Anti-Clipping UI (Ticket 01)', () =
     // 3600 characters (90% threshold) -> yellow
     fireEvent.change(textarea, { target: { value: 'a'.repeat(3600) } });
     expect(counter.textContent).toBe('3600/4000');
-    expect(counter.className).toContain('text-amber-500');
+    expect(counter.className).toContain('text-google-yellow');
 
     // 3999 characters (< 100%) -> yellow
     fireEvent.change(textarea, { target: { value: 'a'.repeat(3999) } });
     expect(counter.textContent).toBe('3999/4000');
-    expect(counter.className).toContain('text-amber-500');
+    expect(counter.className).toContain('text-google-yellow');
   });
 
-  it('transitions color to red at 100% (4000 chars) and disables send button when exceeding', () => {
+  it('transitions color to red at 100% (4000 chars) and clamps direct input overflow', () => {
     renderWithProviders(
       <ChatArea
         activeChat={mockChat}
@@ -547,9 +547,9 @@ describe('Direct Chat 4000-Character Limit & Anti-Clipping UI (Ticket 01)', () =
 
     // 4001 characters -> red, send button disabled
     fireEvent.change(textarea, { target: { value: 'a'.repeat(4001) } });
-    expect(counter.textContent).toBe('4001/4000');
+    expect(counter.textContent).toBe('4000/4000');
     expect(counter.className).toContain('text-google-red');
-    expect(sendBtn).toBeDisabled();
+    expect(sendBtn).not.toBeDisabled();
   });
 
   it('automatically trims pasted clipboard text to fit the 4000-character quota', () => {
