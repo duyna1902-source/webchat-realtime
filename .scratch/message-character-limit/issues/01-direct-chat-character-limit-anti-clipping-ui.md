@@ -5,7 +5,7 @@ Establish centralized message limit constants in the shared package (`DIRECT: 40
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Shared constants export `MESSAGE_LIMITS` with `DIRECT: 4000`, `ROOM_LEADER: 4000`, and `ROOM_MEMBER: 2000`.
 - [ ] Direct Chat socket handler validates `content.length <= 4000` and rejects exceeding payloads via socket callback `{ success: false, error: ... }` without creating database records or broadcasting.
