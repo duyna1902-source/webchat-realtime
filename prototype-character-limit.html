@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PROTOTYPE: Anti-Spam Message Character Limit & In-Box Counter — GDG-HUST</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            google: {
+              blue: '#4285F4',
+              'blue-hover': '#3367D6',
+              'blue-subtle': '#E8F0FE',
+              red: '#EA4335',
+              'red-subtle': '#FCE8E6',
+              yellow: '#FBBC04',
+              'yellow-subtle': '#FEF7E0',
+              green: '#34A853',
+              'green-subtle': '#E6F4EA',
+              grey50: '#F8F9FA',
+              grey100: '#F1F3F4',
+              grey200: '#E8EAED',
+              grey300: '#DADCE0',
+              grey700: '#5F6368',
+              grey900: '#202124',
+            },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #DADCE0;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-google-grey100 text-google-grey900 min-h-screen flex flex-col">
+
+  <!-- ===================================================================== -->
+  <!-- PORTABLE PURE STATE MODULE (Liftable Domain Logic, Zero DOM)          -->
+  <!-- ===================================================================== -->
+  <script>
+    /**
+     * PURE LOGIC MODULE: Message Character Limit & Counter State Machine
+     * Can be lifted directly into shared/src/constants.ts and UI hooks.
+     */
+    const MESSAGE_LIMITS = {
+      DIRECT: 4000,
+      ROOM_LEADER: 4000, // OWNER and ADMIN
+      ROOM_MEMBER: 2000, // MEMBER
+    };
+
+    function resolveLimit(conversationType, roomRole) {
+      if (conversationType === 'DIRECT') {
+        return MESSAGE_LIMITS.DIRECT;
+      }
+      if (roomRole === 'OWNER' || roomRole === 'ADMIN') {
+        return MESSAGE_LIMITS.ROOM_LEADER;
+      }
+      return MESSAGE_LIMITS.ROOM_MEMBER;
+    }
+
+    function calculateCounterState(inputText, maxLimit) {
+      const len = inputText.length;
+      const ratio = maxLimit > 0 ? len / maxLimit : 0;
+      
+      let status = 'NORMAL'; // 'NORMAL' | 'WARNING' | 'EXCEEDED'
+      let colorClass = 'text-google-grey700';
+
+      if (len > maxLimit) {
+        status = 'EXCEEDED';
+        colorClass = 'text-google-red font-semibold';
+      } else if (ratio >= 0.9) {
+        status = 'WARNING';
+        colorClass = 'text-amber-500 font-semibold';
+      } else {
+        status = 'NORMAL';
+        colorClass = 'text-google-grey700';
+      }
+
+      const isOverLimit = len > maxLimit;
+      const canSend = len > 0 && !isOverLimit;
+
+      return {
+        length: len,
+        maxLimit,
+        ratio,
+        status,
+        colorClass,
+        canSend,
+        displayString: `${len}/${maxLimit}`,
+      };
+    }
+
+    function truncateToLimit(text, limit) {
+      if (text.length <= limit) return text;
+      return text.slice(0, limit);
+    }
+
+    function canAppendEmoji(currentText, emoji, limit) {
+      return (currentText.length + emoji.length) <= limit;
+    }
+  </script>
+
+  <!-- ===================================================================== -->
+  <!-- HEADER & DESIGN QUESTION STATEMENT                                    -->
+  <!-- ===================================================================== -->
+  <header class="bg-white border-b border-google-grey300 px-6 py-4 shadow-xs">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="px-2 py-0.5 text-xs font-bold bg-google-blue-subtle text-google-blue rounded-md border border-google-blue/20">PROTOTYPE</span>
+          <span class="text-xs text-google-grey700">GDG-HUST Realtime Chat</span>
+        </div>
+        <h1 class="text-xl font-bold text-google-grey900 flex items-center gap-2">
+          Anti-Spam Message Character Limit & In-Box Counter Simulator
+        </h1>
+        <p class="text-xs text-google-grey700 mt-1 max-w-3xl leading-relaxed">
+          <strong>Design Question Under Test:</strong> How should the in-box character counter (e.g. <code class="bg-google-grey100 px-1 rounded">123/2000</code>) look and behave across Direct Chat (4000) and Room Chat (Owner/Admin 4000 vs Member 2000), and does the two-tier flex layout (<code class="bg-google-grey100 px-1 rounded">rounded-2xl</code>) effectively prevent text clipping and overlap when composing multi-line messages?
+        </p>
+      </div>
+
+      <!-- Quick Switcher Bar for Prototype UI Variants -->
+      <div class="bg-google-grey50 border border-google-grey300 p-2 rounded-xl flex items-center gap-2 self-start md:self-auto">
+        <span class="text-xs font-semibold text-google-grey700 pl-1">Layout Variant:</span>
+        <button id="btn-var-a" onclick="switchVariant('A')" class="px-2.5 py-1 text-xs font-bold rounded-lg transition bg-google-blue text-white shadow-xs">
+          Variant A (Two-Tier In-Box)
+        </button>
+        <button id="btn-var-b" onclick="switchVariant('B')" class="px-2.5 py-1 text-xs font-medium text-google-grey700 hover:bg-google-grey200 rounded-lg transition">
+          Variant B (Corner Overlay)
+        </button>
+        <button id="btn-var-c" onclick="switchVariant('C')" class="px-2.5 py-1 text-xs font-medium text-google-grey700 hover:bg-google-grey200 rounded-lg transition">
+          Variant C (Sub-Footer Bar)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- MAIN WORKSPACE: SIMULATOR & CONTROL PANELS                            -->
+  <!-- ===================================================================== -->
+  <main class="max-w-7xl mx-auto w-full p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
+
+    <!-- LEFT COLUMN: LIVE CHAT SIMULATOR (7 cols) -->
+    <div class="lg:col-span-7 flex flex-col gap-4">
+      
+      <!-- Chat Container Card -->
+      <div class="bg-white rounded-2xl border border-google-grey300 shadow-sm overflow-hidden flex flex-col h-[640px]">
+        
+        <!-- Chat Header -->
+        <div class="bg-white border-b border-google-grey200 px-4 py-3 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div id="chat-avatar" class="w-9 h-9 rounded-full bg-google-blue text-white font-bold flex items-center justify-center text-sm shadow-xs">
+              DM
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 id="chat-title" class="font-bold text-sm text-google-grey900 leading-tight">Direct Chat (@bob)</h3>
+                <span id="role-badge" class="hidden px-1.5 py-0.5 text-[10px] font-bold rounded bg-google-yellow-subtle text-amber-800 border border-amber-300">
+                  MEMBER (2000 limit)
+                </span>
+              </div>
+              <p id="chat-subtitle" class="text-xs text-google-green font-medium">Active conversation • Max 4000 characters</p>
+            </div>
+          </div>
+
+          <!-- Active Context Indicator -->
+          <div class="text-right">
+            <span class="text-[11px] uppercase tracking-wider text-google-grey700 font-semibold">Active Quota</span>
+            <div id="quota-display" class="text-sm font-extrabold text-google-blue">4000 chars</div>
+          </div>
+        </div>
+
+        <!-- Chat Messages Mock Area -->
+        <div id="messages-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-google-grey50 custom-scrollbar text-xs">
+          <div class="flex items-start gap-2">
+            <div class="w-7 h-7 rounded-full bg-google-blue text-white font-bold flex items-center justify-center text-[10px] shrink-0">B</div>
+            <div class="bg-white border border-google-grey200 p-2.5 rounded-2xl rounded-tl-xs max-w-sm shadow-xs">
+              <p class="text-google-grey900">Chào bạn! Chúng ta đang thử nghiệm tính năng giới hạn độ dài tin nhắn chống spam (Anti-Spam Message Character Limit).</p>
+              <span class="text-[10px] text-google-grey700 mt-1 block text-right">10:00 AM</span>
+            </div>
+          </div>
+
+          <div class="flex items-start justify-end gap-2">
+            <div class="bg-google-blue text-white p-2.5 rounded-2xl rounded-tr-xs max-w-sm shadow-xs">
+              <p>Thử gõ tin nhắn dài, dán văn bản 5000 ký tự hoặc chuyển vai trò phòng để xem bộ đếm và giao diện chống đè chữ nhé!</p>
+              <span class="text-[10px] text-white/80 mt-1 block text-right">10:01 AM</span>
+            </div>
+            <div class="w-7 h-7 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-[10px] shrink-0">ME</div>
+          </div>
+        </div>
+
+        <!-- Role Demotion Alert Banner (Hidden by default) -->
+        <div id="demotion-banner" class="hidden bg-google-red-subtle border-t border-google-red/20 px-4 py-2 flex items-center justify-between text-xs text-google-red animate-in fade-in">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <span><strong>Role Demoted to Member:</strong> Your draft exceeds the 2,000 character limit. Please shorten your message to send.</span>
+          </div>
+          <button onclick="dismissDemotionBanner()" class="text-google-red hover:underline font-bold text-[11px]">Dismiss</button>
+        </div>
+
+        <!-- INPUT FOOTER CONTAINER (Switchable across Variant A, B, C) -->
+        <div class="p-3 bg-white border-t border-google-grey200">
+          
+          <!-- VARIANT A: Two-Tier In-Box Container (Selected Design) -->
+          <div id="container-var-a" class="flex items-end gap-2">
+            <!-- Action buttons -->
+            <div class="flex items-center gap-1 pb-1 shrink-0">
+              <button title="Attach file" class="p-2 text-google-grey700 hover:text-google-blue hover:bg-google-grey100 rounded-full transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+              </button>
+              <button onclick="handleEmojiInsert('🎉')" title="Insert emoji" class="p-2 text-google-grey700 hover:text-google-blue hover:bg-google-grey100 rounded-full transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>
+              </button>
+            </div>
+
+            <!-- Two-Tier Input Box: Textarea on top, Counter bar at bottom -->
+            <div class="flex-1 min-w-0 bg-google-grey100 border border-google-grey300 focus-within:border-google-blue focus-within:ring-2 focus-within:ring-google-blue/20 focus-within:bg-white rounded-2xl transition px-3.5 pt-2.5 pb-1.5 flex flex-col shadow-2xs">
+              <!-- Tier 1: Textarea with auto-height and independent scroll -->
+              <textarea
+                id="input-var-a"
+                rows="1"
+                placeholder="Message... (Type or paste to test character limit)"
+                oninput="handleTextInput(this.value)"
+                class="w-full bg-transparent resize-none outline-none text-sm text-google-grey900 placeholder-google-grey700 max-h-24 break-words custom-scrollbar leading-snug"
+              ></textarea>
+              
+              <!-- Tier 2: Dedicated Auxiliary Counter Bar (Anti-Clipping Guaranteed) -->
+              <div class="flex items-center justify-between pt-1 border-t border-transparent text-right">
+                <span id="typing-hint" class="text-[10px] text-google-grey700 italic hidden sm:inline">Shift+Enter for new line</span>
+                <span id="counter-var-a" class="ml-auto text-[11px] font-medium leading-none tracking-tight text-google-grey700 select-none">
+                  0/4000
+                </span>
+              </div>
+            </div>
+
+            <!-- Send button -->
+            <button
+              id="send-btn-a"
+              onclick="handleSendMessage()"
+              disabled
+              class="p-3 rounded-full bg-google-blue text-white hover:bg-google-blue-hover disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0 shadow-sm flex items-center justify-center cursor-pointer"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+            </button>
+          </div>
+
+          <!-- VARIANT B: Corner Overlay (Shows why text gets clipped/obscured) -->
+          <div id="container-var-b" class="hidden flex items-end gap-2">
+            <div class="relative flex-1 min-w-0 bg-google-grey100 border border-google-grey300 rounded-full px-4 py-2">
+              <textarea
+                id="input-var-b"
+                rows="1"
+                placeholder="Message with corner overlay (Text collides with counter)..."
+                oninput="handleTextInput(this.value)"
+                class="w-full bg-transparent resize-none outline-none text-sm text-google-grey900 pr-16 max-h-24 custom-scrollbar"
+              ></textarea>
+              <span id="counter-var-b" class="absolute right-3.5 bottom-2.5 text-[10px] font-bold text-google-grey700 bg-white/80 px-1 rounded">
+                0/4000
+              </span>
+            </div>
+            <button id="send-btn-b" disabled class="p-3 rounded-full bg-google-blue text-white opacity-40">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+            </button>
+          </div>
+
+          <!-- VARIANT C: Sub-Footer Bar (Counter outside below the input) -->
+          <div id="container-var-c" class="hidden flex flex-col gap-1">
+            <div class="flex items-end gap-2">
+              <div class="flex-1 bg-google-grey100 border border-google-grey300 rounded-full px-4 py-2">
+                <textarea
+                  id="input-var-c"
+                  rows="1"
+                  placeholder="Message with counter below bar..."
+                  oninput="handleTextInput(this.value)"
+                  class="w-full bg-transparent resize-none outline-none text-sm text-google-grey900 max-h-24 custom-scrollbar"
+                ></textarea>
+              </div>
+              <button id="send-btn-c" disabled class="p-3 rounded-full bg-google-blue text-white opacity-40">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+              </button>
+            </div>
+            <div class="flex justify-end pr-14 text-[11px] text-google-grey700">
+              <span id="counter-var-c">0/4000</span>
+            </div>
+          </div>
+
+          <!-- Anti-Clipping Explanation Callout -->
+          <div class="mt-2 text-[11px] text-google-grey700 flex items-center justify-between">
+            <span id="variant-desc" class="flex items-center gap-1 text-google-blue font-medium">
+              ✨ <strong>Variant A:</strong> Two-tier flex structure guarantees text never overlaps counter even when scrolling 96px.
+            </span>
+            <span id="live-limit-indicator" class="font-mono text-xs">Limit: 4000</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: INTERACTIVE LAB, WALKTHROUGHS & STATE MONITOR (5 cols) -->
+    <div class="lg:col-span-5 flex flex-col gap-4">
+
+      <!-- Guided Scenarios (Walkthroughs) -->
+      <div class="bg-white rounded-2xl border border-google-grey300 p-4 shadow-sm">
+        <h2 class="text-sm font-bold text-google-grey900 flex items-center gap-2 mb-3">
+          <svg class="w-4 h-4 text-google-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Guided Walkthrough Scenarios
+        </h2>
+
+        <!-- Scenario Tabs -->
+        <div class="grid grid-cols-2 gap-1.5 mb-3">
+          <button onclick="runScenario('DIRECT_NORMAL')" class="px-2.5 py-1.5 text-xs text-left font-medium bg-google-blue-subtle text-google-blue rounded-lg border border-google-blue/20 hover:bg-google-blue/10 transition">
+            1. Direct Chat (4000)
+          </button>
+          <button onclick="runScenario('ROOM_MEMBER')" class="px-2.5 py-1.5 text-xs text-left font-medium bg-google-grey100 text-google-grey900 rounded-lg hover:bg-google-grey200 transition">
+            2. Room Member (2000)
+          </button>
+          <button onclick="runScenario('PASTE_OVERFLOW')" class="px-2.5 py-1.5 text-xs text-left font-medium bg-google-grey100 text-google-grey900 rounded-lg hover:bg-google-grey200 transition">
+            3. Paste 5000 Chars
+          </button>
+          <button onclick="runScenario('ROLE_DEMOTION')" class="px-2.5 py-1.5 text-xs text-left font-medium bg-google-grey100 text-google-grey900 rounded-lg hover:bg-google-grey200 transition">
+            4. Role Demotion Trap
+          </button>
+          <button onclick="runScenario('MULTI_LINE_EXPAND')" class="px-2.5 py-1.5 text-xs text-left font-medium bg-google-grey100 text-google-grey900 rounded-lg hover:bg-google-grey200 transition col-span-2">
+            5. Anti-Clipping Multi-Line Scroll Test
+          </button>
+        </div>
+
+        <div id="scenario-explanation" class="p-2.5 bg-google-grey50 border border-google-grey200 rounded-xl text-xs text-google-grey900 leading-relaxed">
+          <strong>Scenario 1: Direct Chat.</strong> Maximum limit is 4000 characters. Watch the counter change color: Google Grey (<3600) → Google Yellow (≥3600) → Google Red (4000).
+        </div>
+      </div>
+
+      <!-- Free-Play Quick Action Buttons -->
+      <div class="bg-white rounded-2xl border border-google-grey300 p-4 shadow-sm">
+        <h2 class="text-sm font-bold text-google-grey900 mb-2">Free-Play Controls</h2>
+        <div class="space-y-2">
+          
+          <!-- Context Switcher -->
+          <div>
+            <label class="text-[11px] font-semibold text-google-grey700 uppercase tracking-wider block mb-1">Conversation Context</label>
+            <div class="grid grid-cols-3 gap-1">
+              <button onclick="setContext('DIRECT', null)" id="btn-ctx-direct" class="px-2 py-1 text-xs font-bold bg-google-blue text-white rounded-lg">Direct Chat</button>
+              <button onclick="setContext('ROOM', 'MEMBER')" id="btn-ctx-member" class="px-2 py-1 text-xs font-medium text-google-grey700 bg-google-grey100 hover:bg-google-grey200 rounded-lg">Room Member</button>
+              <button onclick="setContext('ROOM', 'ADMIN')" id="btn-ctx-admin" class="px-2 py-1 text-xs font-medium text-google-grey700 bg-google-grey100 hover:bg-google-grey200 rounded-lg">Room Leader</button>
+            </div>
+          </div>
+
+          <!-- Quick Text Generators -->
+          <div>
+            <label class="text-[11px] font-semibold text-google-grey700 uppercase tracking-wider block mb-1">Quick Text Generators</label>
+            <div class="grid grid-cols-3 gap-1.5 text-xs">
+              <button onclick="setTextLength(150)" class="p-1.5 bg-google-grey100 hover:bg-google-grey200 rounded-lg font-medium text-center">+150 chars</button>
+              <button onclick="setTextLength(1800)" class="p-1.5 bg-google-yellow-subtle text-amber-800 border border-amber-300 hover:bg-amber-100 rounded-lg font-medium text-center">1800 (90% Mbr)</button>
+              <button onclick="setTextLength(2000)" class="p-1.5 bg-google-red-subtle text-google-red border border-google-red/20 hover:bg-red-100 rounded-lg font-medium text-center">2000 (Max Mbr)</button>
+              <button onclick="setTextLength(3600)" class="p-1.5 bg-google-yellow-subtle text-amber-800 border border-amber-300 hover:bg-amber-100 rounded-lg font-medium text-center">3600 (90% Dir)</button>
+              <button onclick="setTextLength(4000)" class="p-1.5 bg-google-red-subtle text-google-red border border-google-red/20 hover:bg-red-100 rounded-lg font-medium text-center">4000 (Max Dir)</button>
+              <button onclick="clearText()" class="p-1.5 bg-google-grey100 hover:bg-google-grey200 rounded-lg font-medium text-center text-google-grey700">Clear Text</button>
+            </div>
+          </div>
+
+          <!-- Emoji Insertion Tester -->
+          <div>
+            <label class="text-[11px] font-semibold text-google-grey700 uppercase tracking-wider block mb-1">Emoji Capacity Guard</label>
+            <div class="flex items-center gap-1.5">
+              <button onclick="handleEmojiInsert('🚀')" class="px-3 py-1 bg-google-grey100 hover:bg-google-grey200 rounded-lg text-sm">🚀</button>
+              <button onclick="handleEmojiInsert('💡')" class="px-3 py-1 bg-google-grey100 hover:bg-google-grey200 rounded-lg text-sm">💡</button>
+              <button onclick="handleEmojiInsert('👨‍👩‍👧‍👦')" class="px-3 py-1 bg-google-grey100 hover:bg-google-grey200 rounded-lg text-sm" title="Complex 7-codepoint emoji">👨‍👩‍👧‍👦 (7 chars)</button>
+              <button onclick="handleEmojiInsert('🔥')" class="px-3 py-1 bg-google-grey100 hover:bg-google-grey200 rounded-lg text-sm">🔥</button>
+              <span id="emoji-alert" class="text-[11px] text-google-red font-semibold hidden ml-auto">Blocked: Limit reached!</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Domain State Monitor -->
+      <div class="bg-white rounded-2xl border border-google-grey300 p-4 shadow-sm flex-1">
+        <h2 class="text-sm font-bold text-google-grey900 flex items-center justify-between mb-2">
+          <span>Domain State Monitor</span>
+          <span class="w-2 h-2 rounded-full bg-google-green animate-pulse"></span>
+        </h2>
+        
+        <div class="bg-google-grey50 border border-google-grey200 rounded-xl p-3 font-mono text-xs space-y-1.5 text-google-grey900">
+          <div class="flex justify-between">
+            <span class="text-google-grey700">conversationType:</span>
+            <span id="state-conv" class="font-bold text-google-blue">DIRECT</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-google-grey700">roomRole:</span>
+            <span id="state-role" class="font-bold">N/A</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-google-grey700">activeLimit:</span>
+            <span id="state-limit" class="font-bold text-google-blue">4000</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-google-grey700">currentLength:</span>
+            <span id="state-len" class="font-bold">0</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-google-grey700">counterRatio:</span>
+            <span id="state-ratio" class="font-bold">0.0%</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-google-grey700">counterStatus:</span>
+            <span id="state-status" class="font-bold text-google-grey700">NORMAL</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-google-grey700">canSendMessage:</span>
+            <span id="state-cansend" class="font-bold text-google-grey700">false</span>
+          </div>
+        </div>
+
+        <div class="mt-3 text-[11px] text-google-grey700">
+          <strong>Backend Enforcement Note:</strong> Socket handlers (<code class="bg-google-grey100 px-1 rounded">direct:send</code>, <code class="bg-google-grey100 px-1 rounded">room:send</code>) enforce identical limits in Postgres/Prisma.
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- CLIENT INTERACTIVE ENGINE (UI Binding & Walkthrough Controllers)       -->
+  <!-- ===================================================================== -->
+  <script>
+    // Simulator Mutable State
+    let currentVariant = 'A';
+    let conversationType = 'DIRECT'; // 'DIRECT' | 'ROOM'
+    let roomRole = null; // null | 'MEMBER' | 'ADMIN' | 'OWNER'
+    let textValue = '';
+
+    function init() {
+      renderState();
+    }
+
+    function switchVariant(variantKey) {
+      currentVariant = variantKey;
+      
+      // Update toggle buttons
+      ['a', 'b', 'c'].forEach(k => {
+        const btn = document.getElementById(`btn-var-${k}`);
+        const cont = document.getElementById(`container-var-${k}`);
+        if (k.toUpperCase() === variantKey) {
+          btn.className = "px-2.5 py-1 text-xs font-bold rounded-lg transition bg-google-blue text-white shadow-xs";
+          cont.classList.remove('hidden');
+        } else {
+          btn.className = "px-2.5 py-1 text-xs font-medium text-google-grey700 hover:bg-google-grey200 rounded-lg transition";
+          cont.classList.add('hidden');
+        }
+      });
+
+      // Sync text across inputs
+      syncInputText(textValue);
+
+      // Update description
+      const desc = document.getElementById('variant-desc');
+      if (variantKey === 'A') {
+        desc.innerHTML = `✨ <strong>Variant A:</strong> Two-tier flex structure guarantees text never overlaps counter even when scrolling 96px.`;
+      } else if (variantKey === 'B') {
+        desc.innerHTML = `⚠️ <strong>Variant B:</strong> Corner overlay badge clips and covers text on multi-line messages!`;
+      } else {
+        desc.innerHTML = `ℹ️ <strong>Variant C:</strong> Sub-footer bar consumes extra vertical height outside the input capsule.`;
+      }
+    }
+
+    function setContext(convType, role) {
+      conversationType = convType;
+      roomRole = role;
+
+      const btnDirect = document.getElementById('btn-ctx-direct');
+      const btnMember = document.getElementById('btn-ctx-member');
+      const btnAdmin = document.getElementById('btn-ctx-admin');
+      
+      [btnDirect, btnMember, btnAdmin].forEach(b => {
+        b.className = "px-2 py-1 text-xs font-medium text-google-grey700 bg-google-grey100 hover:bg-google-grey200 rounded-lg";
+      });
+
+      const title = document.getElementById('chat-title');
+      const avatar = document.getElementById('chat-avatar');
+      const roleBadge = document.getElementById('role-badge');
+      const subtitle = document.getElementById('chat-subtitle');
+
+      if (convType === 'DIRECT') {
+        btnDirect.className = "px-2 py-1 text-xs font-bold bg-google-blue text-white rounded-lg";
+        title.innerText = "Direct Chat (@bob)";
+        avatar.innerText = "DM";
+        avatar.className = "w-9 h-9 rounded-full bg-google-blue text-white font-bold flex items-center justify-center text-sm shadow-xs";
+        roleBadge.classList.add('hidden');
+        subtitle.innerText = "Direct conversation • Max 4000 characters";
+      } else if (role === 'MEMBER') {
+        btnMember.className = "px-2 py-1 text-xs font-bold bg-google-blue text-white rounded-lg";
+        title.innerText = "Room Chat (#GDG-Campus)";
+        avatar.innerText = "#";
+        avatar.className = "w-9 h-9 rounded-full bg-google-green text-white font-bold flex items-center justify-center text-sm shadow-xs";
+        roleBadge.classList.remove('hidden');
+        roleBadge.innerText = "MEMBER (2000 max)";
+        roleBadge.className = "px-1.5 py-0.5 text-[10px] font-bold rounded bg-google-grey200 text-google-grey900 border border-google-grey300";
+        subtitle.innerText = "Community Room • Standard member limit";
+      } else {
+        btnAdmin.className = "px-2 py-1 text-xs font-bold bg-google-blue text-white rounded-lg";
+        title.innerText = "Room Chat (#GDG-Campus)";
+        avatar.innerText = "#";
+        avatar.className = "w-9 h-9 rounded-full bg-google-yellow text-google-grey900 font-bold flex items-center justify-center text-sm shadow-xs";
+        roleBadge.classList.remove('hidden');
+        roleBadge.innerText = "ADMIN (4000 max)";
+        roleBadge.className = "px-1.5 py-0.5 text-[10px] font-bold rounded bg-google-yellow-subtle text-amber-800 border border-amber-300";
+        subtitle.innerText = "Community Room • Leader elevated quota";
+      }
+
+      handleTextInput(textValue);
+    }
+
+    function handleTextInput(newText) {
+      const limit = resolveLimit(conversationType, roomRole);
+      
+      // Enforce Hard Cap (maxLength)
+      if (newText.length > limit && currentVariant === 'A') {
+        // Cut off if typing/pasting exceeded limit
+        newText = truncateToLimit(newText, limit);
+      }
+      
+      textValue = newText;
+      syncInputText(textValue);
+      adjustTextareaHeight();
+      renderState();
+    }
+
+    function syncInputText(val) {
+      const activeTextarea = document.getElementById(`input-var-${currentVariant.toLowerCase()}`);
+      if (activeTextarea && activeTextarea.value !== val) {
+        activeTextarea.value = val;
+      }
+    }
+
+    function adjustTextareaHeight() {
+      const ta = document.getElementById(`input-var-${currentVariant.toLowerCase()}`);
+      if (!ta) return;
+      ta.style.height = 'auto';
+      ta.style.height = `${Math.min(ta.scrollHeight, 96)}px`;
+    }
+
+    function renderState() {
+      const limit = resolveLimit(conversationType, roomRole);
+      const counterState = calculateCounterState(textValue, limit);
+
+      // Update Quota headers
+      document.getElementById('quota-display').innerText = `${limit} chars`;
+      document.getElementById('live-limit-indicator').innerText = `Limit: ${limit}`;
+
+      // Update Counters for all variants
+      ['a', 'b', 'c'].forEach(k => {
+        const el = document.getElementById(`counter-var-${k}`);
+        if (el) {
+          el.innerText = counterState.displayString;
+          el.className = `text-[11px] leading-none select-none ${counterState.colorClass}`;
+        }
+
+        const btn = document.getElementById(`send-btn-${k}`);
+        if (btn) {
+          btn.disabled = !counterState.canSend;
+        }
+      });
+
+      // Update Domain State Monitor
+      document.getElementById('state-conv').innerText = conversationType;
+      document.getElementById('state-role').innerText = roomRole || 'N/A';
+      document.getElementById('state-limit').innerText = limit;
+      document.getElementById('state-len').innerText = counterState.length;
+      document.getElementById('state-ratio').innerText = `${(counterState.ratio * 100).toFixed(1)}%`;
+      
+      const stEl = document.getElementById('state-status');
+      stEl.innerText = counterState.status;
+      stEl.className = `font-bold ${counterState.colorClass}`;
+
+      const csEl = document.getElementById('state-cansend');
+      csEl.innerText = String(counterState.canSend);
+      csEl.className = counterState.canSend ? 'font-bold text-google-green' : 'font-bold text-google-red';
+
+      // Role Demotion Banner
+      const demotionBanner = document.getElementById('demotion-banner');
+      if (counterState.status === 'EXCEEDED') {
+        demotionBanner.classList.remove('hidden');
+      } else {
+        demotionBanner.classList.add('hidden');
+      }
+    }
+
+    function setTextLength(targetLength) {
+      const lorem = "GDG-HUST Realtime Chat anti-spam limit validation test string. ";
+      let result = "";
+      while (result.length < targetLength) {
+        result += lorem;
+      }
+      result = result.slice(0, targetLength);
+      
+      // If setting length directly, allow setting even if it exceeds for testing demotion
+      textValue = result;
+      syncInputText(textValue);
+      adjustTextareaHeight();
+      renderState();
+    }
+
+    function clearText() {
+      textValue = "";
+      syncInputText(textValue);
+      adjustTextareaHeight();
+      renderState();
+    }
+
+    function handleEmojiInsert(emoji) {
+      const limit = resolveLimit(conversationType, roomRole);
+      const alert = document.getElementById('emoji-alert');
+      
+      if (!canAppendEmoji(textValue, emoji, limit)) {
+        alert.classList.remove('hidden');
+        setTimeout(() => alert.classList.add('hidden'), 2000);
+        return;
+      }
+      
+      alert.classList.add('hidden');
+      handleTextInput(textValue + emoji);
+    }
+
+    function handleSendMessage() {
+      const limit = resolveLimit(conversationType, roomRole);
+      const counterState = calculateCounterState(textValue, limit);
+      if (!counterState.canSend) return;
+
+      const list = document.getElementById('messages-list');
+      const bubble = document.createElement('div');
+      bubble.className = "flex items-start justify-end gap-2 animate-in fade-in slide-in-from-bottom-2";
+      bubble.innerHTML = `
+        <div class="bg-google-blue text-white p-2.5 rounded-2xl rounded-tr-xs max-w-sm shadow-xs break-words">
+          <p>${escapeHtml(textValue)}</p>
+          <span class="text-[10px] text-white/80 mt-1 block text-right">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+        <div class="w-7 h-7 rounded-full bg-green-600 text-white font-bold flex items-center justify-center text-[10px] shrink-0">ME</div>
+      `;
+      list.appendChild(bubble);
+      list.scrollTop = list.scrollHeight;
+
+      clearText();
+    }
+
+    function dismissDemotionBanner() {
+      document.getElementById('demotion-banner').classList.add('hidden');
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>');
+    }
+
+    // SCENARIO RUNNERS
+    function runScenario(key) {
+      const exp = document.getElementById('scenario-explanation');
+      
+      if (key === 'DIRECT_NORMAL') {
+        setContext('DIRECT', null);
+        setTextLength(3700);
+        exp.innerHTML = `<strong>Scenario 1: Direct Chat (3700 / 4000).</strong> Ratio is ≥90%, counter turns <span class="text-amber-600 font-bold">Google Yellow (3700/4000)</span> to warn user. Send button is active.`;
+      } else if (key === 'ROOM_MEMBER') {
+        setContext('ROOM', 'MEMBER');
+        setTextLength(1900);
+        exp.innerHTML = `<strong>Scenario 2: Room Member (1900 / 2000).</strong> Room member has lower anti-spam quota (2000). At 1900 chars, it turns <span class="text-amber-600 font-bold">Google Yellow (1900/2000)</span>. Try typing 100 more chars to see it hit <span class="text-google-red font-bold">Red (2000/2000)</span>.`;
+      } else if (key === 'PASTE_OVERFLOW') {
+        setContext('ROOM', 'MEMBER');
+        setTextLength(2000);
+        exp.innerHTML = `<strong>Scenario 3: Paste 5000 chars into Member box.</strong> The input automatically slices and hard-caps at 2000 chars (<span class="text-google-red font-bold">2000/2000</span>). No text overflow reaches server.`;
+      } else if (key === 'ROLE_DEMOTION') {
+        setContext('ROOM', 'ADMIN');
+        setTextLength(2400); // Admin types 2400
+        // Now suddenly demote to MEMBER
+        conversationType = 'ROOM';
+        roomRole = 'MEMBER';
+        setContext('ROOM', 'MEMBER');
+        // keep text at 2400 without auto-truncating existing draft
+        textValue = textValue.slice(0, 2400);
+        syncInputText(textValue);
+        renderState();
+        exp.innerHTML = `<strong>Scenario 4: Role Demotion Trap.</strong> User drafted 2400 chars as Admin, then was demoted to Member (quota 2000). Draft is <strong>preserved</strong>, counter displays in <span class="text-google-red font-bold">Red (2400/2000)</span>, and Send is <strong>disabled</strong> until user shortens message.`;
+      } else if (key === 'MULTI_LINE_EXPAND') {
+        switchVariant('A');
+        const multiLineText = "Line 1: GDG-HUST Realtime Messaging\nLine 2: Anti-Spam Character Limit Protection\nLine 3: Two-tier rounded-2xl flex layout\nLine 4: Textarea expands up to 96px (max-h-24)\nLine 5: Scrollbar activates smoothly\nLine 6: Counter stays at bottom right without overlapping text!\nLine 7: Zero clipping guaranteed!";
+        textValue = multiLineText;
+        syncInputText(textValue);
+        adjustTextareaHeight();
+        renderState();
+        exp.innerHTML = `<strong>Scenario 5: Anti-Clipping Proof.</strong> Look at the input box! Notice how the text scrolls cleanly inside the upper tier, while the counter <code class="bg-google-grey200 px-1 rounded">${textValue.length}/4000</code> sits independently in the lower status bar. Switch to <strong>Variant B</strong> to see how the corner badge clips the text!`;
+      }
+    }
+
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

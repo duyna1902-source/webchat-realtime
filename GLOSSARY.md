@@ -45,6 +45,10 @@ _Avoid_: Chat Message, Message (khi cần phân biệt với Room Message)
 Bản ghi tin nhắn thuộc về một Room Chat cụ thể, được phát tán và lưu trữ cho các thành viên trong phòng.
 _Avoid_: Group Message, Broadcast Message
 
+**Message Character Limit**:
+Hạn mức ký tự tối đa cho phép trong một lần gửi tin nhắn nhằm ngăn chặn tình trạng phát tán nội dung rác hoặc quá tải, áp dụng 4000 ký tự cho Direct Chat và Room Chat cấp quản trị (OWNER, ADMIN), và 2000 ký tự cho Room Chat cấp thành viên (MEMBER).
+_Avoid_: Message length quota, Text cap, Max characters
+
 **Presence**:
 Trạng thái kết nối mạng của người dùng (trực tuyến - Online hoặc ngoại tuyến - Offline).
 _Avoid_: Status, User Status, Availability
