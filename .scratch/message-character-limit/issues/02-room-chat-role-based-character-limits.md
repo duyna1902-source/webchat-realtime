@@ -5,7 +5,7 @@ Implement role-differentiated message character limits for Room Chat end-to-end.
 
 **Blocked by:** 01: Direct Chat 4000-Character Limit & Anti-Clipping UI (Tracer Bullet).
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Room Chat socket handler retrieves sender's `RoomMember.role` and enforces limits: 4000 characters for `OWNER` and `ADMIN`, 2000 characters for `MEMBER`.
 - [ ] Messages exceeding the sender's role threshold are rejected with an error callback and not saved to the database.
