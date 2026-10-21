@@ -6,7 +6,7 @@ import { app } from '../src/app.js';
 import { setupSocketServer } from '../src/socket/index.js';
 import { generateToken } from '../src/lib/jwt.js';
 import { getPrisma } from '../src/lib/prisma.js';
-import { SOCKET_EVENTS, RoomRole, MessageType, RoomTypingPayload } from '@webchat/shared';
+import { SOCKET_EVENTS, RoomRole, MessageType, RoomTypingPayload, MESSAGE_LIMITS } from '@webchat/shared';
 
 function waitForEvent<T = any>(socket: ClientSocketType, event: string, timeout = 3000): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -305,5 +305,198 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
       roomId: testRoom.id,
       action: 'DELETE',
     });
+  });
+
+  it('rejects room:send when MEMBER sends message exceeding MESSAGE_LIMITS.ROOM_MEMBER (2000 chars)', async () => {
+    let ownerReceived = false;
+    clientOwner.on(SOCKET_EVENTS.ROOM_RECEIVE, () => {
+      ownerReceived = true;
+    });
+
+    const oversizedContent = 'm'.repeat(MESSAGE_LIMITS.ROOM_MEMBER + 1); // 2001 chars
+
+    const sendRes = await new Promise<{ success: boolean; error?: string }>((resolve) => {
+      clientMember.emit(
+        SOCKET_EVENTS.ROOM_SEND,
+        {
+          roomId: testRoom.id,
+          content: oversizedContent,
+          type: 'TEXT',
+        },
+        resolve
+      );
+    });
+
+    expect(sendRes.success).toBe(false);
+    expect(sendRes.error).toMatch(/exceeds character limit/i);
+
+    // Ensure owner did not receive broadcast
+    await new Promise((r) => setTimeout(r, 200));
+    expect(ownerReceived).toBe(false);
+
+    // Ensure database record was NOT created
+    const prisma = getPrisma();
+    const dbMsg = await prisma.roomMessage.findFirst({
+      where: { roomId: testRoom.id, senderId: memberUser.id },
+    });
+    expect(dbMsg).toBeNull();
+  });
+
+  it('allows room:send when MEMBER sends message of exactly MESSAGE_LIMITS.ROOM_MEMBER (2000 chars)', async () => {
+    const exactContent = 'm'.repeat(MESSAGE_LIMITS.ROOM_MEMBER);
+    const ownerReceivePromise = waitForEvent(clientOwner, SOCKET_EVENTS.ROOM_RECEIVE);
+
+    const sendRes = await new Promise<{ success: boolean; message?: any }>((resolve) => {
+      clientMember.emit(
+        SOCKET_EVENTS.ROOM_SEND,
+        {
+          roomId: testRoom.id,
+          content: exactContent,
+          type: 'TEXT',
+        },
+        resolve
+      );
+    });
+
+    expect(sendRes.success).toBe(true);
+    const receivedMsg = await ownerReceivePromise;
+    expect(receivedMsg.content).toBe(exactContent);
+
+    const prisma = getPrisma();
+    const dbMsg = await prisma.roomMessage.findUnique({
+      where: { id: receivedMsg.id },
+    });
+    expect(dbMsg).not.toBeNull();
+    expect(dbMsg?.content).toBe(exactContent);
+  });
+
+  it('allows room:send when OWNER or ADMIN sends message up to MESSAGE_LIMITS.ROOM_LEADER (4000 chars)', async () => {
+    const prisma = getPrisma();
+    // Create admin user and join room as ADMIN
+    const adminUser = await prisma.user.create({
+      data: { username: 'dan_admin', email: 'dan@test.com', passwordHash: 'hash' },
+    });
+    await prisma.roomMember.create({
+      data: { roomId: testRoom.id, userId: adminUser.id, role: RoomRole.ADMIN },
+    });
+    const tokenAdmin = generateToken({ userId: adminUser.id, username: adminUser.username });
+    const clientAdmin = ClientSocket(`http://localhost:${serverPort}`, {
+      auth: { token: tokenAdmin },
+      transports: ['websocket'],
+    });
+
+    try {
+      // 1. OWNER sends 4000 characters
+      const ownerContent = 'o'.repeat(MESSAGE_LIMITS.ROOM_LEADER);
+      const memberReceivePromise = waitForEvent(clientMember, SOCKET_EVENTS.ROOM_RECEIVE);
+
+      const ownerSendRes = await new Promise<{ success: boolean; message?: any }>((resolve) => {
+        clientOwner.emit(
+          SOCKET_EVENTS.ROOM_SEND,
+          {
+            roomId: testRoom.id,
+            content: ownerContent,
+            type: 'TEXT',
+          },
+          resolve
+        );
+      });
+
+      expect(ownerSendRes.success).toBe(true);
+      const ownerMsgReceived = await memberReceivePromise;
+      expect(ownerMsgReceived.content).toBe(ownerContent);
+
+      // 2. ADMIN sends 4000 characters
+      const adminContent = 'a'.repeat(MESSAGE_LIMITS.ROOM_LEADER);
+      const memberReceivePromise2 = waitForEvent(clientMember, SOCKET_EVENTS.ROOM_RECEIVE);
+
+      const adminSendRes = await new Promise<{ success: boolean; message?: any }>((resolve) => {
+        clientAdmin.emit(
+          SOCKET_EVENTS.ROOM_SEND,
+          {
+            roomId: testRoom.id,
+            content: adminContent,
+            type: 'TEXT',
+          },
+          resolve
+        );
+      });
+
+      expect(adminSendRes.success).toBe(true);
+      const adminMsgReceived = await memberReceivePromise2;
+      expect(adminMsgReceived.content).toBe(adminContent);
+
+      const dbAdminMsg = await prisma.roomMessage.findUnique({
+        where: { id: adminMsgReceived.id },
+      });
+      expect(dbAdminMsg).not.toBeNull();
+      expect(dbAdminMsg?.content).toBe(adminContent);
+    } finally {
+      if (clientAdmin.connected) clientAdmin.disconnect();
+    }
+  });
+
+  it('rejects room:send when OWNER or ADMIN sends message exceeding MESSAGE_LIMITS.ROOM_LEADER (4000 chars)', async () => {
+    const prisma = getPrisma();
+    const adminUser = await prisma.user.create({
+      data: { username: 'eve_admin', email: 'eve@test.com', passwordHash: 'hash' },
+    });
+    await prisma.roomMember.create({
+      data: { roomId: testRoom.id, userId: adminUser.id, role: RoomRole.ADMIN },
+    });
+    const tokenAdmin = generateToken({ userId: adminUser.id, username: adminUser.username });
+    const clientAdmin = ClientSocket(`http://localhost:${serverPort}`, {
+      auth: { token: tokenAdmin },
+      transports: ['websocket'],
+    });
+
+    try {
+      // 1. OWNER sends 4001 characters
+      const ownerOversized = 'o'.repeat(MESSAGE_LIMITS.ROOM_LEADER + 1);
+      const ownerSendRes = await new Promise<{ success: boolean; error?: string }>((resolve) => {
+        clientOwner.emit(
+          SOCKET_EVENTS.ROOM_SEND,
+          {
+            roomId: testRoom.id,
+            content: ownerOversized,
+            type: 'TEXT',
+          },
+          resolve
+        );
+      });
+
+      expect(ownerSendRes.success).toBe(false);
+      expect(ownerSendRes.error).toMatch(/exceeds character limit/i);
+
+      // 2. ADMIN sends 4001 characters
+      const adminOversized = 'a'.repeat(MESSAGE_LIMITS.ROOM_LEADER + 1);
+      const adminSendRes = await new Promise<{ success: boolean; error?: string }>((resolve) => {
+        clientAdmin.emit(
+          SOCKET_EVENTS.ROOM_SEND,
+          {
+            roomId: testRoom.id,
+            content: adminOversized,
+            type: 'TEXT',
+          },
+          resolve
+        );
+      });
+
+      expect(adminSendRes.success).toBe(false);
+      expect(adminSendRes.error).toMatch(/exceeds character limit/i);
+
+      // Verify neither message was saved
+      const ownerMsg = await prisma.roomMessage.findFirst({
+        where: { roomId: testRoom.id, senderId: ownerUser.id, content: ownerOversized },
+      });
+      expect(ownerMsg).toBeNull();
+
+      const adminMsg = await prisma.roomMessage.findFirst({
+        where: { roomId: testRoom.id, senderId: adminUser.id, content: adminOversized },
+      });
+      expect(adminMsg).toBeNull();
+    } finally {
+      if (clientAdmin.connected) clientAdmin.disconnect();
+    }
   });
 });

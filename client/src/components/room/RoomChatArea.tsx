@@ -5,6 +5,7 @@ import {
   RoomDetailDto,
   RoomRole,
   MessageType,
+  MESSAGE_LIMITS,
 } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
@@ -203,9 +204,62 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
     return res.json();
   };
 
+  const currentMemberRole = useMemo(() => {
+    if (roomDetails?.members && currentUser?.id) {
+      const member = roomDetails.members.find((m) => m.userId === currentUser.id);
+      if (member) return member.role;
+      if (roomDetails.role) return roomDetails.role;
+    }
+    if (activeRoom?.role) return activeRoom.role;
+    if (activeRoom?.ownerId && currentUser?.id === activeRoom.ownerId) return RoomRole.OWNER;
+    return RoomRole.MEMBER;
+  }, [roomDetails, activeRoom, currentUser?.id]);
+
+  const isLeader = currentMemberRole === RoomRole.OWNER || currentMemberRole === RoomRole.ADMIN;
+  const maxLimit = isLeader ? MESSAGE_LIMITS.ROOM_LEADER : MESSAGE_LIMITS.ROOM_MEMBER;
+  const charCount = inputText.length;
+  let counterColorClass = 'text-google-grey700';
+  if (charCount >= maxLimit) {
+    counterColorClass = 'text-google-red font-semibold';
+  } else if (charCount >= maxLimit * 0.9) {
+    counterColorClass = 'text-amber-500 font-semibold';
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pastedText = e.clipboardData?.getData('text') ?? '';
+    if (!pastedText) return;
+
+    const textarea = textareaRef.current;
+    const current = inputText;
+    const selectionStart = textarea?.selectionStart ?? current.length;
+    const selectionEnd = textarea?.selectionEnd ?? current.length;
+    const selectedLength = selectionEnd - selectionStart;
+
+    const remainingQuota = maxLimit - (current.length - selectedLength);
+
+    if (remainingQuota <= 0) {
+      e.preventDefault();
+      return;
+    }
+
+    e.preventDefault();
+    const allowedText = pastedText.slice(0, remainingQuota);
+    const newText = current.slice(0, selectionStart) + allowedText + current.slice(selectionEnd);
+    setInputText(newText);
+    handleTyping();
+
+    requestAnimationFrame(() => {
+      if (textarea) {
+        const newCursor = selectionStart + allowedText.length;
+        textarea.setSelectionRange(newCursor, newCursor);
+      }
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() && !selectedFile) return;
+    if (inputText.length > maxLimit) return;
 
     stopTyping();
 
@@ -244,6 +298,9 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   };
 
   const handleSelectEmoji = (emoji: string) => {
+    if (inputText.length + emoji.length > maxLimit) {
+      return;
+    }
     if (!textareaRef.current) {
       setInputText((prev) => prev + emoji);
       handleTyping();
@@ -552,15 +609,17 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
             </button>
           </div>
 
-          <div className="flex-1 min-w-0 bg-google-grey100 border border-google-grey300 focus-within:border-google-blue focus-within:ring-2 focus-within:ring-google-blue/20 focus-within:bg-white rounded-full transition px-4 py-2">
+          <div className="flex-1 min-w-0 bg-google-grey100 border border-google-grey300 focus-within:border-google-blue focus-within:ring-2 focus-within:ring-google-blue/20 focus-within:bg-white rounded-2xl transition px-4 pt-2.5 pb-1.5 flex flex-col justify-between">
             <textarea
               ref={textareaRef}
               rows={1}
               value={inputText}
+              maxLength={maxLimit}
               onChange={(e) => {
                 setInputText(e.target.value);
                 handleTyping();
               }}
+              onPaste={handlePaste}
               onKeyDown={handleKeyDown}
               placeholder={
                 selectedFile
@@ -569,11 +628,25 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
               }
               className="w-full bg-transparent resize-none outline-none text-base sm:text-sm text-google-grey900 placeholder-google-grey700 max-h-24 break-words [overflow-wrap:anywhere]"
             />
+            <div className="flex items-center justify-between pt-1 border-t border-transparent text-right">
+              <span className="text-[10px] text-google-grey700 italic hidden sm:inline">Shift+Enter for new line</span>
+              <span
+                data-testid="char-counter"
+                className={`ml-auto text-[11px] font-medium leading-none tracking-tight select-none ${counterColorClass}`}
+              >
+                {charCount}/{maxLimit}
+              </span>
+            </div>
           </div>
 
           <button
             type="submit"
-            disabled={(!inputText.trim() && !selectedFile) || !isConnected || isUploading}
+            disabled={
+              (!inputText.trim() && !selectedFile) ||
+              inputText.length > maxLimit ||
+              !isConnected ||
+              isUploading
+            }
             className="p-3 rounded-full bg-google-blue text-white hover:bg-google-blue-hover disabled:opacity-50 disabled:cursor-not-allowed transition shrink-0 cursor-pointer shadow-md flex items-center justify-center min-w-[40px] min-h-[40px]"
             title="Send room message"
             aria-label="Send room message"

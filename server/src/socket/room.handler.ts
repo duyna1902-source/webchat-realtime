@@ -10,6 +10,7 @@ import {
   RoomReadPayload,
   RoomTypingPayload,
   MessageType,
+  MESSAGE_LIMITS,
 } from '@webchat/shared';
 
 export async function autoJoinUserRooms(io: Server, socket: AuthenticatedSocket): Promise<void> {
@@ -134,6 +135,18 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket): v
       if (!member) {
         if (typeof callback === 'function') {
           callback({ success: false, error: 'Not a member of this room' });
+        }
+        return;
+      }
+
+      const limit =
+        member.role === 'OWNER' || member.role === 'ADMIN'
+          ? MESSAGE_LIMITS.ROOM_LEADER
+          : MESSAGE_LIMITS.ROOM_MEMBER;
+
+      if (content && content.length > limit) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: `Message exceeds character limit of ${limit}` });
         }
         return;
       }
