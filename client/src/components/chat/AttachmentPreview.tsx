@@ -58,7 +58,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
           <button
             type="button"
             onClick={onSend}
-            className="p-2 rounded-lg bg-google-blue hover:bg-google-blue-hover text-white transition cursor-pointer"
+            className="p-2 rounded-lg bg-google-blue hover:bg-google-blue-hover text-white transition cursor-pointer min-w-[40px] min-h-[40px] flex items-center justify-center"
             title="Send attachment"
             aria-label="Send attachment"
           >
@@ -69,7 +69,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
           type="button"
           onClick={onCancel}
           disabled={isUploading}
-          className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition cursor-pointer disabled:opacity-50"
+          className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition cursor-pointer disabled:opacity-50 min-w-[40px] min-h-[40px] flex items-center justify-center"
           title="Cancel attachment"
           aria-label="Cancel attachment"
         >
