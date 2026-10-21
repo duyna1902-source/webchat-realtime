@@ -327,7 +327,7 @@ export const Dashboard: React.FC = () => {
 
         <div
           data-testid="chat-area-container"
-          className={`flex-1 flex overflow-hidden ${!isChatActive ? 'hidden md:flex' : 'w-full flex'}`}
+          className={`flex-1 min-w-0 flex overflow-hidden ${!isChatActive ? 'hidden md:flex' : 'w-full flex'}`}
         >
           {Boolean(activeRoomId) || (!activeChatId && activeTab === 'room') ? (
             <RoomChatArea

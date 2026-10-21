@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ChatArea } from './ChatArea';
 import { RoomChatArea } from '../room/RoomChatArea';
 import { EmojiPickerPopover } from '../media/EmojiPickerPopover';
@@ -9,7 +9,7 @@ import { RoomMembersModal } from '../room/RoomMembersModal';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { AuthContext } from '../../context/AuthContext';
 import { SocketContext } from '../../context/SocketContext';
-import { RoomRole } from '@webchat/shared';
+import { RoomRole, MessageType, MessageStatus } from '@webchat/shared';
 
 const mockUser = {
   id: 'user-1',
@@ -169,5 +169,113 @@ describe('Mobile Input, Popovers & Modals Optimization (Ticket 04)', () => {
 
     const membersModalBox = screen.getByText(/General — Members/i).closest('.bg-white');
     expect(membersModalBox?.className).toMatch(/max-h-\[90dvh\]/);
+  });
+
+  it('constrains long message bubbles and text boxes in ChatArea, RoomChatArea, and MessageItemContent to prevent horizontal screen overflow', () => {
+    const longUnbroken = 'https://gdg.community.dev/' + 'a'.repeat(300);
+
+    const { rerender } = renderWithContext(
+      <ChatArea
+        activeChat={mockChat as any}
+        messages={[
+          {
+            id: 'dm-long-1',
+            directChatId: 'chat-1',
+            senderId: mockUser.id,
+            sender: mockUser,
+            content: longUnbroken,
+            type: MessageType.TEXT,
+            status: MessageStatus.SENT,
+            createdAt: new Date().toISOString(),
+          },
+        ] as any}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+      />
+    );
+
+    const directScrollContainer = screen.getByTestId('chat-messages-container');
+    expect(directScrollContainer.className).toMatch(/overflow-x-hidden/);
+
+    const directMsgParagraph = screen.getByText(longUnbroken);
+    expect(directMsgParagraph.className).toMatch(/\[overflow-wrap:anywhere\]/);
+
+    const directBubble = directMsgParagraph.closest('div.rounded-2xl');
+    expect(directBubble?.className).toMatch(/max-w-\[min\(85%,28rem\)\]/);
+    expect(directBubble?.className).toMatch(/min-w-0/);
+    expect(directBubble?.className).toMatch(/\[overflow-wrap:anywhere\]/);
+
+    const directTextarea = screen.getByPlaceholderText(/message @bob\.\.\./i);
+    expect(directTextarea.parentElement?.className).toMatch(/min-w-0/);
+
+    rerender(
+      <AuthContext.Provider value={{ currentUser: mockUser, token: 'fake-token' } as any}>
+        <SocketContext.Provider value={{ socket: null, isConnected: true } as any}>
+          <RoomChatArea
+            activeRoom={mockRoom as any}
+            roomDetails={null}
+            messages={[
+              {
+                id: 'rm-long-1',
+                roomId: 'room-1',
+                senderId: mockPartner.id,
+                sender: mockPartner,
+                content: longUnbroken,
+                type: MessageType.TEXT,
+                createdAt: new Date().toISOString(),
+              },
+            ] as any}
+            isLoadingMessages={false}
+            onSendMessage={vi.fn()}
+            onAddMember={vi.fn()}
+            onRemoveMember={vi.fn()}
+            onChangeRole={vi.fn()}
+            onLeaveRoom={vi.fn()}
+            onDeleteRoom={vi.fn()}
+          />
+        </SocketContext.Provider>
+      </AuthContext.Provider>
+    );
+
+    const roomScrollContainer = screen.getByTestId('room-messages-container');
+    expect(roomScrollContainer.className).toMatch(/overflow-x-hidden/);
+
+    const roomMsgParagraph = screen.getByText(longUnbroken);
+    expect(roomMsgParagraph.className).toMatch(/\[overflow-wrap:anywhere\]/);
+
+    const roomBubble = roomMsgParagraph.closest('div.rounded-2xl');
+    expect(roomBubble?.className).toMatch(/max-w-full/);
+    expect(roomBubble?.className).toMatch(/min-w-0/);
+    expect(roomBubble?.className).toMatch(/\[overflow-wrap:anywhere\]/);
+
+    const roomBubbleColumn = roomBubble?.parentElement;
+    expect(roomBubbleColumn?.className).toMatch(/max-w-\[min\(85%,28rem\)\]/);
+    expect(roomBubbleColumn?.className).toMatch(/min-w-0/);
+
+    const roomTextarea = screen.getByPlaceholderText(/message #General\.\.\./i);
+    expect(roomTextarea.parentElement?.className).toMatch(/min-w-0/);
+  });
+
+  it('auto-resizes composer textarea height up to 96px (max-h-24) when typing long messages and resets on send', () => {
+    const onSendMessage = vi.fn();
+    renderWithContext(
+      <ChatArea
+        activeChat={mockChat as any}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={onSendMessage}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/message @bob\.\.\./i) as HTMLTextAreaElement;
+    Object.defineProperty(textarea, 'scrollHeight', { configurable: true, get: () => 140 });
+
+    fireEvent.change(textarea, { target: { value: 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5' } });
+    expect(textarea.style.height).toBe('96px');
+
+    Object.defineProperty(textarea, 'scrollHeight', { configurable: true, get: () => 24 });
+    const sendBtn = screen.getByRole('button', { name: /send message/i });
+    fireEvent.click(sendBtn);
+    expect(textarea.style.height).toBe('auto');
   });
 });

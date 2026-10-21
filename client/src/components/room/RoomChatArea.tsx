@@ -112,6 +112,17 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
     prevMessagesLengthRef.current = messages.length;
   }, [messages, isTyping]);
 
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    if (!inputText) {
+      textarea.style.height = 'auto';
+      return;
+    }
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 96)}px`;
+  }, [inputText]);
+
   const handleScroll = () => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -279,7 +290,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   const memberCount = roomDetails?.members?.length ?? activeRoom.memberCount;
 
   return (
-    <main className="flex-1 flex flex-col h-full bg-google-grey50/50 overflow-hidden">
+    <main className="flex-1 min-w-0 flex flex-col h-full bg-google-grey50/50 overflow-hidden">
       {/* Active Room Header (Slim 42px h-11, total mobile chrome ~84px per spec lines 33 & 37) */}
       <header className="h-11 px-3 sm:px-4 py-1 bg-white border-b border-google-grey300 flex items-center justify-between shadow-xs shrink-0">
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
@@ -318,7 +329,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
         ref={scrollContainerRef}
         onScroll={handleScroll}
         data-testid="room-messages-container"
-        className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3"
+        className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-3"
       >
         {isLoadingOlder && (
           <div data-testid="load-older-indicator" className="py-2 flex items-center justify-center gap-1.5 text-xs text-google-blue">
@@ -351,7 +362,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
             return (
               <div
                 key={msg.id}
-                className={`flex gap-2.5 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
+                className={`flex gap-2.5 min-w-0 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
               >
                 {/* Sender Avatar (hidden on outgoing messages) */}
                 {!isMe && (
@@ -360,7 +371,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                   </div>
                 )}
 
-                <div className={`flex flex-col max-w-[85%] sm:max-w-md ${isMe ? 'items-end' : 'items-start'}`}>
+                <div className={`flex flex-col min-w-0 max-w-[min(85%,28rem)] ${isMe ? 'items-end' : 'items-start'}`}>
                   {/* Sender Name (shown above bubble for other users) */}
                   {!isMe && (
                     <span className="text-[11px] font-semibold text-google-grey700 mb-1 ml-1">
@@ -369,7 +380,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                   )}
 
                   <div
-                    className={`px-4 py-2.5 rounded-2xl shadow-xs text-sm break-words whitespace-pre-wrap ${
+                    className={`max-w-full min-w-0 px-4 py-2.5 rounded-2xl shadow-xs text-sm break-words [overflow-wrap:anywhere] whitespace-pre-wrap ${
                       isGif
                         ? isMe
                           ? 'bg-google-blue text-white p-1 rounded-2xl rounded-br-xs shadow-xs'
@@ -541,7 +552,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
             </button>
           </div>
 
-          <div className="flex-1 bg-google-grey100 border border-google-grey300 focus-within:border-google-blue focus-within:ring-2 focus-within:ring-google-blue/20 focus-within:bg-white rounded-full transition px-4 py-2">
+          <div className="flex-1 min-w-0 bg-google-grey100 border border-google-grey300 focus-within:border-google-blue focus-within:ring-2 focus-within:ring-google-blue/20 focus-within:bg-white rounded-full transition px-4 py-2">
             <textarea
               ref={textareaRef}
               rows={1}
@@ -556,7 +567,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                   ? 'Add a caption (optional)...'
                   : `Message #${activeRoom.name}...`
               }
-              className="w-full bg-transparent resize-none outline-none text-base sm:text-sm text-google-grey900 placeholder-google-grey700 max-h-24"
+              className="w-full bg-transparent resize-none outline-none text-base sm:text-sm text-google-grey900 placeholder-google-grey700 max-h-24 break-words [overflow-wrap:anywhere]"
             />
           </div>
 

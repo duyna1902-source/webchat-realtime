@@ -53,7 +53,7 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
           className="rounded-xl max-h-60 max-w-full sm:max-w-xs object-cover cursor-pointer hover:opacity-95 transition shadow-xs border border-black/5"
         />
         {hasDistinctContent && (
-          <p className="text-sm break-words whitespace-pre-wrap">{content}</p>
+          <p className="text-sm break-words [overflow-wrap:anywhere] whitespace-pre-wrap">{content}</p>
         )}
       </div>
     );
@@ -106,11 +106,11 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
         </div>
 
         {hasDistinctContent && (
-          <p className="text-sm break-words whitespace-pre-wrap">{content}</p>
+          <p className="text-sm break-words [overflow-wrap:anywhere] whitespace-pre-wrap">{content}</p>
         )}
       </div>
     );
   }
 
-  return <p>{content}</p>;
+  return <p className="break-words [overflow-wrap:anywhere] whitespace-pre-wrap">{content}</p>;
 };
