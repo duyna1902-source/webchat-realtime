@@ -401,4 +401,196 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
       );
     });
   });
+  describe('Ticket 04: Emoji Picker Capacity Guard & Unicode Boundary Protection', () => {
+    it('paste truncation preserves Unicode surrogate pairs without splitting', () => {
+      renderWithProviders(
+        <ChatArea
+          activeChat={mockDirectChat}
+          messages={[]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+        />
+      );
+
+      const textarea = screen.getByPlaceholderText(/message @bob/i) as HTMLTextAreaElement;
+      const counter = screen.getByTestId('char-counter');
+
+      // Set input to 3997 characters (remaining quota = 3)
+      fireEvent.change(textarea, { target: { value: 'a'.repeat(3997) } });
+      textarea.selectionStart = 3997;
+      textarea.selectionEnd = 3997;
+
+      // Paste 'AB😀' (length 4: 'A'(1), 'B'(1), '😀'(2))
+      // Slicing at 3 would take 'A', 'B', and the high surrogate of '😀', corrupting Unicode.
+      // With surrogate protection, it must back off to 2 ('AB'), avoiding split.
+      fireEvent.paste(textarea, {
+        clipboardData: {
+          getData: (format: string) => (format === 'text' ? 'AB😀' : ''),
+        },
+      });
+
+      expect(textarea.value.length).toBe(3999);
+      expect(textarea.value).toBe('a'.repeat(3997) + 'AB');
+      expect(counter.textContent).toBe('3999/4000');
+    });
+
+    it('blocks emoji insertion and displays "Character limit reached" feedback when capacity is full in Direct Chat', () => {
+      renderWithProviders(
+        <ChatArea
+          activeChat={mockDirectChat}
+          messages={[]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+        />
+      );
+
+      const textarea = screen.getByPlaceholderText(/message @bob/i) as HTMLTextAreaElement;
+      const emojiBtn = screen.getByRole('button', { name: /choose emoji/i });
+
+      // Fill textarea to max capacity (4000 characters)
+      fireEvent.change(textarea, { target: { value: 'z'.repeat(4000) } });
+      textarea.selectionStart = 4000;
+      textarea.selectionEnd = 4000;
+
+      // Open emoji picker and click Grinning Face 😀
+      fireEvent.click(emojiBtn);
+      const grinningBtn = screen.getByRole('button', { name: /^grinning face$/i });
+      fireEvent.click(grinningBtn);
+
+      // Value must remain exactly 4000 (not modified)
+      expect(textarea.value.length).toBe(4000);
+      expect(textarea.value).toBe('z'.repeat(4000));
+
+      // Visual feedback indicator must be displayed
+      expect(screen.getByText(/character limit reached/i)).toBeInTheDocument();
+    });
+
+    it('blocks emoji insertion when remaining capacity is 1 but emoji consumes 2 code units', () => {
+      renderWithProviders(
+        <ChatArea
+          activeChat={mockDirectChat}
+          messages={[]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+        />
+      );
+
+      const textarea = screen.getByPlaceholderText(/message @bob/i) as HTMLTextAreaElement;
+      const emojiBtn = screen.getByRole('button', { name: /choose emoji/i });
+
+      // Fill textarea to 3999 characters (1 char space remaining)
+      fireEvent.change(textarea, { target: { value: 'x'.repeat(3999) } });
+      textarea.selectionStart = 3999;
+      textarea.selectionEnd = 3999;
+
+      // Click Grinning Face 😀 (takes 2 UTF-16 code units)
+      fireEvent.click(emojiBtn);
+      const grinningBtn = screen.getByRole('button', { name: /^grinning face$/i });
+      fireEvent.click(grinningBtn);
+
+      // Must be blocked because 3999 + 2 = 4001 > 4000
+      expect(textarea.value.length).toBe(3999);
+      expect(screen.getByText(/character limit reached/i)).toBeInTheDocument();
+    });
+
+    it('counts multi-codepoint complex emojis accurately against character limit', () => {
+      renderWithProviders(
+        <ChatArea
+          activeChat={mockDirectChat}
+          messages={[]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+        />
+      );
+
+      const textarea = screen.getByPlaceholderText(/message @bob/i) as HTMLTextAreaElement;
+      const counter = screen.getByTestId('char-counter');
+
+      // Set text to 3990 characters (10 code units remaining)
+      fireEvent.change(textarea, { target: { value: 'c'.repeat(3990) } });
+      textarea.selectionStart = 3990;
+      textarea.selectionEnd = 3990;
+
+      // Open emoji picker
+      const emojiBtn = screen.getByRole('button', { name: /choose emoji/i });
+      fireEvent.click(emojiBtn);
+
+      // Switch to People & Gestures category to access Family emoji
+      const gesturesCategoryBtn = screen.getByRole('button', { name: /people & gestures/i });
+      fireEvent.click(gesturesCategoryBtn);
+
+      // Family emoji 👨‍👩‍👧‍👦 takes 11 UTF-16 code units.
+      // Since remaining capacity is 10, inserting 11 code units must be blocked.
+      const familyBtn = screen.getByRole('button', { name: /^family$/i });
+      fireEvent.click(familyBtn);
+
+      expect(textarea.value.length).toBe(3990);
+      expect(counter.textContent).toBe('3990/4000');
+      expect(screen.getByText(/character limit reached/i)).toBeInTheDocument();
+
+      // Now expand remaining capacity to 11 (text length 3989)
+      fireEvent.change(textarea, { target: { value: 'c'.repeat(3989) } });
+      textarea.selectionStart = 3989;
+      textarea.selectionEnd = 3989;
+
+      // Clicking Family emoji now succeeds exactly at 4000/4000!
+      fireEvent.click(familyBtn);
+      expect(textarea.value.length).toBe(4000);
+      expect(textarea.value).toBe('c'.repeat(3989) + '👨‍👩‍👧‍👦');
+      expect(counter.textContent).toBe('4000/4000');
+    });
+
+    it('blocks emoji insertion in Room Chat when MEMBER hits 2000-character limit and shows feedback', () => {
+      const memberRoom: RoomListItemDto = {
+        ...mockRoom,
+        role: RoomRole.MEMBER,
+      };
+
+      renderWithProviders(
+        <RoomChatArea
+          activeRoom={memberRoom}
+          roomDetails={{
+            ...memberRoom,
+            members: [
+              {
+                userId: mockUser.id,
+                role: RoomRole.MEMBER,
+                user: mockUser,
+                joinedAt: new Date().toISOString(),
+              },
+            ],
+          } as any}
+          messages={[]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+          onAddMember={vi.fn()}
+          onRemoveMember={vi.fn()}
+          onChangeRole={vi.fn()}
+          onLeaveRoom={vi.fn()}
+          onDeleteRoom={vi.fn()}
+        />
+      );
+
+      const textarea = screen.getByPlaceholderText(/message #dev room/i) as HTMLTextAreaElement;
+      const counter = screen.getByTestId('char-counter');
+      expect(counter.textContent).toBe('0/2000');
+
+      // Set input to 1999 characters (1 character left)
+      fireEvent.change(textarea, { target: { value: 'm'.repeat(1999) } });
+      textarea.selectionStart = 1999;
+      textarea.selectionEnd = 1999;
+      expect(counter.textContent).toBe('1999/2000');
+
+      // Open emoji picker and click Partying Face 🥳 (length 2)
+      const emojiBtn = screen.getByRole('button', { name: /choose emoji/i });
+      fireEvent.click(emojiBtn);
+      const partyEmoji = screen.getByRole('button', { name: /partying face/i });
+      fireEvent.click(partyEmoji);
+
+      // Should be blocked
+      expect(textarea.value.length).toBe(1999);
+      expect(counter.textContent).toBe('1999/2000');
+      expect(screen.getByText(/character limit reached/i)).toBeInTheDocument();
+    });
+  });
 });
