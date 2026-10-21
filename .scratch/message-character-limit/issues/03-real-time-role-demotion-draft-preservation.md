@@ -5,7 +5,7 @@ Handle dynamic real-time room role changes (promotions and demotions) while a us
 
 **Blocked by:** 02: Room Chat Role-Based Character Limits (Tracer Bullet).
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Demoting a user from `ADMIN`/`OWNER` to `MEMBER` while drafting >2000 characters preserves the entire drafted text in the textarea without data loss.
 - [ ] Upon demotion with an oversized draft, the counter updates to show the exceeded ratio (e.g. `2450/2000`) styled with Google Red (`text-google-red`).

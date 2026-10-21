@@ -5,7 +5,7 @@ Extend the message character limit and visual counter to attachment captions acr
 
 **Blocked by:** 02: Room Chat Role-Based Character Limits (Tracer Bullet).
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Attachment caption input in Direct Chat displays a live counter formatted as `X/4000`.
 - [ ] Attachment caption input in Room Chat displays a role-aware counter (`X/2000` for members, `X/4000` for leaders).

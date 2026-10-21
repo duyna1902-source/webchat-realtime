@@ -5,7 +5,7 @@ Protect character limits against multi-code unit Unicode characters and emoji in
 
 **Blocked by:** 02: Room Chat Role-Based Character Limits (Tracer Bullet).
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Clicking an emoji in the emoji picker popover checks remaining character capacity before inserting.
 - [ ] If inserting an emoji would exceed the limit (e.g. at 3999/4000 or 1999/2000 with a 2-code-unit emoji), the insertion is blocked and input text remains intact.
