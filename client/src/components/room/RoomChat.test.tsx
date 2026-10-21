@@ -13,6 +13,7 @@ import {
   RoomRole,
   MessageType,
   SOCKET_EVENTS,
+  MESSAGE_LIMITS,
 } from '@webchat/shared';
 
 const mockUser = {
@@ -105,9 +106,9 @@ const mockRoomDetail: RoomDetailDto = {
   ],
 };
 
-function renderWithProviders(ui: React.ReactElement, socketConnected = true) {
+function renderWithProviders(ui: React.ReactElement, socketConnected = true, user = mockUser) {
   const authValue: any = {
-    currentUser: mockUser,
+    currentUser: user,
     token: 'token-xyz',
     isLoading: false,
     login: vi.fn(),
@@ -430,5 +431,289 @@ describe('Room Chat Client Components', () => {
 
     fireEvent.click(backButton);
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('displays character counter reflecting role quota and enforces maxLength attribute', () => {
+    // 1. Member sees 0/2000 and maxLength=2000
+    const memberRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.MEMBER };
+    const { unmount } = renderWithProviders(
+      <RoomChatArea
+        activeRoom={memberRoom}
+        roomDetails={mockRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />,
+      true,
+      mockMemberUser
+    );
+
+    const memberTextarea = screen.getByPlaceholderText(/message #engineering\.\.\./i) as HTMLTextAreaElement;
+    const memberCounter = screen.getByTestId('char-counter');
+    expect(memberCounter.textContent).toBe(`0/${MESSAGE_LIMITS.ROOM_MEMBER}`);
+    expect(memberTextarea.getAttribute('maxlength')).toBe(String(MESSAGE_LIMITS.ROOM_MEMBER));
+    unmount();
+
+    // 2. Owner sees 0/4000 and maxLength=4000
+    const { unmount: unmountOwner } = renderWithProviders(
+      <RoomChatArea
+        activeRoom={mockRoom}
+        roomDetails={mockRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />,
+      true,
+      mockUser
+    );
+
+    const ownerTextarea = screen.getByPlaceholderText(/message #engineering\.\.\./i) as HTMLTextAreaElement;
+    const ownerCounter = screen.getByTestId('char-counter');
+    expect(ownerCounter.textContent).toBe(`0/${MESSAGE_LIMITS.ROOM_LEADER}`);
+    expect(ownerTextarea.getAttribute('maxlength')).toBe(String(MESSAGE_LIMITS.ROOM_LEADER));
+    unmountOwner();
+
+    // 3. Admin sees 0/4000 and maxLength=4000
+    const adminRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.ADMIN };
+    renderWithProviders(
+      <RoomChatArea
+        activeRoom={adminRoom}
+        roomDetails={mockRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />,
+      true,
+      mockAdminUser
+    );
+
+    const adminTextarea = screen.getByPlaceholderText(/message #engineering\.\.\./i) as HTMLTextAreaElement;
+    const adminCounter = screen.getByTestId('char-counter');
+    expect(adminCounter.textContent).toBe(`0/${MESSAGE_LIMITS.ROOM_LEADER}`);
+    expect(adminTextarea.getAttribute('maxlength')).toBe(String(MESSAGE_LIMITS.ROOM_LEADER));
+  });
+
+  it('updates counter color to yellow at 90% and red at 100% based on role quota', () => {
+    // 1. Member: 2000 limit (90% = 1800, 100% = 2000)
+    const memberRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.MEMBER };
+    const { unmount } = renderWithProviders(
+      <RoomChatArea
+        activeRoom={memberRoom}
+        roomDetails={mockRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />,
+      true,
+      mockMemberUser
+    );
+
+    const memberTextarea = screen.getByPlaceholderText(/message #engineering\.\.\./i);
+    const memberCounter = screen.getByTestId('char-counter');
+
+    // < 90%
+    fireEvent.change(memberTextarea, { target: { value: 'a'.repeat(100) } });
+    expect(memberCounter.textContent).toBe('100/2000');
+    expect(memberCounter.className).toContain('text-google-grey700');
+
+    // 90% (1800) -> yellow
+    fireEvent.change(memberTextarea, { target: { value: 'a'.repeat(1800) } });
+    expect(memberCounter.textContent).toBe('1800/2000');
+    expect(memberCounter.className).toContain('text-amber-500');
+
+    // 1999 (< 100%) -> yellow
+    fireEvent.change(memberTextarea, { target: { value: 'a'.repeat(1999) } });
+    expect(memberCounter.textContent).toBe('1999/2000');
+    expect(memberCounter.className).toContain('text-amber-500');
+
+    // 100% (2000) -> red
+    fireEvent.change(memberTextarea, { target: { value: 'a'.repeat(2000) } });
+    expect(memberCounter.textContent).toBe('2000/2000');
+    expect(memberCounter.className).toContain('text-google-red');
+
+    // Exceeding limit (2001) -> red
+    fireEvent.change(memberTextarea, { target: { value: 'a'.repeat(2001) } });
+    expect(memberCounter.textContent).toBe('2001/2000');
+    expect(memberCounter.className).toContain('text-google-red');
+
+    unmount();
+
+    // 2. Leader (Owner/Admin): 4000 limit (90% = 3600, 100% = 4000)
+    renderWithProviders(
+      <RoomChatArea
+        activeRoom={mockRoom}
+        roomDetails={mockRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />,
+      true,
+      mockUser
+    );
+
+    const leaderTextarea = screen.getByPlaceholderText(/message #engineering\.\.\./i);
+    const leaderCounter = screen.getByTestId('char-counter');
+
+    // 3599 (< 90%)
+    fireEvent.change(leaderTextarea, { target: { value: 'a'.repeat(3599) } });
+    expect(leaderCounter.textContent).toBe('3599/4000');
+    expect(leaderCounter.className).toContain('text-google-grey700');
+
+    // 3600 (90%) -> yellow
+    fireEvent.change(leaderTextarea, { target: { value: 'a'.repeat(3600) } });
+    expect(leaderCounter.textContent).toBe('3600/4000');
+    expect(leaderCounter.className).toContain('text-amber-500');
+
+    // 4000 (100%) -> red
+    fireEvent.change(leaderTextarea, { target: { value: 'a'.repeat(4000) } });
+    expect(leaderCounter.textContent).toBe('4000/4000');
+    expect(leaderCounter.className).toContain('text-google-red');
+  });
+
+  it('disables send button when input is empty, whitespace-only, or exceeding active role limit', () => {
+    const memberRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.MEMBER };
+    renderWithProviders(
+      <RoomChatArea
+        activeRoom={memberRoom}
+        roomDetails={mockRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />,
+      true,
+      mockMemberUser
+    );
+
+    const textarea = screen.getByPlaceholderText(/message #engineering\.\.\./i);
+    const sendBtn = screen.getByRole('button', { name: /send room message/i });
+
+    // Empty -> disabled
+    expect(sendBtn).toBeDisabled();
+
+    // Whitespace only -> disabled
+    fireEvent.change(textarea, { target: { value: '     ' } });
+    expect(sendBtn).toBeDisabled();
+
+    // At limit 2000 -> enabled
+    fireEvent.change(textarea, { target: { value: 'm'.repeat(2000) } });
+    expect(sendBtn).not.toBeDisabled();
+
+    // Exceeding limit 2001 -> disabled
+    fireEvent.change(textarea, { target: { value: 'm'.repeat(2001) } });
+    expect(sendBtn).toBeDisabled();
+  });
+
+  it('automatically trims pasted clipboard text to fit active role character quota', () => {
+    // 1. Member: trims to 2000
+    const memberRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.MEMBER };
+    const { unmount } = renderWithProviders(
+      <RoomChatArea
+        activeRoom={memberRoom}
+        roomDetails={mockRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />,
+      true,
+      mockMemberUser
+    );
+
+    const memberTextarea = screen.getByPlaceholderText(/message #engineering\.\.\./i) as HTMLTextAreaElement;
+    const memberCounter = screen.getByTestId('char-counter');
+
+    // Paste 3000 chars into empty textarea
+    const oversizedClip = 'x'.repeat(3000);
+    fireEvent.paste(memberTextarea, {
+      clipboardData: {
+        getData: (format: string) => (format === 'text' ? oversizedClip : ''),
+      },
+    });
+
+    expect(memberTextarea.value.length).toBe(2000);
+    expect(memberCounter.textContent).toBe('2000/2000');
+
+    // Type 1800, paste 500 -> trimmed to remaining 200 chars
+    fireEvent.change(memberTextarea, { target: { value: 'a'.repeat(1800) } });
+    memberTextarea.selectionStart = 1800;
+    memberTextarea.selectionEnd = 1800;
+
+    fireEvent.paste(memberTextarea, {
+      clipboardData: {
+        getData: (format: string) => (format === 'text' ? 'b'.repeat(500) : ''),
+      },
+    });
+
+    expect(memberTextarea.value.length).toBe(2000);
+    expect(memberTextarea.value).toBe('a'.repeat(1800) + 'b'.repeat(200));
+    expect(memberCounter.textContent).toBe('2000/2000');
+
+    unmount();
+
+    // 2. Leader (Admin): trims to 4000
+    const adminRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.ADMIN };
+    renderWithProviders(
+      <RoomChatArea
+        activeRoom={adminRoom}
+        roomDetails={mockRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />,
+      true,
+      mockAdminUser
+    );
+
+    const adminTextarea = screen.getByPlaceholderText(/message #engineering\.\.\./i) as HTMLTextAreaElement;
+    const adminCounter = screen.getByTestId('char-counter');
+
+    // Paste 5000 chars into empty textarea
+    fireEvent.paste(adminTextarea, {
+      clipboardData: {
+        getData: (format: string) => (format === 'text' ? 'z'.repeat(5000) : ''),
+      },
+    });
+
+    expect(adminTextarea.value.length).toBe(4000);
+    expect(adminCounter.textContent).toBe('4000/4000');
   });
 });
