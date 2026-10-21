@@ -1,0 +1,5 @@
+export const MESSAGE_LIMITS = {
+  DIRECT: 4000,
+  ROOM_LEADER: 4000, // OWNER and ADMIN
+  ROOM_MEMBER: 2000, // MEMBER
+} as const;

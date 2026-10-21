@@ -6,7 +6,7 @@ import { app } from '../src/app.js';
 import { setupSocketServer } from '../src/socket/index.js';
 import { generateToken } from '../src/lib/jwt.js';
 import { getPrisma } from '../src/lib/prisma.js';
-import { SOCKET_EVENTS, normalizeDirectChatPair } from '@webchat/shared';
+import { SOCKET_EVENTS, normalizeDirectChatPair, MESSAGE_LIMITS } from '@webchat/shared';
 
 function waitForEvent<T = any>(socket: ClientSocketType, event: string, timeout = 3000): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -198,5 +198,68 @@ describe('Direct Chat Socket.io Real-Time Integration', () => {
       where: { content: 'I am eavesdropping!' },
     });
     expect(count).toBe(0);
+  });
+
+  it('rejects direct:send when message content exceeds MESSAGE_LIMITS.DIRECT (4000 chars)', async () => {
+    let bobReceived = false;
+    clientBob.on(SOCKET_EVENTS.DIRECT_RECEIVE, () => {
+      bobReceived = true;
+    });
+
+    const oversizedContent = 'a'.repeat(MESSAGE_LIMITS.DIRECT + 1); // 4001 characters
+
+    const sendRes = await new Promise<{ success: boolean; error?: string }>((resolve) => {
+      clientAlice.emit(
+        SOCKET_EVENTS.DIRECT_SEND,
+        {
+          directChatId: directChat.id,
+          content: oversizedContent,
+          type: 'TEXT',
+        },
+        resolve
+      );
+    });
+
+    expect(sendRes.success).toBe(false);
+    expect(sendRes.error).toMatch(/exceeds character limit/i);
+
+    // Ensure recipient did not receive any broadcast
+    await new Promise((r) => setTimeout(r, 200));
+    expect(bobReceived).toBe(false);
+
+    // Ensure database record was NOT created
+    const prisma = getPrisma();
+    const dbMsg = await prisma.directMessage.findFirst({
+      where: { directChatId: directChat.id, senderId: userAlice.id },
+    });
+    expect(dbMsg).toBeNull();
+  });
+
+  it('allows direct:send at exactly MESSAGE_LIMITS.DIRECT (4000 chars)', async () => {
+    const exactContent = 'x'.repeat(MESSAGE_LIMITS.DIRECT);
+    const bobReceivePromise = waitForEvent(clientBob, SOCKET_EVENTS.DIRECT_RECEIVE);
+
+    const sendRes = await new Promise<{ success: boolean; message?: any }>((resolve) => {
+      clientAlice.emit(
+        SOCKET_EVENTS.DIRECT_SEND,
+        {
+          directChatId: directChat.id,
+          content: exactContent,
+          type: 'TEXT',
+        },
+        resolve
+      );
+    });
+
+    expect(sendRes.success).toBe(true);
+    const bobMsg = await bobReceivePromise;
+    expect(bobMsg.content).toBe(exactContent);
+
+    const prisma = getPrisma();
+    const dbMsg = await prisma.directMessage.findUnique({
+      where: { id: bobMsg.id },
+    });
+    expect(dbMsg).not.toBeNull();
+    expect(dbMsg?.content).toBe(exactContent);
   });
 });

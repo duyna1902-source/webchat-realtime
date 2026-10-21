@@ -11,6 +11,7 @@ import {
   DirectReadPayload,
   MessageType,
   MessageStatus,
+  MESSAGE_LIMITS,
 } from '@webchat/shared';
 
 export async function handleDirectMessagesDeliveryOnConnect(io: Server, userId: string): Promise<void> {
@@ -74,6 +75,13 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
       if (!directChatId || (!content && !attachmentUrl)) {
         if (typeof callback === 'function') {
           callback({ success: false, error: 'directChatId and content or attachment are required' });
+        }
+        return;
+      }
+
+      if (content && content.length > MESSAGE_LIMITS.DIRECT) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: `Message exceeds character limit of ${MESSAGE_LIMITS.DIRECT}` });
         }
         return;
       }

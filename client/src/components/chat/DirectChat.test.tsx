@@ -4,7 +4,7 @@ import { Sidebar } from './Sidebar';
 import { ChatArea } from './ChatArea';
 import { AuthContext } from '../../context/AuthContext';
 import { SocketContext } from '../../context/SocketContext';
-import { DirectChatListItemDto, DirectReceiveMessagePayload, MessageType, MessageStatus } from '@webchat/shared';
+import { DirectChatListItemDto, DirectReceiveMessagePayload, MessageType, MessageStatus, MESSAGE_LIMITS } from '@webchat/shared';
 
 const mockUser = {
   id: 'current-user-id',
@@ -469,5 +469,144 @@ describe('Direct Chat Client Components', () => {
     expect(screen.getByText(/📷 Sent an image/i)).toBeInTheDocument();
     expect(screen.getByText(/📎 Project_Spec.pdf/i)).toBeInTheDocument();
     expect(screen.getByText(/✨ Sent a GIF/i)).toBeInTheDocument();
+  });
+});
+
+describe('Direct Chat 4000-Character Limit & Anti-Clipping UI (Ticket 01)', () => {
+  it('displays initial counter 0/4000 with neutral grey color and enforces maxLength 4000 on textarea', () => {
+    renderWithProviders(
+      <ChatArea
+        activeChat={mockChat}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+      />
+    );
+
+    const counter = screen.getByTestId('char-counter');
+    expect(counter).toBeInTheDocument();
+    expect(counter.textContent).toBe('0/4000');
+    expect(counter.className).toContain('text-google-grey700');
+
+    const textarea = screen.getByPlaceholderText(/message @bobpartner\.\.\./i);
+    expect(textarea).toHaveAttribute('maxLength', '4000');
+
+    // Container should use rounded-2xl two-tier layout
+    const container = counter.closest('.rounded-2xl');
+    expect(container).not.toBeNull();
+  });
+
+  it('updates character count and transitions color to yellow at >=90% (3600 chars)', () => {
+    renderWithProviders(
+      <ChatArea
+        activeChat={mockChat}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/message @bobpartner\.\.\./i);
+    const counter = screen.getByTestId('char-counter');
+
+    // 100 characters (< 90%)
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(100) } });
+    expect(counter.textContent).toBe('100/4000');
+    expect(counter.className).toContain('text-google-grey700');
+
+    // 3600 characters (90% threshold) -> yellow
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(3600) } });
+    expect(counter.textContent).toBe('3600/4000');
+    expect(counter.className).toContain('text-amber-500');
+
+    // 3999 characters (< 100%) -> yellow
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(3999) } });
+    expect(counter.textContent).toBe('3999/4000');
+    expect(counter.className).toContain('text-amber-500');
+  });
+
+  it('transitions color to red at 100% (4000 chars) and disables send button when exceeding', () => {
+    renderWithProviders(
+      <ChatArea
+        activeChat={mockChat}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/message @bobpartner\.\.\./i);
+    const counter = screen.getByTestId('char-counter');
+    const sendBtn = screen.getByRole('button', { name: /send message/i });
+
+    // 4000 characters -> red, send button still enabled
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(4000) } });
+    expect(counter.textContent).toBe('4000/4000');
+    expect(counter.className).toContain('text-google-red');
+    expect(sendBtn).not.toBeDisabled();
+
+    // 4001 characters -> red, send button disabled
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(4001) } });
+    expect(counter.textContent).toBe('4001/4000');
+    expect(counter.className).toContain('text-google-red');
+    expect(sendBtn).toBeDisabled();
+  });
+
+  it('automatically trims pasted clipboard text to fit the 4000-character quota', () => {
+    renderWithProviders(
+      <ChatArea
+        activeChat={mockChat}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/message @bobpartner\.\.\./i) as HTMLTextAreaElement;
+    const counter = screen.getByTestId('char-counter');
+
+    // Paste 5000 chars into empty textarea
+    const oversizedClip = 'x'.repeat(5000);
+    fireEvent.paste(textarea, {
+      clipboardData: {
+        getData: (format: string) => (format === 'text' ? oversizedClip : ''),
+      },
+    });
+
+    expect(textarea.value.length).toBe(4000);
+    expect(counter.textContent).toBe('4000/4000');
+
+    // Clear and type 3500 chars, then paste 1000 chars (exceeding 4000 by 500)
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(3500) } });
+    textarea.selectionStart = 3500;
+    textarea.selectionEnd = 3500;
+
+    fireEvent.paste(textarea, {
+      clipboardData: {
+        getData: (format: string) => (format === 'text' ? 'b'.repeat(1000) : ''),
+      },
+    });
+
+    expect(textarea.value.length).toBe(4000);
+    expect(textarea.value).toBe('a'.repeat(3500) + 'b'.repeat(500));
+    expect(counter.textContent).toBe('4000/4000');
+  });
+
+  it('disables send button when input is empty and has no attachment', () => {
+    renderWithProviders(
+      <ChatArea
+        activeChat={mockChat}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+      />
+    );
+
+    const sendBtn = screen.getByRole('button', { name: /send message/i });
+    expect(sendBtn).toBeDisabled();
+
+    const textarea = screen.getByPlaceholderText(/message @bobpartner\.\.\./i);
+    fireEvent.change(textarea, { target: { value: '   ' } });
+    expect(sendBtn).toBeDisabled();
   });
 });
