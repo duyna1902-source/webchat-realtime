@@ -123,13 +123,15 @@ function renderWithProviders(ui: React.ReactElement, socketConnected = true, use
     connectionError: null,
   };
 
-  return render(
+  const AllTheProviders = ({ children }: { children: React.ReactNode }) => (
     <AuthContext.Provider value={authValue}>
       <SocketContext.Provider value={socketValue}>
-        {ui}
+        {children}
       </SocketContext.Provider>
     </AuthContext.Provider>
   );
+
+  return render(ui, { wrapper: AllTheProviders });
 }
 
 describe('Room Chat Client Components', () => {
@@ -715,5 +717,283 @@ describe('Room Chat Client Components', () => {
 
     expect(adminTextarea.value.length).toBe(4000);
     expect(adminCounter.textContent).toBe('4000/4000');
+  });
+
+  it('preserves draft and displays demotion warning and disabled send button when demoted from ADMIN to MEMBER', () => {
+    const adminRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.ADMIN };
+    const adminRoomDetail: RoomDetailDto = {
+      ...mockRoomDetail,
+      members: mockRoomDetail.members.map((m) =>
+        m.userId === mockAdminUser.id ? { ...m, role: RoomRole.ADMIN } : m
+      ),
+    };
+
+    const { rerender } = renderWithProviders(
+      <RoomChatArea
+        activeRoom={adminRoom}
+        roomDetails={adminRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />,
+      true,
+      mockAdminUser
+    );
+
+    const textarea = screen.getByPlaceholderText(/message #engineering\.\.\./i) as HTMLTextAreaElement;
+    const counter = screen.getByTestId('char-counter');
+    const sendBtn = screen.getByRole('button', { name: /send room message/i });
+
+    // 1. Admin drafts a 2450-character message
+    const draft2450 = 'a'.repeat(2450);
+    fireEvent.change(textarea, { target: { value: draft2450 } });
+
+    expect(textarea.value).toBe(draft2450);
+    expect(counter.textContent).toBe('2450/4000');
+    expect(sendBtn).not.toBeDisabled();
+    expect(screen.queryByTestId('draft-demotion-warning')).not.toBeInTheDocument();
+
+    // 2. Real-time demotion to MEMBER
+    const memberRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.MEMBER };
+    const memberRoomDetail: RoomDetailDto = {
+      ...mockRoomDetail,
+      members: mockRoomDetail.members.map((m) =>
+        m.userId === mockAdminUser.id ? { ...m, role: RoomRole.MEMBER } : m
+      ),
+    };
+
+    rerender(
+      <RoomChatArea
+        activeRoom={memberRoom}
+        roomDetails={memberRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />
+    );
+
+    // Draft is preserved intact without loss or silent truncation
+    expect(textarea.value).toBe(draft2450);
+    expect(textarea.value.length).toBe(2450);
+
+    // Counter shows exceeded ratio styled in Google Red
+    expect(counter.textContent).toBe('2450/2000');
+    expect(counter.className).toContain('text-google-red');
+
+    // Textarea maxLength allows existing draft without cutting, preventing more typing
+    expect(Number(textarea.getAttribute('maxlength'))).toBe(2450);
+
+    // Demotion warning is displayed informing user of 2000 limit
+    const warning = screen.getByTestId('draft-demotion-warning');
+    expect(warning).toBeInTheDocument();
+    expect(warning.textContent).toContain('2000');
+
+    // Send button is disabled
+    expect(sendBtn).toBeDisabled();
+  });
+
+  it('clears demotion warning and enables send button when user edits draft down to <= 2000 chars', () => {
+    const adminRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.ADMIN };
+    const adminRoomDetail: RoomDetailDto = {
+      ...mockRoomDetail,
+      members: mockRoomDetail.members.map((m) =>
+        m.userId === mockAdminUser.id ? { ...m, role: RoomRole.ADMIN } : m
+      ),
+    };
+
+    const { rerender } = renderWithProviders(
+      <RoomChatArea
+        activeRoom={adminRoom}
+        roomDetails={adminRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />,
+      true,
+      mockAdminUser
+    );
+
+    const textarea = screen.getByPlaceholderText(/message #engineering\.\.\./i) as HTMLTextAreaElement;
+    const counter = screen.getByTestId('char-counter');
+    const sendBtn = screen.getByRole('button', { name: /send room message/i });
+
+    // Draft 2450 chars as Admin
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(2450) } });
+
+    // Demote to Member
+    const memberRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.MEMBER };
+    const memberRoomDetail: RoomDetailDto = {
+      ...mockRoomDetail,
+      members: mockRoomDetail.members.map((m) =>
+        m.userId === mockAdminUser.id ? { ...m, role: RoomRole.MEMBER } : m
+      ),
+    };
+
+    rerender(
+      <RoomChatArea
+        activeRoom={memberRoom}
+        roomDetails={memberRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('draft-demotion-warning')).toBeInTheDocument();
+    expect(sendBtn).toBeDisabled();
+
+    // Edit down to exactly 2000 chars
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(2000) } });
+
+    // Warning is gone
+    expect(screen.queryByTestId('draft-demotion-warning')).not.toBeInTheDocument();
+    // Send button is enabled
+    expect(sendBtn).not.toBeDisabled();
+    // Counter shows 2000/2000 (red)
+    expect(counter.textContent).toBe('2000/2000');
+    expect(counter.className).toContain('text-google-red');
+
+    // Edit down to 1800 chars (90% threshold)
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(1800) } });
+    expect(counter.textContent).toBe('1800/2000');
+    expect(counter.className).toContain('text-amber-500');
+    expect(sendBtn).not.toBeDisabled();
+  });
+
+  it('allows manually dismissing the draft demotion warning without altering the draft', () => {
+    const memberRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.MEMBER };
+    const memberRoomDetail: RoomDetailDto = {
+      ...mockRoomDetail,
+      members: mockRoomDetail.members.map((m) =>
+        m.userId === mockAdminUser.id ? { ...m, role: RoomRole.MEMBER } : m
+      ),
+    };
+
+    renderWithProviders(
+      <RoomChatArea
+        activeRoom={memberRoom}
+        roomDetails={memberRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />,
+      true,
+      mockAdminUser
+    );
+
+    const textarea = screen.getByPlaceholderText(/message #engineering\.\.\./i) as HTMLTextAreaElement;
+    const sendBtn = screen.getByRole('button', { name: /send room message/i });
+
+    // Simulate holding 2200 chars
+    fireEvent.change(textarea, { target: { value: 'x'.repeat(2200) } });
+
+    expect(screen.getByTestId('draft-demotion-warning')).toBeInTheDocument();
+    expect(sendBtn).toBeDisabled();
+
+    // Click dismiss button on warning
+    const dismissBtn = screen.getByRole('button', { name: /dismiss warning/i });
+    fireEvent.click(dismissBtn);
+
+    // Warning banner is now dismissed
+    expect(screen.queryByTestId('draft-demotion-warning')).not.toBeInTheDocument();
+
+    // Draft is untouched, send button remains disabled because length still > 2000
+    expect(textarea.value.length).toBe(2200);
+    expect(sendBtn).toBeDisabled();
+  });
+
+  it('seamlessly scales up counter to /4000 when promoted from MEMBER to ADMIN without page reload', () => {
+    const memberRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.MEMBER };
+    const memberRoomDetail: RoomDetailDto = {
+      ...mockRoomDetail,
+      members: mockRoomDetail.members.map((m) =>
+        m.userId === mockAdminUser.id ? { ...m, role: RoomRole.MEMBER } : m
+      ),
+    };
+
+    const { rerender } = renderWithProviders(
+      <RoomChatArea
+        activeRoom={memberRoom}
+        roomDetails={memberRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />,
+      true,
+      mockAdminUser
+    );
+
+    const textarea = screen.getByPlaceholderText(/message #engineering\.\.\./i) as HTMLTextAreaElement;
+    const counter = screen.getByTestId('char-counter');
+    const sendBtn = screen.getByRole('button', { name: /send room message/i });
+
+    // Member drafts 1500 chars (quota: 2000)
+    const draft1500 = 'b'.repeat(1500);
+    fireEvent.change(textarea, { target: { value: draft1500 } });
+
+    expect(counter.textContent).toBe('1500/2000');
+    expect(Number(textarea.getAttribute('maxlength'))).toBe(2000);
+    expect(sendBtn).not.toBeDisabled();
+
+    // Promoted to ADMIN in real-time
+    const adminRoom: RoomListItemDto = { ...mockRoom, role: RoomRole.ADMIN };
+    const adminRoomDetail: RoomDetailDto = {
+      ...mockRoomDetail,
+      members: mockRoomDetail.members.map((m) =>
+        m.userId === mockAdminUser.id ? { ...m, role: RoomRole.ADMIN } : m
+      ),
+    };
+
+    rerender(
+      <RoomChatArea
+        activeRoom={adminRoom}
+        roomDetails={adminRoomDetail}
+        messages={[]}
+        isLoadingMessages={false}
+        onSendMessage={vi.fn()}
+        onAddMember={vi.fn()}
+        onRemoveMember={vi.fn()}
+        onChangeRole={vi.fn()}
+        onLeaveRoom={vi.fn()}
+        onDeleteRoom={vi.fn()}
+      />
+    );
+
+    // Counter immediately switches to /4000 without reload
+    expect(counter.textContent).toBe('1500/4000');
+    expect(Number(textarea.getAttribute('maxlength'))).toBe(4000);
+    expect(sendBtn).not.toBeDisabled();
+    expect(textarea.value).toBe(draft1500);
+    expect(screen.queryByTestId('draft-demotion-warning')).not.toBeInTheDocument();
   });
 });
