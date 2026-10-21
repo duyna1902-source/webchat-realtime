@@ -214,7 +214,7 @@ describe('Google Material Chat Experience & Mobile Navigation (Ticket 04)', () =
       expect(outgoingBubble?.className).toMatch(/text-white/);
     });
 
-    it('renders rounded pill styling (rounded-full) and Google Blue focus rings on message composers', () => {
+    it('renders rounded styling (rounded-2xl) and Google Blue focus rings on message composers', () => {
       renderWithProviders(
         <ChatArea
           activeChat={mockDirectChat}
@@ -226,7 +226,7 @@ describe('Google Material Chat Experience & Mobile Navigation (Ticket 04)', () =
 
       const textarea = screen.getByPlaceholderText(/message @hoanglong\.\.\./i);
       const composerContainer = textarea.parentElement;
-      expect(composerContainer?.className).toMatch(/rounded-full/);
+      expect(composerContainer?.className).toMatch(/rounded-2xl/);
       expect(composerContainer?.className).toMatch(/focus-within:border-google-blue/);
 
       const sendButton = screen.getByRole('button', { name: /send message/i });
