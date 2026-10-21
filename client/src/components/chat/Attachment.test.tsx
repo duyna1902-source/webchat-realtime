@@ -477,14 +477,14 @@ describe('File Attachments, Image Preview & Message Cards', () => {
       fireEvent.change(textarea, { target: { value: 'Short caption' } });
       expect(counter).toHaveTextContent('13/' + MESSAGE_LIMITS.DIRECT);
       expect(counter).toHaveClass('text-google-grey700');
-      expect(counter).not.toHaveClass('text-amber-500');
+      expect(counter).not.toHaveClass('text-google-yellow');
       expect(counter).not.toHaveClass('text-google-red');
 
       // 2. At 90% (3600 characters) -> Google Yellow
       const text90 = 'A'.repeat(3600);
       fireEvent.change(textarea, { target: { value: text90 } });
       expect(counter).toHaveTextContent('3600/' + MESSAGE_LIMITS.DIRECT);
-      expect(counter).toHaveClass('text-amber-500');
+      expect(counter).toHaveClass('text-google-yellow');
       expect(counter).not.toHaveClass('text-google-red');
 
       // 3. At 100% (4000 characters) -> Google Red
@@ -556,9 +556,10 @@ describe('File Attachments, Image Preview & Message Cards', () => {
       fireEvent.change(textarea, { target: { value: 'A'.repeat(4000) } });
       expect(sendButton).not.toBeDisabled();
 
-      // If caption exceeds limit (> 4000)
+      // Direct input overflow (> 4000) is clamped to 4000
       fireEvent.change(textarea, { target: { value: 'A'.repeat(4001) } });
-      expect(sendButton).toBeDisabled();
+      expect(sendButton).not.toBeDisabled();
+      expect(textarea).toHaveValue('A'.repeat(4000));
     });
 
     it('displays role-aware counter (X/2000 for MEMBER, X/4000 for OWNER/ADMIN) when an attachment is selected in Room Chat', async () => {
@@ -605,21 +606,14 @@ describe('File Attachments, Image Preview & Message Cards', () => {
       // 90% of 2000 is 1800 -> yellow
       fireEvent.change(memberTextarea, { target: { value: 'A'.repeat(1800) } });
       expect(memberCounter).toHaveTextContent('1800/' + MESSAGE_LIMITS.ROOM_MEMBER);
-      expect(memberCounter).toHaveClass('text-amber-500');
+      expect(memberCounter).toHaveClass('text-google-yellow');
 
       // 100% of 2000 is 2000 -> red
       fireEvent.change(memberTextarea, { target: { value: 'A'.repeat(2000) } });
       expect(memberCounter).toHaveTextContent('2000/' + MESSAGE_LIMITS.ROOM_MEMBER);
       expect(memberCounter).toHaveClass('text-google-red');
 
-      // Exceeding 2000 disables room send button
-      const roomSendBtn = screen.getByRole('button', { name: /send room message/i });
-      expect(roomSendBtn).not.toBeDisabled();
-      fireEvent.change(memberTextarea, { target: { value: 'A'.repeat(2001) } });
-      expect(roomSendBtn).toBeDisabled();
-
-      // 2. Now render as OWNER (4000 quota)
-      // The 2001 characters draft is now within the 4000 quota, so button re-enables!
+      // 2. Now render as OWNER (4000 quota) and draft 2001 chars
       const ownerAuthValue = {
         currentUser: { id: 'user-owner-id', username: 'alice_owner', email: 'alice@example.com' },
         token: 'token-xyz',
@@ -645,13 +639,61 @@ describe('File Attachments, Image Preview & Message Cards', () => {
         </AuthContext.Provider>
       );
 
+      const roomSendBtn = screen.getByRole('button', { name: /send room message/i });
+      const leaderTextarea = screen.getByPlaceholderText('Add a caption (optional)...');
+
+      // As OWNER (4000 quota), drafting 2001 characters is permitted and enabled
+      fireEvent.change(leaderTextarea, { target: { value: 'A'.repeat(2001) } });
       const leaderCounter = screen.getByTestId('char-counter');
       expect(leaderCounter).toHaveTextContent('2001/' + MESSAGE_LIMITS.ROOM_LEADER);
       expect(roomSendBtn).not.toBeDisabled();
 
-      const leaderTextarea = screen.getByPlaceholderText('Add a caption (optional)...');
-      expect(leaderTextarea).toHaveAttribute('maxLength', String(MESSAGE_LIMITS.ROOM_LEADER));
+      // 3. Demoted to MEMBER (2000 quota): draft 2001 is preserved but exceeds quota -> send button disabled
+      rerender(
+        <AuthContext.Provider value={memberAuthValue as any}>
+          <SocketContext.Provider value={{ socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() }, isConnected: true } as any}>
+            <RoomChatArea
+              activeRoom={{ ...mockRoomForAttachment, role: RoomRole.MEMBER }}
+              roomDetails={mockRoomDetailForAttachment as any}
+              messages={[]}
+              isLoadingMessages={false}
+              onSendMessage={vi.fn()}
+              onAddMember={vi.fn()}
+              onRemoveMember={vi.fn()}
+              onChangeRole={vi.fn()}
+              onLeaveRoom={vi.fn()}
+              onDeleteRoom={vi.fn()}
+            />
+          </SocketContext.Provider>
+        </AuthContext.Provider>
+      );
 
+      expect(memberCounter).toHaveTextContent('2001/' + MESSAGE_LIMITS.ROOM_MEMBER);
+      expect(roomSendBtn).toBeDisabled();
+
+      // 4. Promoted back to OWNER (4000 quota) -> send button re-enables
+      rerender(
+        <AuthContext.Provider value={ownerAuthValue as any}>
+          <SocketContext.Provider value={{ socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() }, isConnected: true } as any}>
+            <RoomChatArea
+              activeRoom={{ ...mockRoomForAttachment, role: RoomRole.OWNER }}
+              roomDetails={mockRoomDetailForAttachment as any}
+              messages={[]}
+              isLoadingMessages={false}
+              onSendMessage={vi.fn()}
+              onAddMember={vi.fn()}
+              onRemoveMember={vi.fn()}
+              onChangeRole={vi.fn()}
+              onLeaveRoom={vi.fn()}
+              onDeleteRoom={vi.fn()}
+            />
+          </SocketContext.Provider>
+        </AuthContext.Provider>
+      );
+
+      expect(leaderCounter).toHaveTextContent('2001/' + MESSAGE_LIMITS.ROOM_LEADER);
+      expect(roomSendBtn).not.toBeDisabled();
+      expect(leaderTextarea).toHaveAttribute('maxLength', String(MESSAGE_LIMITS.ROOM_LEADER));
       // Reset text to empty -> 0/4000
       fireEvent.change(leaderTextarea, { target: { value: '' } });
       expect(leaderCounter).toHaveTextContent('0/' + MESSAGE_LIMITS.ROOM_LEADER);

@@ -243,7 +243,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   if (charCount >= maxLimit) {
     counterColorClass = 'text-google-red font-semibold';
   } else if (charCount >= maxLimit * 0.9) {
-    counterColorClass = 'text-amber-500 font-semibold';
+    counterColorClass = 'text-google-yellow font-semibold';
   }
 
   useEffect(() => {
@@ -266,16 +266,16 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
     const selectionEnd = textarea?.selectionEnd ?? current.length;
     const selectedLength = selectionEnd - selectionStart;
 
-    const remainingQuota = maxLimit - (current.length - selectedLength);
+    const remainingLimit = maxLimit - (current.length - selectedLength);
 
-    if (remainingQuota <= 0) {
+    if (remainingLimit <= 0) {
       e.preventDefault();
       showErrorMessage('Character limit reached');
       return;
     }
 
     e.preventDefault();
-    const allowedText = truncateUnicodeSafe(pastedText, remainingQuota);
+    const allowedText = truncateUnicodeSafe(pastedText, remainingLimit);
     const newText = current.slice(0, selectionStart) + allowedText + current.slice(selectionEnd);
     setInputText(newText);
     handleTyping();
@@ -665,7 +665,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
             <button
               type="button"
               onClick={() => setShowGifModal(true)}
-              className="px-2.5 py-1 text-xs font-bold text-google-grey700 hover:text-google-blue hover:bg-google-grey100 rounded-full border border-google-grey300 transition cursor-pointer flex items-center gap-1 shrink-0 min-h-[40px]"
+              className="px-2.5 py-1 text-xs font-bold text-google-grey700 hover:text-google-blue hover:bg-google-grey100 rounded-full border border-google-grey300 transition cursor-pointer flex items-center justify-center gap-1 shrink-0 min-w-[40px] min-h-[40px]"
               title="Search animated GIFs"
               aria-label="Search animated GIFs"
             >
@@ -682,7 +682,14 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
               maxLength={Math.max(inputText.length, maxLimit)}
               onChange={(e) => {
                 if (errorMessage) setErrorMessage(null);
-                setInputText(e.target.value);
+                const val = e.target.value;
+                let nextVal = val;
+                if (inputText.length <= maxLimit && val.length > maxLimit) {
+                  nextVal = truncateUnicodeSafe(val, maxLimit);
+                } else if (inputText.length > maxLimit && val.length > inputText.length) {
+                  nextVal = truncateUnicodeSafe(val, inputText.length);
+                }
+                setInputText(nextVal);
                 handleTyping();
               }}
               onPaste={handlePaste}
@@ -692,7 +699,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                   ? 'Add a caption (optional)...'
                   : `Message #${activeRoom.name}...`
               }
-              className="w-full bg-transparent resize-none outline-none text-base sm:text-sm text-google-grey900 placeholder-google-grey700 max-h-24 break-words [overflow-wrap:anywhere]"
+              className="w-full bg-transparent resize-none outline-none text-base sm:text-sm text-google-grey900 placeholder-google-grey700 max-h-24 overflow-y-auto break-words [overflow-wrap:anywhere]"
             />
             <div className="flex items-center justify-between pt-1 border-t border-transparent text-right">
               <span className="text-[10px] text-google-grey700 italic hidden sm:inline">Shift+Enter for new line</span>
