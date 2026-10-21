@@ -125,6 +125,8 @@ export const EMOJI_CATEGORIES: EmojiCategory[] = [
       { emoji: '🤝', name: 'Handshake', keywords: ['shake', 'deal', 'agreement'] },
       { emoji: '🙏', name: 'Folded Hands', keywords: ['please', 'thank you', 'pray', 'thanks'] },
       { emoji: '💪', name: 'Flexed Biceps', keywords: ['muscle', 'strong', 'flex'] },
+      { emoji: '👍🏽', name: 'Thumbs Up Medium Skin Tone', keywords: ['thumbs up', 'like'] },
+      { emoji: '👨‍👩‍👧‍👦', name: 'Family', keywords: ['family', 'group', 'parents', 'children'] },
       { emoji: '🧠', name: 'Brain', keywords: ['brain', 'smart', 'think'] },
       { emoji: '👀', name: 'Eyes', keywords: ['eyes', 'look', 'see'] },
     ],
