@@ -20,6 +20,7 @@ import { SendRoomMessageOptions } from '../../hooks/useRoomMessages';
 import { useRoomTyping } from '../../hooks/useRoomTyping';
 import { MobileBackButton } from '../common/MobileBackButton';
 import { getAvatarColorClass } from '../../utils/avatarColor';
+import { truncateUnicodeSafe } from '../../utils/unicode';
 import {
   Hash,
   Users,
@@ -76,6 +77,26 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isWarningDismissed, setIsWarningDismissed] = useState(false);
+  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showErrorMessage = (msg: string) => {
+    setErrorMessage(msg);
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current);
+    }
+    errorTimeoutRef.current = setTimeout(() => {
+      setErrorMessage(null);
+    }, 3000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
+    };
+  }, []);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name?: string | null } | null>(null);
   const [previewDoc, setPreviewDoc] = useState<{ url: string; name?: string | null; size?: number | null } | null>(null);
 
@@ -225,6 +246,16 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
     counterColorClass = 'text-amber-500 font-semibold';
   }
 
+  useEffect(() => {
+    if (inputText.length <= maxLimit && isWarningDismissed) {
+      setIsWarningDismissed(false);
+    }
+  }, [inputText.length, maxLimit, isWarningDismissed]);
+
+  useEffect(() => {
+    setIsWarningDismissed(false);
+  }, [currentMemberRole]);
+
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const pastedText = e.clipboardData?.getData('text') ?? '';
     if (!pastedText) return;
@@ -239,11 +270,12 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
 
     if (remainingQuota <= 0) {
       e.preventDefault();
+      showErrorMessage('Character limit reached');
       return;
     }
 
     e.preventDefault();
-    const allowedText = pastedText.slice(0, remainingQuota);
+    const allowedText = truncateUnicodeSafe(pastedText, remainingQuota);
     const newText = current.slice(0, selectionStart) + allowedText + current.slice(selectionEnd);
     setInputText(newText);
     handleTyping();
@@ -298,18 +330,28 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   };
 
   const handleSelectEmoji = (emoji: string) => {
-    if (inputText.length + emoji.length > maxLimit) {
+    const textarea = textareaRef.current;
+    const current = inputText;
+    const start = textarea?.selectionStart ?? current.length;
+    const end = textarea?.selectionEnd ?? current.length;
+    const replacedLength = end - start;
+
+    if (current.length - replacedLength + emoji.length > maxLimit) {
+      showErrorMessage('Character limit reached');
       return;
     }
-    if (!textareaRef.current) {
+
+    if (errorMessage) {
+      setErrorMessage(null);
+    }
+
+    if (!textarea) {
       setInputText((prev) => prev + emoji);
       handleTyping();
       return;
     }
-    const textarea = textareaRef.current;
-    const start = textarea.selectionStart ?? inputText.length;
-    const end = textarea.selectionEnd ?? inputText.length;
-    const newText = inputText.substring(0, start) + emoji + inputText.substring(end);
+
+    const newText = current.substring(0, start) + emoji + current.substring(end);
     setInputText(newText);
     handleTyping();
 
@@ -542,6 +584,29 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
           </div>
         )}
 
+        {/* Role Demotion / Exceeded Limit Alert */}
+        {inputText.length > maxLimit && !isWarningDismissed && (
+          <div
+            data-testid="draft-demotion-warning"
+            className="max-w-4xl mx-auto mb-2 p-2.5 bg-google-red-subtle border border-google-red/20 rounded-xl text-google-red text-xs flex items-center justify-between shadow-xs animate-in fade-in"
+          >
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-google-red" />
+              <span>
+                Your draft exceeds the member limit of {MESSAGE_LIMITS.ROOM_MEMBER} characters. Please shorten your message to send.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsWarningDismissed(true)}
+              className="p-1 hover:bg-google-red-subtle/80 rounded-lg text-google-red transition cursor-pointer"
+              aria-label="Dismiss warning"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Selected Attachment Preview Card */}
         {selectedFile && (
           <div className="max-w-4xl mx-auto">
@@ -614,8 +679,9 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
               ref={textareaRef}
               rows={1}
               value={inputText}
-              maxLength={maxLimit}
+              maxLength={Math.max(inputText.length, maxLimit)}
               onChange={(e) => {
+                if (errorMessage) setErrorMessage(null);
                 setInputText(e.target.value);
                 handleTyping();
               }}
