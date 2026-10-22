@@ -3,14 +3,17 @@ import 'dotenv/config';
 import { loadConfig, ConfigError } from './config.js';
 import { createStorageAdapter } from './lib/storage.js';
 import { createServer } from './server.js';
+import { createLogger, installProcessHandlers } from './lib/logger.js';
 
 async function bootstrap() {
   const config = loadConfig(process.env);
+  const logger = createLogger({ level: config.logLevel });
+  installProcessHandlers(process, logger);
   const storage = createStorageAdapter(config.storage);
-  const { httpServer } = await createServer({ config, storage });
+  const { httpServer } = await createServer({ config, storage, logger });
 
   httpServer.listen(config.port, () => {
-    console.log(`🚀 Server listening on http://localhost:${config.port}`);
+    logger.info({ port: config.port }, 'Server listening');
   });
 }
 

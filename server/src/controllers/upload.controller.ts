@@ -8,12 +8,7 @@ export async function uploadFile(req: AuthenticatedRequest, res: Response): Prom
     return;
   }
 
-  try {
-    const adapter = getServerContext(req).storage;
-    const result = await adapter.upload(req.file);
-    res.status(200).json(result);
-  } catch (err: any) {
-    console.error('Error during file upload:', err);
-    res.status(500).json({ message: err.message || 'File upload failed' });
-  }
+  const adapter = getServerContext(req).storage;
+  const result = await adapter.upload(req.file);
+  res.status(200).json(result);
 }

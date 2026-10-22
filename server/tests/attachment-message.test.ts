@@ -273,7 +273,8 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
 
       expect(ackResponse).toEqual({
         success: false,
-        error: `Message exceeds character limit of ${MESSAGE_LIMITS.DIRECT}`,
+        error: 'MESSAGE_TOO_LONG',
+        requestId: expect.any(String),
       });
 
       // Allow 100ms to ensure no delayed delivery or persistence
@@ -319,7 +320,8 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
 
       expect(ackResponse).toEqual({
         success: false,
-        error: `Message exceeds character limit of ${MESSAGE_LIMITS.ROOM_MEMBER}`,
+        error: 'MESSAGE_TOO_LONG',
+        requestId: expect.any(String),
       });
 
       await new Promise((r) => setTimeout(r, 100));
@@ -364,7 +366,8 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
 
       expect(ackResponse).toEqual({
         success: false,
-        error: `Message exceeds character limit of ${MESSAGE_LIMITS.ROOM_LEADER}`,
+        error: 'MESSAGE_TOO_LONG',
+        requestId: expect.any(String),
       });
 
       await new Promise((r) => setTimeout(r, 100));

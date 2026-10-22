@@ -1,6 +1,9 @@
 import { Server } from 'socket.io';
 import { AuthenticatedSocket } from './index.js';
 import { getPrisma } from '../lib/prisma.js';
+import { AppError } from '../lib/errors.js';
+import { socketHandler } from '../lib/async-handler.js';
+import type { Logger } from '../lib/logger.js';
 import { presenceManager } from './presence.handler.js';
 import {
   SOCKET_EVENTS,
@@ -12,9 +15,10 @@ import {
   MessageType,
   MessageStatus,
   MESSAGE_LIMITS,
+  ERROR_CODES,
 } from '@webchat/shared';
 
-export async function handleDirectMessagesDeliveryOnConnect(io: Server, userId: string): Promise<void> {
+export async function handleDirectMessagesDeliveryOnConnect(io: Server, userId: string, log: Logger): Promise<void> {
   try {
     const prisma = getPrisma();
     const pendingMessages = await prisma.directMessage.findMany({
@@ -58,32 +62,27 @@ export async function handleDirectMessagesDeliveryOnConnect(io: Server, userId: 
       }
     }
   } catch (err) {
-    console.error(`Error delivering pending direct messages on connect for user ${userId}:`, err);
+    log.error({ err }, 'Failed to deliver pending direct messages on connect');
   }
 }
 
-export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSocket): void {
+export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSocket, log: Logger): void {
   const userId = socket.data.user.userId;
 
   // Automatically join user room for targeted 1-1 messaging
   socket.join(`user:${userId}`);
 
-  socket.on(SOCKET_EVENTS.DIRECT_SEND, async (payload: DirectSendMessagePayload, callback?: (res: any) => void) => {
-    try {
-      const { directChatId, content, type, attachmentUrl, attachmentName, attachmentSize } = payload;
+  socket.on(
+    SOCKET_EVENTS.DIRECT_SEND,
+    socketHandler<DirectSendMessagePayload>(log, SOCKET_EVENTS.DIRECT_SEND, async (payload) => {
+      const { directChatId, content, type, attachmentUrl, attachmentName, attachmentSize } = payload || ({} as DirectSendMessagePayload);
 
       if (!directChatId || (!content && !attachmentUrl)) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'directChatId and content or attachment are required' });
-        }
-        return;
+        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'directChatId and content or attachment are required');
       }
 
       if (content && content.length > MESSAGE_LIMITS.DIRECT) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: `Message exceeds character limit of ${MESSAGE_LIMITS.DIRECT}` });
-        }
-        return;
+        throw new AppError(400, ERROR_CODES.MESSAGE_TOO_LONG, `Message exceeds character limit of ${MESSAGE_LIMITS.DIRECT}`);
       }
 
       const prisma = getPrisma();
@@ -97,18 +96,12 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
       });
 
       if (!chat) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'Direct chat not found' });
-        }
-        return;
+        throw new AppError(404, ERROR_CODES.NOT_FOUND, 'Direct chat not found');
       }
 
       const isParticipant = chat.participants.some((p) => p.userId === userId);
       if (!isParticipant) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'Sender is not a participant in this direct chat' });
-        }
-        return;
+        throw new AppError(403, ERROR_CODES.FORBIDDEN, 'Sender is not a participant in this direct chat');
       }
 
       // Check if recipient is online via presenceManager
@@ -163,19 +156,13 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
         io.to(`user:${p.userId}`).emit(SOCKET_EVENTS.DIRECT_RECEIVE, receivePayload);
       });
 
-      if (typeof callback === 'function') {
-        callback({ success: true, message: receivePayload });
-      }
-    } catch (err: any) {
-      console.error('Error handling direct:send:', err);
-      if (typeof callback === 'function') {
-        callback({ success: false, error: err.message || 'Internal server error' });
-      }
-    }
-  });
+      return { success: true, message: receivePayload };
+    })
+  );
 
-  socket.on(SOCKET_EVENTS.DIRECT_TYPING, async (payload: { directChatId: string; isTyping: boolean }) => {
-    try {
+  socket.on(
+    SOCKET_EVENTS.DIRECT_TYPING,
+    socketHandler<{ directChatId: string; isTyping: boolean }>(log, SOCKET_EVENTS.DIRECT_TYPING, async (payload) => {
       if (!payload || !payload.directChatId || typeof payload.isTyping !== 'boolean') {
         return;
       }
@@ -208,18 +195,14 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
           io.to(`user:${p.userId}`).emit(SOCKET_EVENTS.DIRECT_TYPING, typingPayload);
         }
       });
-    } catch (err: any) {
-      console.error('Error handling direct:typing:', err);
-    }
-  });
+    })
+  );
 
-  socket.on(SOCKET_EVENTS.DIRECT_READ, async (payload: { directChatId: string; messageId: string }, callback?: (res: any) => void) => {
-    try {
+  socket.on(
+    SOCKET_EVENTS.DIRECT_READ,
+    socketHandler<{ directChatId: string; messageId: string }>(log, SOCKET_EVENTS.DIRECT_READ, async (payload) => {
       if (!payload || !payload.directChatId || !payload.messageId) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'directChatId and messageId are required' });
-        }
-        return;
+        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'directChatId and messageId are required');
       }
 
       const { directChatId, messageId } = payload;
@@ -234,18 +217,12 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
       });
 
       if (!chat) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'Direct chat not found' });
-        }
-        return;
+        throw new AppError(404, ERROR_CODES.NOT_FOUND, 'Direct chat not found');
       }
 
       const isParticipant = chat.participants.some((p: any) => p.userId === userId);
       if (!isParticipant) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'Caller is not a participant in this direct chat' });
-        }
-        return;
+        throw new AppError(403, ERROR_CODES.FORBIDDEN, 'Caller is not a participant in this direct chat');
       }
 
       // Find the target message to get its createdAt timestamp
@@ -254,10 +231,7 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
       });
 
       if (!targetMessage || targetMessage.directChatId !== directChatId) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'Target message not found in this direct chat' });
-        }
-        return;
+        throw new AppError(404, ERROR_CODES.NOT_FOUND, 'Target message not found in this direct chat');
       }
 
       // Update caller's lastReadMessageId on DirectChatParticipant
@@ -300,15 +274,7 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
         }
       });
 
-      if (typeof callback === 'function') {
-        callback({ success: true, payload: readPayload });
-      }
-    } catch (err: any) {
-      console.error('Error handling direct:read:', err);
-      if (typeof callback === 'function') {
-        callback({ success: false, error: err.message || 'Internal server error' });
-      }
-    }
-  });
+      return { success: true, payload: readPayload };
+    })
+  );
 }
-
