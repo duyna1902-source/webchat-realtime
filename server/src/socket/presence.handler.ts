@@ -12,19 +12,6 @@ const socketToUser = new Map<string, string>();
 // Map of userId -> disconnect grace period timer
 const disconnectTimers = new Map<string, NodeJS.Timeout>();
 
-const DEFAULT_GRACE_PERIOD_MS = 5000;
-let presenceGracePeriodMs = process.env.PRESENCE_GRACE_PERIOD_MS
-  ? parseInt(process.env.PRESENCE_GRACE_PERIOD_MS, 10)
-  : DEFAULT_GRACE_PERIOD_MS;
-
-export function setPresenceGracePeriodMs(ms: number): void {
-  presenceGracePeriodMs = ms;
-}
-
-export function getPresenceGracePeriodMs(): number {
-  return presenceGracePeriodMs;
-}
-
 export function clearPresenceState(): void {
   for (const timer of disconnectTimers.values()) {
     clearTimeout(timer);
@@ -42,8 +29,6 @@ export function isUserOnline(userId: string): boolean {
 export const presenceManager = {
   isUserOnline,
   clearPresenceState,
-  setPresenceGracePeriodMs,
-  getPresenceGracePeriodMs,
 };
 
 export async function handleUserConnect(io: Server, socket: AuthenticatedSocket): Promise<void> {
@@ -89,7 +74,7 @@ export async function handleUserConnect(io: Server, socket: AuthenticatedSocket)
   }
 }
 
-export function handleUserDisconnect(io: Server, socket: AuthenticatedSocket): void {
+export function handleUserDisconnect(io: Server, socket: AuthenticatedSocket, presenceGracePeriodMs: number): void {
   const userId = socketToUser.get(socket.id) || socket.data?.user?.userId;
   if (!userId) return;
 

@@ -1,13 +1,22 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import http from 'http';
-import { AddressInfo } from 'net';
+import type { Express } from 'express';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { app } from '../src/app.js';
-import { setupSocketServer, getIO } from '../src/socket/index.js';
+import { createTestServer, generateToken, TestServer } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
-import { generateToken } from '../src/lib/jwt.js';
 import { normalizeDirectChatPair, SOCKET_EVENTS } from '@webchat/shared';
+
+let server: TestServer;
+let app: Express;
+
+beforeAll(async () => {
+  server = await createTestServer({ listen: true });
+  app = server.app;
+});
+
+afterAll(async () => {
+  await server.close();
+});
 
 function waitForEvent<T = any>(socket: ClientSocketType, event: string, timeout = 3000): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -265,21 +274,12 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
   });
 
   describe('Multi-Client Simulation: Disconnection, Offline Sending & Catch-up Sync', () => {
-    let httpServer: http.Server;
     let serverPort: number;
     let clientAlice: ClientSocketType | null = null;
     let clientBob: ClientSocketType | null = null;
 
-    beforeAll(async () => {
-      httpServer = http.createServer(app);
-      setupSocketServer(httpServer);
-
-      await new Promise<void>((resolve) => {
-        httpServer.listen(0, () => {
-          serverPort = (httpServer.address() as AddressInfo).port;
-          resolve();
-        });
-      });
+    beforeAll(() => {
+      serverPort = server.port;
     });
 
     afterEach(() => {
@@ -287,14 +287,9 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
       if (clientBob?.connected) clientBob.disconnect();
     });
 
-    afterAll(async () => {
+    afterAll(() => {
       if (clientAlice?.connected) clientAlice.disconnect();
       if (clientBob?.connected) clientBob.disconnect();
-      const io = getIO();
-      if (io) {
-        await new Promise<void>((resolve) => io.close(() => resolve()));
-      }
-      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     });
 
     it('recovers missed direct and room messages after disconnection via catch-up sync without duplication', async () => {

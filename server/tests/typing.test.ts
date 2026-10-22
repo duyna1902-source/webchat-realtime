@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import http from 'http';
-import { AddressInfo } from 'net';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { app } from '../src/app.js';
-import { setupSocketServer } from '../src/socket/index.js';
-import { generateToken } from '../src/lib/jwt.js';
+import { createTestServer, generateToken } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { SOCKET_EVENTS, normalizeDirectChatPair, DirectTypingPayload } from '@webchat/shared';
 
@@ -33,15 +30,7 @@ describe('Direct Chat Typing Indicator Socket Integration', () => {
   let directChat: any;
 
   beforeAll(async () => {
-    httpServer = http.createServer(app);
-    setupSocketServer(httpServer);
-
-    await new Promise<void>((resolve) => {
-      httpServer.listen(0, () => {
-        serverPort = (httpServer.address() as AddressInfo).port;
-        resolve();
-      });
-    });
+    ({ httpServer, port: serverPort } = await createTestServer({ listen: true }));
   });
 
   afterEach(() => {

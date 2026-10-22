@@ -1,13 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import http from 'http';
-import { AddressInfo } from 'net';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { app } from '../src/app.js';
-import { setupSocketServer } from '../src/socket/index.js';
-import { generateToken } from '../src/lib/jwt.js';
+import { createTestServer, generateToken } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { SOCKET_EVENTS, PresenceUpdatePayload } from '@webchat/shared';
-import { setPresenceGracePeriodMs, clearPresenceState } from '../src/socket/presence.handler.js';
+import { clearPresenceState } from '../src/socket/presence.handler.js';
 
 function waitForEvent<T = any>(socket: ClientSocketType, event: string, timeout = 3000): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -32,17 +29,10 @@ describe('Presence Management & Grace Period Integration', { timeout: 30000 }, (
 
   beforeAll(async () => {
     // Configure 250ms grace period for fast integration testing
-    setPresenceGracePeriodMs(250);
-
-    httpServer = http.createServer(app);
-    setupSocketServer(httpServer);
-
-    await new Promise<void>((resolve) => {
-      httpServer.listen(0, () => {
-        serverPort = (httpServer.address() as AddressInfo).port;
-        resolve();
-      });
-    });
+    ({ httpServer, port: serverPort } = await createTestServer({
+      listen: true,
+      config: { timing: { presenceGracePeriodMs: 250 } },
+    }));
   });
 
   afterEach(() => {

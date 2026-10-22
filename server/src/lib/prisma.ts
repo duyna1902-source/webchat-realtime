@@ -11,13 +11,14 @@ const __dirname = path.dirname(__filename);
 let prismaInstance: PrismaClient | null = null;
 let pgliteInstance: PGlite | null = null;
 
-export async function initPrisma(): Promise<PrismaClient> {
+/**
+ * Connects Prisma to `databaseUrl` (from the validated config). `memory:` starts an in-memory
+ * PGlite database loaded with `prisma/schema.sql`; the config only allows it under NODE_ENV=test.
+ */
+export async function initPrisma(databaseUrl: string): Promise<PrismaClient> {
   if (prismaInstance) return prismaInstance;
 
-  const isTest = process.env.NODE_ENV === 'test';
-  const hasExternalDb = process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith('memory:');
-
-  if (isTest || !hasExternalDb) {
+  if (databaseUrl.startsWith('memory:')) {
     if (!pgliteInstance) {
       pgliteInstance = new PGlite();
       // Load DDL schema
@@ -36,7 +37,7 @@ export async function initPrisma(): Promise<PrismaClient> {
   // In Prisma 7, adapter-pg can be used for standard Postgres pool
   const { Pool } = await import('pg');
   const { PrismaPg } = await import('@prisma/adapter-pg');
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({ connectionString: databaseUrl });
   const adapter = new PrismaPg(pool);
   prismaInstance = new PrismaClient({ adapter });
   return prismaInstance;

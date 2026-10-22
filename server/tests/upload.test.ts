@@ -1,11 +1,24 @@
-import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { app } from '../src/app.js';
+import type { Express } from 'express';
+import { createTestServer, generateToken } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
-import { generateToken } from '../src/lib/jwt.js';
+import {
+  LocalStorageAdapter,
+  CloudinaryStorageAdapter,
+  SupabaseStorageAdapter,
+  createStorageAdapter,
+} from '../src/lib/storage.js';
+
+let app: Express;
+
+beforeAll(async () => {
+  // Local disk storage, so uploaded files can be fetched back through /uploads.
+  ({ app } = await createTestServer({ storage: new LocalStorageAdapter() }));
+});
 
 describe('File Upload REST API (POST /api/upload)', () => {
   let authToken: string;
@@ -114,18 +127,10 @@ describe('File Upload REST API (POST /api/upload)', () => {
   });
 
   describe('Cloud Storage Adapter Architecture (ADR 0004)', () => {
-    const originalEnv = { ...process.env };
-
-    afterEach(() => {
-      process.env = { ...originalEnv };
-    });
-
-    it('uses LocalStorageAdapter and respects PUBLIC_URL for full public URLs', async () => {
-      const { LocalStorageAdapter } = await import('../src/lib/storage.js');
+    it('uses LocalStorageAdapter with same-origin relative URLs', async () => {
       const adapter = new LocalStorageAdapter();
       expect(adapter.name).toBe('local');
 
-      process.env.PUBLIC_URL = 'https://chat.example.com';
       const mockFile: any = {
         originalname: 'sample.png',
         filename: '123-sample.png',
@@ -134,39 +139,28 @@ describe('File Upload REST API (POST /api/upload)', () => {
       };
 
       const result = await adapter.upload(mockFile);
-      expect(result.url).toBe('https://chat.example.com/uploads/123-sample.png');
+      expect(result.url).toBe('/uploads/123-sample.png');
       expect(result.name).toBe('sample.png');
       expect(result.size).toBe(1024);
     });
 
-    it('resolves correct adapter from environment configuration in getStorageAdapter', async () => {
-      const { getStorageAdapter } = await import('../src/lib/storage.js');
-
-      // Default should be local
-      delete process.env.STORAGE_PROVIDER;
-      delete process.env.CLOUDINARY_CLOUD_NAME;
-      delete process.env.SUPABASE_URL;
-      const defaultAdapter = getStorageAdapter();
-      expect(defaultAdapter.name).toBe('local');
-
-      // Cloudinary configuration
-      process.env.STORAGE_PROVIDER = 'cloudinary';
-      process.env.CLOUDINARY_CLOUD_NAME = 'demo-cloud';
-      const cloudinaryAdapter = getStorageAdapter();
-      expect(cloudinaryAdapter.name).toBe('cloudinary');
-
-      // Supabase configuration
-      process.env.STORAGE_PROVIDER = 'supabase';
-      process.env.SUPABASE_URL = 'https://demo.supabase.co';
-      process.env.SUPABASE_SERVICE_ROLE_KEY = 'secret-service-key';
-      const supabaseAdapter = getStorageAdapter();
-      expect(supabaseAdapter.name).toBe('supabase');
+    it('builds the adapter selected by the storage configuration in createStorageAdapter', () => {
+      expect(createStorageAdapter({ provider: 'local' }).name).toBe('local');
+      expect(
+        createStorageAdapter({ provider: 'cloudinary', cloudName: 'demo-cloud', uploadPreset: null, apiKey: null }).name
+      ).toBe('cloudinary');
+      expect(
+        createStorageAdapter({
+          provider: 'supabase',
+          url: 'https://demo.supabase.co',
+          secretKey: 'secret-key',
+          bucket: 'attachments',
+        }).name
+      ).toBe('supabase');
     });
 
     it('CloudinaryStorageAdapter unlinks ephemeral local file on success and failure', async () => {
-      const { CloudinaryStorageAdapter } = await import('../src/lib/storage.js');
-      process.env.CLOUDINARY_CLOUD_NAME = 'test-cloud';
-      const adapter = new CloudinaryStorageAdapter();
+      const adapter = new CloudinaryStorageAdapter({ cloudName: 'test-cloud' });
 
       // Create a temp file on disk
       const tmpFilePath = path.join(os.tmpdir(), `test-cloudinary-${Date.now()}.png`);
@@ -220,10 +214,11 @@ describe('File Upload REST API (POST /api/upload)', () => {
     });
 
     it('SupabaseStorageAdapter unlinks ephemeral local file on success and failure', async () => {
-      const { SupabaseStorageAdapter } = await import('../src/lib/storage.js');
-      process.env.SUPABASE_URL = 'https://fake.supabase.co';
-      process.env.SUPABASE_SERVICE_ROLE_KEY = 'secret-key';
-      const adapter = new SupabaseStorageAdapter();
+      const adapter = new SupabaseStorageAdapter({
+        url: 'https://fake.supabase.co',
+        secretKey: 'secret-key',
+        bucket: 'attachments',
+      });
 
       const tmpFilePath = path.join(os.tmpdir(), `test-supabase-${Date.now()}.pdf`);
       fs.writeFileSync(tmpFilePath, 'fake pdf data');
@@ -270,7 +265,6 @@ describe('File Upload REST API (POST /api/upload)', () => {
     });
 
     it('LocalStorageAdapter retains local file on disk', async () => {
-      const { LocalStorageAdapter } = await import('../src/lib/storage.js');
       const adapter = new LocalStorageAdapter();
 
       const tmpFilePath = path.join(os.tmpdir(), `test-local-${Date.now()}.txt`);

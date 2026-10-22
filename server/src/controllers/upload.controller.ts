@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
-import { getStorageAdapter } from '../lib/storage.js';
+import { getServerContext } from '../context.js';
 
 export async function uploadFile(req: AuthenticatedRequest, res: Response): Promise<void> {
   if (!req.file) {
@@ -9,7 +9,7 @@ export async function uploadFile(req: AuthenticatedRequest, res: Response): Prom
   }
 
   try {
-    const adapter = getStorageAdapter();
+    const adapter = getServerContext(req).storage;
     const result = await adapter.upload(req.file);
     res.status(200).json(result);
   } catch (err: any) {

@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import { randomUUID } from 'crypto';
+import type { StorageConfig } from '../config.js';
 
 // Upload directory resolution (defaults to <cwd>/uploads)
 export const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads');
@@ -64,17 +66,31 @@ export interface StorageAdapter {
   upload(file: Express.Multer.File): Promise<UploadResult>;
 }
 
+async function readUploadedFile(file: Express.Multer.File): Promise<Buffer> {
+  if (file.buffer) {
+    return file.buffer;
+  }
+  if (file.path && fs.existsSync(file.path)) {
+    return fs.promises.readFile(file.path);
+  }
+  throw new Error('File data is missing');
+}
+
+async function removeTemporaryFile(file: Express.Multer.File): Promise<void> {
+  if (file.path && fs.existsSync(file.path)) {
+    await fs.promises.unlink(file.path).catch(() => {});
+  }
+}
+
+// Dev and test only: the app is served from a single origin, so the URL is relative.
 export class LocalStorageAdapter implements StorageAdapter {
   readonly name = 'local';
 
   async upload(file: Express.Multer.File): Promise<UploadResult> {
     const filename = file.filename || file.originalname;
-    const publicUrl = process.env.PUBLIC_URL
-      ? `${process.env.PUBLIC_URL.replace(/\/$/, '')}/uploads/${filename}`
-      : `/uploads/${filename}`;
 
     return {
-      url: publicUrl,
+      url: `/uploads/${filename}`,
       name: file.originalname,
       filename: file.originalname,
       size: file.size,
@@ -83,16 +99,54 @@ export class LocalStorageAdapter implements StorageAdapter {
   }
 }
 
+const MEMORY_URL_PREFIX = 'memory://';
+
+// Test only: keeps uploaded bytes in process memory, addressed by the returned URL.
+export class InMemoryStorageAdapter implements StorageAdapter {
+  readonly name = 'memory';
+  private readonly objects = new Map<string, Buffer>();
+
+  async upload(file: Express.Multer.File): Promise<UploadResult> {
+    try {
+      const data = await readUploadedFile(file);
+      const key = randomUUID();
+      this.objects.set(key, data);
+
+      return {
+        url: `${MEMORY_URL_PREFIX}${key}`,
+        name: file.originalname,
+        filename: key,
+        size: data.length,
+        mimeType: file.mimetype,
+      };
+    } finally {
+      await removeTemporaryFile(file);
+    }
+  }
+
+  /** Returns the stored bytes for a URL returned by `upload`, if any. */
+  read(url: string): Buffer | undefined {
+    if (!url.startsWith(MEMORY_URL_PREFIX)) return undefined;
+    return this.objects.get(url.slice(MEMORY_URL_PREFIX.length));
+  }
+}
+
+export interface CloudinaryStorageOptions {
+  cloudName: string;
+  uploadPreset?: string | null;
+  apiKey?: string | null;
+}
+
 export class CloudinaryStorageAdapter implements StorageAdapter {
   readonly name = 'cloudinary';
   private cloudName: string;
   private uploadPreset?: string;
   private apiKey?: string;
 
-  constructor() {
-    this.cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
-    this.uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET;
-    this.apiKey = process.env.CLOUDINARY_API_KEY;
+  constructor(options: CloudinaryStorageOptions) {
+    this.cloudName = options.cloudName;
+    this.uploadPreset = options.uploadPreset ?? undefined;
+    this.apiKey = options.apiKey ?? undefined;
   }
 
   async upload(file: Express.Multer.File): Promise<UploadResult> {
@@ -147,21 +201,27 @@ export class CloudinaryStorageAdapter implements StorageAdapter {
   }
 }
 
+export interface SupabaseStorageOptions {
+  url: string;
+  secretKey: string;
+  bucket: string;
+}
+
 export class SupabaseStorageAdapter implements StorageAdapter {
   readonly name = 'supabase';
   private supabaseUrl: string;
   private serviceKey: string;
   private bucket: string;
 
-  constructor() {
-    this.supabaseUrl = process.env.SUPABASE_URL || '';
-    this.serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
-    this.bucket = process.env.SUPABASE_STORAGE_BUCKET || 'attachments';
+  constructor(options: SupabaseStorageOptions) {
+    this.supabaseUrl = options.url;
+    this.serviceKey = options.secretKey;
+    this.bucket = options.bucket;
   }
 
   async upload(file: Express.Multer.File): Promise<UploadResult> {
     if (!this.supabaseUrl || !this.serviceKey) {
-      throw new Error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not configured');
+      throw new Error('Supabase storage is not configured');
     }
 
     try {
@@ -211,13 +271,14 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   }
 }
 
-export function getStorageAdapter(): StorageAdapter {
-  const provider = (process.env.STORAGE_PROVIDER || '').toLowerCase();
-  if (provider === 'cloudinary') {
-    return new CloudinaryStorageAdapter();
+/** Builds the real storage adapter selected by the validated configuration. */
+export function createStorageAdapter(config: StorageConfig): StorageAdapter {
+  switch (config.provider) {
+    case 'cloudinary':
+      return new CloudinaryStorageAdapter(config);
+    case 'supabase':
+      return new SupabaseStorageAdapter(config);
+    case 'local':
+      return new LocalStorageAdapter();
   }
-  if (provider === 'supabase') {
-    return new SupabaseStorageAdapter();
-  }
-  return new LocalStorageAdapter();
 }

@@ -13,7 +13,7 @@ import {
   RoomMemberChangePayload,
 } from '@webchat/shared';
 import { toUserDto } from './user.controller.js';
-import { getIO } from '../socket/index.js';
+import { getServerContext } from '../context.js';
 import { syncUserSocketsRoomMembership } from '../socket/room.handler.js';
 import { parsePaginationParams, fetchPaginatedMessages } from '../lib/pagination.js';
 
@@ -302,7 +302,7 @@ export async function addRoomMember(req: AuthenticatedRequest, res: Response): P
   });
 
   // Broadcast socket event
-  const io = getIO();
+  const { io } = getServerContext(req);
   if (io) {
     const payload: RoomMemberChangePayload = {
       roomId: id,
@@ -387,7 +387,7 @@ export async function removeRoomMember(req: AuthenticatedRequest, res: Response)
   });
 
   // Broadcast socket event
-  const io = getIO();
+  const { io } = getServerContext(req);
   if (io) {
     const payload: RoomMemberChangePayload = {
       roomId: id,
@@ -466,7 +466,7 @@ export async function changeRoomMemberRole(req: AuthenticatedRequest, res: Respo
   });
 
   // Broadcast socket event
-  const io = getIO();
+  const { io } = getServerContext(req);
   if (io) {
     const payload: RoomMemberChangePayload = {
       roomId: id,
@@ -527,7 +527,7 @@ export async function leaveRoom(req: AuthenticatedRequest, res: Response): Promi
   });
 
   // Broadcast socket event
-  const io = getIO();
+  const { io } = getServerContext(req);
   if (io) {
     const payload: RoomMemberChangePayload = {
       roomId: id,
@@ -568,7 +568,7 @@ export async function deleteRoom(req: AuthenticatedRequest, res: Response): Prom
   }
 
   // Broadcast DELETE event to room before deleting from DB
-  const io = getIO();
+  const { io } = getServerContext(req);
   if (io) {
     const payload: RoomMemberChangePayload = {
       roomId: id,
