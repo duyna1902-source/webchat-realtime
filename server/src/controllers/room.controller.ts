@@ -537,6 +537,8 @@ export async function leaveRoom(req: AuthenticatedRequest, res: Response): Promi
       role: callerMember.role as RoomRole,
     };
     io.to(`room:${id}`).emit(SOCKET_EVENTS.ROOM_MEMBER_CHANGE, payload);
+
+    syncUserSocketsRoomMembership(io, currentUserId, id, 'leave');
   }
 
   res.status(200).json({ success: true, message: 'Left room successfully' });
