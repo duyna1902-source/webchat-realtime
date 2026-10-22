@@ -21,6 +21,10 @@ export default defineConfig({
         target: 'http://localhost:4000',
         ws: true,
       },
+      // Files from the local storage adapter; keeps dev same-origin like production.
+      '/uploads': {
+        target: 'http://localhost:4000',
+      },
     },
   },
 });
