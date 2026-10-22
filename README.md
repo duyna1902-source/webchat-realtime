@@ -82,7 +82,8 @@ webchat-realtime/
 ├── server/                      # Backend API & WebSocket Server (@webchat/server)
 │   ├── prisma/
 │   │   ├── schema.prisma        # Prisma database schema definition
-│   │   └── schema.sql           # SQL DDL for PGlite in-memory initialization
+│   │   ├── migrations/          # Versioned Prisma Migrate migrations (0_baseline, RLS, ...)
+│   │   └── schema.sql           # GENERATED DDL for PGlite in tests (npm run db:schema-sql)
 │   ├── src/                     # Controllers, routes, socket handlers & storage adapters
 │   └── tests/                   # 14 Backend integration & boundary test suites
 └── client/                      # Frontend React SPA (@webchat/client)
@@ -131,10 +132,11 @@ Create `.env` configuration files (or copy from `.env.example` / `server/.env.ex
   *(Note: If `DATABASE_URL` is omitted or set to `memory:`, the server automatically boots with an in-memory **PGlite** PostgreSQL instance initialized from `server/prisma/schema.sql`.)*
 
 ### 4. Database Migration (When Using External PostgreSQL)
-Run Prisma migrations to initialize your external PostgreSQL database schema:
+The schema is managed with versioned Prisma Migrate migrations (`db push` is no longer used). Apply them to your database:
 ```bash
-npm run db:migrate --workspace=server
+npm run db:deploy --workspace=server
 ```
+On Render this runs automatically before the server starts. See [`docs/database-migrations.md`](docs/database-migrations.md) for adding a migration, the one-time production baseline step, and the data upgrade command.
 
 ### 5. Run in Development Mode
 Start both the backend server and frontend client concurrently:

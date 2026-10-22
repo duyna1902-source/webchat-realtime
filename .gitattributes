@@ -1,2 +1,5 @@
 # Git hooks run under sh, which breaks on CRLF line endings.
 .githooks/* text eol=lf
+# Prisma checksums migration files; keep the bytes identical on Windows and on Render.
+server/prisma/migrations/** text eol=lf
+server/prisma/schema.sql text eol=lf
