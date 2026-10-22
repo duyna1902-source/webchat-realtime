@@ -188,7 +188,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
               {!isLoadingText && !errorText && (
                 <pre
                   data-testid="text-preview-content"
-                  className="w-full flex-1 overflow-auto font-mono text-xs text-google-grey900 bg-white p-4 rounded-xl border border-google-grey300 max-h-[70vh] whitespace-pre-wrap break-words leading-relaxed select-text"
+                  className="w-full flex-1 overflow-auto font-mono text-xs text-google-grey900 bg-white p-4 rounded-xl border border-google-grey300 max-h-[70vh] whitespace-pre-wrap [overflow-wrap:anywhere] leading-relaxed select-text"
                 >
                   {textContent}
                 </pre>

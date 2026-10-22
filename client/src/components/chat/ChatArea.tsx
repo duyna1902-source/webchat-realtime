@@ -364,8 +364,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         ? 'bg-google-blue text-white p-1 rounded-2xl rounded-br-xs shadow-xs'
                         : 'bg-google-grey100 text-google-grey900 border border-google-grey200 p-1 rounded-2xl rounded-bl-xs shadow-xs'
                       : isMe
-                      ? 'bg-google-blue text-white px-4 py-2.5 rounded-2xl rounded-br-xs shadow-xs text-sm break-words [overflow-wrap:anywhere] whitespace-pre-wrap'
-                      : 'bg-google-grey100 text-google-grey900 border border-google-grey200 px-4 py-2.5 rounded-2xl rounded-bl-xs shadow-xs text-sm break-words [overflow-wrap:anywhere] whitespace-pre-wrap'
+                      ? 'bg-google-blue text-white px-4 py-2.5 rounded-2xl rounded-br-xs shadow-xs text-sm [overflow-wrap:anywhere] whitespace-pre-wrap'
+                      : 'bg-google-grey100 text-google-grey900 border border-google-grey200 px-4 py-2.5 rounded-2xl rounded-bl-xs shadow-xs text-sm [overflow-wrap:anywhere] whitespace-pre-wrap'
                   }`}
                 >
                   <MessageItemContent
@@ -560,7 +560,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   ? 'Add a caption (optional)...'
                   : `Message @${activeChat.partner.username}...`
               }
-              className="w-full bg-transparent resize-none outline-none text-base sm:text-sm text-google-grey900 placeholder-google-grey700 max-h-24 break-words [overflow-wrap:anywhere]"
+              className="w-full bg-transparent resize-none outline-none text-base sm:text-sm text-google-grey900 placeholder-google-grey700 max-h-24 [overflow-wrap:anywhere]"
             />
           </div>
 
