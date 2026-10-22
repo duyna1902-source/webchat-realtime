@@ -1,6 +1,9 @@
 import { Server } from 'socket.io';
 import { AuthenticatedSocket } from './index.js';
 import { getPrisma } from '../lib/prisma.js';
+import { AppError } from '../lib/errors.js';
+import { socketHandler } from '../lib/async-handler.js';
+import type { Logger } from '../lib/logger.js';
 import {
   SOCKET_EVENTS,
   RoomJoinPayload,
@@ -12,9 +15,10 @@ import {
   MessageType,
   MESSAGE_LIMITS,
   RoomRole,
+  ERROR_CODES,
 } from '@webchat/shared';
 
-export async function autoJoinUserRooms(io: Server, socket: AuthenticatedSocket): Promise<void> {
+export async function autoJoinUserRooms(io: Server, socket: AuthenticatedSocket, log: Logger): Promise<void> {
   const userId = socket.data?.user?.userId;
   if (!userId) return;
   try {
@@ -27,7 +31,7 @@ export async function autoJoinUserRooms(io: Server, socket: AuthenticatedSocket)
       socket.join(`room:${m.roomId}`);
     }
   } catch (err) {
-    console.error(`Error auto-joining user ${userId} rooms:`, err);
+    log.error({ err }, 'Failed to auto-join user rooms');
   }
 }
 
@@ -52,93 +56,62 @@ export function syncUserSocketsRoomMembership(
   }
 }
 
-export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket): void {
+export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, log: Logger): void {
   const userId = socket.data.user.userId;
 
-  socket.on(SOCKET_EVENTS.ROOM_JOIN, async (payload: RoomJoinPayload, callback?: (res: any) => void) => {
-    try {
-      const { roomId } = payload || {};
-      if (!roomId) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'roomId is required' });
-        }
-        return;
-      }
-
-      const prisma = getPrisma();
-      const member = await prisma.roomMember.findUnique({
-        where: {
-          roomId_userId: {
-            roomId,
-            userId,
-          },
+  async function requireMember(roomId: string) {
+    const member = await getPrisma().roomMember.findUnique({
+      where: {
+        roomId_userId: {
+          roomId,
+          userId,
         },
-      });
+      },
+    });
+    if (!member) {
+      throw new AppError(403, ERROR_CODES.FORBIDDEN, 'Not a member of this room');
+    }
+    return member;
+  }
 
-      if (!member) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'Not a member of this room' });
-        }
-        return;
+  socket.on(
+    SOCKET_EVENTS.ROOM_JOIN,
+    socketHandler<RoomJoinPayload>(log, SOCKET_EVENTS.ROOM_JOIN, async (payload) => {
+      const { roomId } = payload || ({} as RoomJoinPayload);
+      if (!roomId) {
+        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'roomId is required');
       }
+
+      await requireMember(roomId);
 
       socket.join(`room:${roomId}`);
-      if (typeof callback === 'function') {
-        callback({ success: true });
-      }
-    } catch (err: any) {
-      console.error('Error handling room:join:', err);
-      if (typeof callback === 'function') {
-        callback({ success: false, error: err.message || 'Internal server error' });
-      }
-    }
-  });
+      return { success: true };
+    })
+  );
 
-  socket.on(SOCKET_EVENTS.ROOM_LEAVE, async (payload: RoomLeavePayload, callback?: (res: any) => void) => {
-    try {
-      const { roomId } = payload || {};
+  socket.on(
+    SOCKET_EVENTS.ROOM_LEAVE,
+    socketHandler<RoomLeavePayload>(log, SOCKET_EVENTS.ROOM_LEAVE, async (payload) => {
+      const { roomId } = payload || ({} as RoomLeavePayload);
       if (roomId) {
         socket.leave(`room:${roomId}`);
       }
-      if (typeof callback === 'function') {
-        callback({ success: true });
-      }
-    } catch (err: any) {
-      console.error('Error handling room:leave:', err);
-      if (typeof callback === 'function') {
-        callback({ success: false, error: err.message || 'Internal server error' });
-      }
-    }
-  });
+      return { success: true };
+    })
+  );
 
-  socket.on(SOCKET_EVENTS.ROOM_SEND, async (payload: RoomSendMessagePayload, callback?: (res: any) => void) => {
-    try {
-      const { roomId, content, type, attachmentUrl, attachmentName, attachmentSize } = payload || {};
+  socket.on(
+    SOCKET_EVENTS.ROOM_SEND,
+    socketHandler<RoomSendMessagePayload>(log, SOCKET_EVENTS.ROOM_SEND, async (payload) => {
+      const { roomId, content, type, attachmentUrl, attachmentName, attachmentSize } = payload || ({} as RoomSendMessagePayload);
       if (!roomId || (!content && !attachmentUrl)) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'roomId and content or attachment are required' });
-        }
-        return;
+        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'roomId and content or attachment are required');
       }
 
       const prisma = getPrisma();
 
       // Verify that user is a member of this room
-      const member = await prisma.roomMember.findUnique({
-        where: {
-          roomId_userId: {
-            roomId,
-            userId,
-          },
-        },
-      });
-
-      if (!member) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'Not a member of this room' });
-        }
-        return;
-      }
+      const member = await requireMember(roomId);
 
       const limit =
         member.role === RoomRole.OWNER || member.role === RoomRole.ADMIN
@@ -146,10 +119,7 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket): v
           : MESSAGE_LIMITS.ROOM_MEMBER;
 
       if (content && content.length > limit) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: `Message exceeds character limit of ${limit}` });
-        }
-        return;
+        throw new AppError(400, ERROR_CODES.MESSAGE_TOO_LONG, `Message exceeds character limit of ${limit}`);
       }
 
       // Create RoomMessage in DB
@@ -194,45 +164,22 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket): v
       // Broadcast to room
       io.to(`room:${roomId}`).emit(SOCKET_EVENTS.ROOM_RECEIVE, receivePayload);
 
-      if (typeof callback === 'function') {
-        callback({ success: true, message: receivePayload });
-      }
-    } catch (err: any) {
-      console.error('Error handling room:send:', err);
-      if (typeof callback === 'function') {
-        callback({ success: false, error: err.message || 'Internal server error' });
-      }
-    }
-  });
+      return { success: true, message: receivePayload };
+    })
+  );
 
-  socket.on(SOCKET_EVENTS.ROOM_READ, async (payload: { roomId: string; messageId: string }, callback?: (res: any) => void) => {
-    try {
+  socket.on(
+    SOCKET_EVENTS.ROOM_READ,
+    socketHandler<{ roomId: string; messageId: string }>(log, SOCKET_EVENTS.ROOM_READ, async (payload) => {
       if (!payload || !payload.roomId || !payload.messageId) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'roomId and messageId are required' });
-        }
-        return;
+        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'roomId and messageId are required');
       }
 
       const { roomId, messageId } = payload;
       const prisma = getPrisma();
 
       // Verify that user is a member of this room
-      const member = await prisma.roomMember.findUnique({
-        where: {
-          roomId_userId: {
-            roomId,
-            userId,
-          },
-        },
-      });
-
-      if (!member) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'Not a member of this room' });
-        }
-        return;
-      }
+      await requireMember(roomId);
 
       // Verify target message exists in this room
       const targetMessage = await prisma.roomMessage.findUnique({
@@ -240,10 +187,7 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket): v
       });
 
       if (!targetMessage || targetMessage.roomId !== roomId) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'Target message not found in this room' });
-        }
-        return;
+        throw new AppError(404, ERROR_CODES.NOT_FOUND, 'Target message not found in this room');
       }
 
       // Update caller's RoomMember.lastReadMessageId
@@ -269,45 +213,20 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket): v
       // Broadcast room:read to room
       io.to(`room:${roomId}`).emit(SOCKET_EVENTS.ROOM_READ, readPayload);
 
-      if (typeof callback === 'function') {
-        callback({ success: true, payload: readPayload });
-      }
-    } catch (err: any) {
-      console.error('Error handling room:read:', err);
-      if (typeof callback === 'function') {
-        callback({ success: false, error: err.message || 'Internal server error' });
-      }
-    }
-  });
+      return { success: true, payload: readPayload };
+    })
+  );
 
-  socket.on(SOCKET_EVENTS.ROOM_TYPING, async (payload: RoomTypingPayload, callback?: (res: any) => void) => {
-    try {
-      const { roomId, isTyping } = payload || {};
+  socket.on(
+    SOCKET_EVENTS.ROOM_TYPING,
+    socketHandler<RoomTypingPayload>(log, SOCKET_EVENTS.ROOM_TYPING, async (payload) => {
+      const { roomId, isTyping } = payload || ({} as RoomTypingPayload);
       if (!roomId || typeof isTyping !== 'boolean') {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'roomId and isTyping are required' });
-        }
-        return;
+        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'roomId and isTyping are required');
       }
-
-      const prisma = getPrisma();
 
       // Validate user is a member of the room
-      const member = await prisma.roomMember.findUnique({
-        where: {
-          roomId_userId: {
-            roomId,
-            userId,
-          },
-        },
-      });
-
-      if (!member) {
-        if (typeof callback === 'function') {
-          callback({ success: false, error: 'Not a member of this room' });
-        }
-        return;
-      }
+      await requireMember(roomId);
 
       const typingPayload: RoomTypingPayload = {
         roomId,
@@ -319,15 +238,7 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket): v
       // Broadcast room:typing to room
       socket.to(`room:${roomId}`).emit(SOCKET_EVENTS.ROOM_TYPING, typingPayload);
 
-      if (typeof callback === 'function') {
-        callback({ success: true });
-      }
-    } catch (err: any) {
-      console.error('Error handling room:typing:', err);
-      if (typeof callback === 'function') {
-        callback({ success: false, error: err.message || 'Internal server error' });
-      }
-    }
-  });
+      return { success: true };
+    })
+  );
 }
-

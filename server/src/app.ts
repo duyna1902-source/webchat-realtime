@@ -9,16 +9,23 @@ import uploadRoutes from './routes/upload.routes.js';
 import gifRoutes from './routes/gif.routes.js';
 import { UPLOADS_DIR, ensureUploadsDirExists } from './lib/storage.js';
 import type { AppConfig } from './config.js';
+import type { Logger } from './lib/logger.js';
+import { requestContext } from './middlewares/request-id.js';
+import { errorHandler } from './middlewares/error-handler.js';
+
+/** Largest JSON body accepted; bigger bodies get `413`. */
+export const JSON_BODY_LIMIT = '100kb';
 
 /**
  * Builds the Express app for one server instance. Use `createServer()` rather than calling this
  * directly: it also attaches the server context (config, storage, Socket.IO) the handlers read.
  */
-export function createApp(config: AppConfig): express.Express {
+export function createApp(config: AppConfig, logger: Logger): express.Express {
   const app = express();
 
+  app.use(requestContext(logger));
   app.use(cors());
-  app.use(express.json());
+  app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
   // Ensure uploads folder exists and serve statically
   ensureUploadsDirExists();
@@ -49,11 +56,8 @@ export function createApp(config: AppConfig): express.Express {
     });
   }
 
-  // Global error handler
-  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error('Unhandled application error:', err);
-    res.status(500).json({ message: err?.message || 'Internal server error' });
-  });
+  // Global error handler: generic body with requestId, details only in the log
+  app.use(errorHandler);
 
   return app;
 }

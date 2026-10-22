@@ -210,7 +210,7 @@ describe('Direct Chat Socket.io Real-Time Integration', () => {
     });
 
     expect(sendRes.success).toBe(false);
-    expect(sendRes.error).toMatch(/exceeds character limit/i);
+    expect(sendRes.error).toBe('MESSAGE_TOO_LONG');
 
     // Ensure recipient did not receive any broadcast
     await new Promise((r) => setTimeout(r, 200));
