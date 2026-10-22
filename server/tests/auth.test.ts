@@ -1,6 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
-import { app } from '../src/app.js';
+import type { Express } from 'express';
+import { createTestServer } from './helpers/server.js';
+
+let app: Express;
+
+beforeAll(async () => {
+  ({ app } = await createTestServer());
+});
 
 describe('Auth REST API Endpoints', () => {
   describe('POST /api/auth/register', () => {

@@ -1,11 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import http from 'http';
-import { AddressInfo } from 'net';
+import type { Express } from 'express';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { app } from '../src/app.js';
-import { setupSocketServer } from '../src/socket/index.js';
-import { generateToken } from '../src/lib/jwt.js';
+import { createTestServer, generateToken } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { SOCKET_EVENTS, normalizeDirectChatPair, MessageType, RoomRole } from '@webchat/shared';
 
@@ -23,6 +21,7 @@ function waitForEvent<T = any>(socket: ClientSocketType, event: string, timeout 
 }
 
 describe('GIF Search API & EMOJI_GIF Real-Time Messaging Integration', () => {
+  let app: Express;
   let httpServer: http.Server;
   let serverPort: number;
   let clientAlice: ClientSocketType;
@@ -33,15 +32,7 @@ describe('GIF Search API & EMOJI_GIF Real-Time Messaging Integration', () => {
   let tokenBob: string;
 
   beforeAll(async () => {
-    httpServer = http.createServer(app);
-    setupSocketServer(httpServer);
-
-    await new Promise<void>((resolve) => {
-      httpServer.listen(0, () => {
-        serverPort = (httpServer.address() as AddressInfo).port;
-        resolve();
-      });
-    });
+    ({ app, httpServer, port: serverPort } = await createTestServer({ listen: true }));
   });
 
   afterEach(() => {

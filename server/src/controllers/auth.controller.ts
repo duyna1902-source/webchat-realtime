@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { getPrisma } from '../lib/prisma.js';
-import { generateToken } from '../lib/jwt.js';
+import { signToken } from '../lib/jwt.js';
+import { getServerContext } from '../context.js';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
 import { UserDto } from '@webchat/shared';
 
@@ -58,10 +59,13 @@ export async function register(req: Request, res: Response): Promise<void> {
       },
     });
 
-    const token = generateToken({
-      userId: newUser.id,
-      username: newUser.username,
-    });
+    const token = signToken(
+      {
+        userId: newUser.id,
+        username: newUser.username,
+      },
+      getServerContext(req).config.jwtSecret
+    );
 
     res.status(201).json({
       token,
@@ -105,10 +109,13 @@ export async function login(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const token = generateToken({
-      userId: user.id,
-      username: user.username,
-    });
+    const token = signToken(
+      {
+        userId: user.id,
+        username: user.username,
+      },
+      getServerContext(req).config.jwtSecret
+    );
 
     res.status(200).json({
       token,

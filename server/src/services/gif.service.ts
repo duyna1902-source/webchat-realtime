@@ -261,8 +261,7 @@ function sanitizeGifDto(item: CuratedGifItem): GifItemDto {
   };
 }
 
-export async function fetchTrendingGifs(limit = 20): Promise<GifItemDto[]> {
-  const giphyKey = process.env.GIPHY_API_KEY;
+export async function fetchTrendingGifs(giphyKey: string | null, limit = 20): Promise<GifItemDto[]> {
   if (giphyKey) {
     try {
       const controller = new AbortController();
@@ -292,13 +291,12 @@ export async function fetchTrendingGifs(limit = 20): Promise<GifItemDto[]> {
   return CURATED_GIFS.slice(0, limit).map(sanitizeGifDto);
 }
 
-export async function searchGifs(query: string, limit = 20): Promise<GifItemDto[]> {
+export async function searchGifs(giphyKey: string | null, query: string, limit = 20): Promise<GifItemDto[]> {
   const trimmed = query.trim().toLowerCase();
   if (!trimmed) {
-    return fetchTrendingGifs(limit);
+    return fetchTrendingGifs(giphyKey, limit);
   }
 
-  const giphyKey = process.env.GIPHY_API_KEY;
   if (giphyKey) {
     try {
       const controller = new AbortController();

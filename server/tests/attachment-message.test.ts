@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import http from 'http';
-import { AddressInfo } from 'net';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { app } from '../src/app.js';
-import { setupSocketServer } from '../src/socket/index.js';
-import { generateToken } from '../src/lib/jwt.js';
+import { createTestServer, generateToken } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { SOCKET_EVENTS, MessageType, normalizeDirectChatPair, MESSAGE_LIMITS } from '@webchat/shared';
 
@@ -32,15 +29,7 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
   let room: any;
 
   beforeAll(async () => {
-    httpServer = http.createServer(app);
-    setupSocketServer(httpServer);
-
-    await new Promise<void>((resolve) => {
-      httpServer.listen(0, () => {
-        serverPort = (httpServer.address() as AddressInfo).port;
-        resolve();
-      });
-    });
+    ({ httpServer, port: serverPort } = await createTestServer({ listen: true }));
   });
 
   afterAll(async () => {

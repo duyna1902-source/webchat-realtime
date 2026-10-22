@@ -1,25 +1,24 @@
-import http from 'http';
-import dotenv from 'dotenv';
-import { app } from './app.js';
-import { setupSocketServer } from './socket/index.js';
-import { initPrisma } from './lib/prisma.js';
-
-dotenv.config();
-
-const PORT = process.env.PORT || 4000;
+// Must stay the first import: loads `.env` into process.env before any other module runs.
+import 'dotenv/config';
+import { loadConfig, ConfigError } from './config.js';
+import { createStorageAdapter } from './lib/storage.js';
+import { createServer } from './server.js';
 
 async function bootstrap() {
-  await initPrisma();
+  const config = loadConfig(process.env);
+  const storage = createStorageAdapter(config.storage);
+  const { httpServer } = await createServer({ config, storage });
 
-  const httpServer = http.createServer(app);
-  setupSocketServer(httpServer);
-
-  httpServer.listen(PORT, () => {
-    console.log(`🚀 Server listening on http://localhost:${PORT}`);
+  httpServer.listen(config.port, () => {
+    console.log(`🚀 Server listening on http://localhost:${config.port}`);
   });
 }
 
 bootstrap().catch((err) => {
-  console.error('Fatal bootstrap error:', err);
+  if (err instanceof ConfigError) {
+    console.error(err.message);
+  } else {
+    console.error('Fatal bootstrap error:', err);
+  }
   process.exit(1);
 });

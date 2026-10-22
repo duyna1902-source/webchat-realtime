@@ -1,9 +1,15 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import request from 'supertest';
-import { app } from '../src/app.js';
+import type { Express } from 'express';
+import { createTestServer, generateToken } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
-import { generateToken } from '../src/lib/jwt.js';
 import { normalizeDirectChatPair, MessageType, RoomRole, PaginatedMessagesDto, DirectReceiveMessagePayload, RoomReceiveMessagePayload } from '@webchat/shared';
+
+let app: Express;
+
+beforeAll(async () => {
+  ({ app } = await createTestServer());
+});
 
 describe('Cursor-Based Pagination Integration (Direct & Room Chats)', () => {
   let userAlice: any;

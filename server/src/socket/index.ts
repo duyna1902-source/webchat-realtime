@@ -1,6 +1,7 @@
 import http from 'http';
 import { Server, Socket } from 'socket.io';
 import { verifyToken, JwtPayload } from '../lib/jwt.js';
+import type { AppConfig } from '../config.js';
 import { registerDirectChatHandlers, handleDirectMessagesDeliveryOnConnect } from './direct.handler.js';
 import { registerRoomHandlers, autoJoinUserRooms } from './room.handler.js';
 import { handleUserConnect, handleUserDisconnect } from './presence.handler.js';
@@ -11,13 +12,7 @@ export interface AuthenticatedSocket extends Socket {
   };
 }
 
-let ioInstance: Server | null = null;
-
-export function getIO(): Server | null {
-  return ioInstance;
-}
-
-export function setupSocketServer(httpServer: http.Server): Server {
+export function setupSocketServer(httpServer: http.Server, config: AppConfig): Server {
   const io = new Server(httpServer, {
     cors: {
       origin: '*',
@@ -25,11 +20,10 @@ export function setupSocketServer(httpServer: http.Server): Server {
     },
     transports: ['websocket', 'polling'],
     connectionStateRecovery: {
-      maxDisconnectionDuration: 2 * 60 * 1000,
+      maxDisconnectionDuration: config.timing.connectionStateRecoveryMs,
       skipMiddlewares: true,
     },
   });
-  ioInstance = io;
 
   // JWT Authentication Middleware for Socket.io
   io.use((socket, next) => {
@@ -44,7 +38,7 @@ export function setupSocketServer(httpServer: http.Server): Server {
     }
 
     try {
-      const decoded = verifyToken(token);
+      const decoded = verifyToken(token, config.jwtSecret);
       (decoded as any).id = decoded.userId;
       socket.data.user = decoded;
       next();
@@ -73,7 +67,7 @@ export function setupSocketServer(httpServer: http.Server): Server {
 
     // Client is successfully authenticated and connected
     socket.on('disconnect', () => {
-      handleUserDisconnect(io, authSocket);
+      handleUserDisconnect(io, authSocket, config.timing.presenceGracePeriodMs);
     });
   });
 

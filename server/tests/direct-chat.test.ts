@@ -1,8 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import request from 'supertest';
-import { app } from '../src/app.js';
+import type { Express } from 'express';
+import { createTestServer, generateToken } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
-import { generateToken } from '../src/lib/jwt.js';
+
+let app: Express;
+
+beforeAll(async () => {
+  ({ app } = await createTestServer());
+});
 
 describe('Direct Chat REST APIs', () => {
   let user1: any;
