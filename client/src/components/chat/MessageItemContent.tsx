@@ -1,7 +1,29 @@
 import React from 'react';
 import { MessageType } from '@webchat/shared';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, FileX } from 'lucide-react';
 import { formatFileSize } from '../../utils/format';
+import { safeUrl } from '../../utils/safeUrl';
+
+export const ATTACHMENT_UNAVAILABLE_TEXT = 'Tệp đính kèm không còn khả dụng';
+
+const UnavailableAttachment: React.FC<{ caption?: string | null; isMe: boolean }> = ({ caption, isMe }) => (
+  <div className="flex flex-col gap-2">
+    <div
+      data-testid="attachment-unavailable"
+      className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs italic ${
+        isMe
+          ? 'bg-blue-700/40 border-blue-400/40 text-blue-100'
+          : 'bg-google-grey50 border-google-grey200 text-google-grey700'
+      }`}
+    >
+      <FileX className="w-4 h-4 shrink-0" />
+      <span>{ATTACHMENT_UNAVAILABLE_TEXT}</span>
+    </div>
+    {caption && (
+      <p className="text-sm break-words [overflow-wrap:anywhere] whitespace-pre-wrap">{caption}</p>
+    )}
+  </div>
+);
 
 interface MessageItemContentProps {
   content: string;
@@ -29,14 +51,18 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
   const isGif = type === MessageType.EMOJI_GIF;
 
   if (isGif) {
+    const gifUrl = safeUrl(content);
+    if (!gifUrl) {
+      return <UnavailableAttachment isMe={isMe} />;
+    }
     return (
       <div className="overflow-hidden rounded-xl">
         <img
-          src={content}
+          src={gifUrl}
           alt="GIF message"
           loading="lazy"
           className="rounded-xl max-w-full sm:max-w-xs md:max-w-sm max-h-64 object-cover cursor-pointer hover:opacity-95 transition"
-          onClick={() => window.open(content, '_blank', 'noopener,noreferrer')}
+          onClick={() => window.open(gifUrl, '_blank', 'noopener,noreferrer')}
         />
       </div>
     );
@@ -44,12 +70,16 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
 
   if (isImage && attachmentUrl) {
     const hasDistinctContent = content && content.trim() !== '' && content !== attachmentName;
+    const imageUrl = safeUrl(attachmentUrl);
+    if (!imageUrl) {
+      return <UnavailableAttachment caption={hasDistinctContent ? content : null} isMe={isMe} />;
+    }
     return (
       <div className="flex flex-col gap-1.5">
         <img
-          src={attachmentUrl}
+          src={imageUrl}
           alt={attachmentName || 'Image attachment'}
-          onClick={() => onImageClick?.(attachmentUrl, attachmentName)}
+          onClick={() => onImageClick?.(imageUrl, attachmentName)}
           className="rounded-xl max-h-60 max-w-full sm:max-w-xs object-cover cursor-pointer hover:opacity-95 transition shadow-xs border border-black/5"
         />
         {hasDistinctContent && (
@@ -61,11 +91,15 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
 
   if (isDocument && attachmentUrl) {
     const hasDistinctContent = content && content.trim() !== '' && content !== attachmentName;
+    const documentUrl = safeUrl(attachmentUrl);
+    if (!documentUrl) {
+      return <UnavailableAttachment caption={hasDistinctContent ? content : null} isMe={isMe} />;
+    }
     return (
       <div className="flex flex-col gap-2">
         <div
           data-testid="document-attachment-card"
-          onClick={() => onDocumentClick?.(attachmentUrl, attachmentName, attachmentSize)}
+          onClick={() => onDocumentClick?.(documentUrl, attachmentName, attachmentSize)}
           className={`flex items-center gap-3 p-2.5 rounded-xl border transition cursor-pointer ${
             isMe
               ? 'bg-blue-700/40 border-blue-400/40 text-white hover:bg-blue-700/50'
@@ -90,7 +124,7 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
           </div>
 
           <a
-            href={attachmentUrl}
+            href={documentUrl}
             download={attachmentName || 'document'}
             target="_blank"
             rel="noopener noreferrer"

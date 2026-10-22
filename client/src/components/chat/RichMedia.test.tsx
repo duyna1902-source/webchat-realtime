@@ -324,6 +324,75 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
       expect(gifImg).toHaveAttribute('loading', 'lazy');
     });
 
+    it('opens a valid https GIF in a new tab when clicked', () => {
+      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+      const gifUrl = 'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif';
+
+      renderWithProviders(
+        <ChatArea
+          activeChat={mockDirectChat}
+          messages={[
+            {
+              id: 'msg-gif-ok',
+              directChatId: 'chat-123',
+              senderId: 'user-bob',
+              sender: { id: 'user-bob', username: 'bob', avatarUrl: null },
+              content: gifUrl,
+              type: MessageType.EMOJI_GIF,
+              status: MessageStatus.SENT,
+              attachmentUrl: null,
+              attachmentName: null,
+              attachmentSize: null,
+              createdAt: new Date().toISOString(),
+            },
+          ]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('img', { name: /gif message/i }));
+      expect(openSpy).toHaveBeenCalledWith(gifUrl, '_blank', 'noopener,noreferrer');
+      openSpy.mockRestore();
+    });
+
+    it('does not render or open an EMOJI_GIF whose content is a javascript: URL (A20)', () => {
+      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+      renderWithProviders(
+        <ChatArea
+          activeChat={mockDirectChat}
+          messages={[
+            {
+              id: 'msg-gif-evil',
+              directChatId: 'chat-123',
+              senderId: 'user-bob',
+              sender: { id: 'user-bob', username: 'bob', avatarUrl: null },
+              content: 'javascript:alert(1)',
+              type: MessageType.EMOJI_GIF,
+              status: MessageStatus.SENT,
+              attachmentUrl: null,
+              attachmentName: null,
+              attachmentSize: null,
+              createdAt: new Date().toISOString(),
+            },
+          ]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+        />
+      );
+
+      const gifImg = screen.queryByRole('img', { name: /gif message/i });
+      if (gifImg) fireEvent.click(gifImg);
+      expect(openSpy).not.toHaveBeenCalled();
+      document.body.querySelectorAll('[href], [src]').forEach((el) => {
+        const value = (el.getAttribute('href') ?? el.getAttribute('src') ?? '').trim().toLowerCase();
+        expect(value.startsWith('javascript:')).toBe(false);
+      });
+      expect(screen.getByText('Tệp đính kèm không còn khả dụng')).toBeInTheDocument();
+      openSpy.mockRestore();
+    });
+
     it('renders animated GIF and supports emoji picker and GIF search modal in Room Chat', async () => {
       (global.fetch as any).mockResolvedValueOnce({
         ok: true,

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Download, FileText, Loader2, AlertCircle } from 'lucide-react';
 import { formatFileSize } from '../../utils/format';
+import { safeUrl } from '../../utils/safeUrl';
+import { ATTACHMENT_UNAVAILABLE_TEXT } from './MessageItemContent';
 
 export interface DocumentPreviewModalProps {
   isOpen: boolean;
@@ -36,6 +38,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   const [isLoadingText, setIsLoadingText] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
 
+  const safeDocumentUrl = safeUrl(documentUrl);
   const docType = getDocType(documentName);
   const fileExt = getFileExtension(documentName);
 
@@ -56,7 +59,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 
   // Fetch text content if text document
   useEffect(() => {
-    if (!isOpen || docType !== 'text' || !documentUrl) {
+    if (!isOpen || docType !== 'text' || !safeDocumentUrl) {
       setTextContent(null);
       setIsLoadingText(false);
       setErrorText(null);
@@ -67,7 +70,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     setIsLoadingText(true);
     setErrorText(null);
 
-    fetch(documentUrl)
+    fetch(safeDocumentUrl)
       .then((res) => {
         if (!res.ok) {
           throw new Error(`Failed to load document (${res.status})`);
@@ -90,7 +93,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, docType, documentUrl]);
+  }, [isOpen, docType, safeDocumentUrl]);
 
   if (!isOpen) return null;
 
@@ -127,17 +130,19 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            <a
-              href={documentUrl}
-              download={documentName || 'document'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 rounded-full text-google-grey700 hover:text-google-blue hover:bg-google-grey100 transition cursor-pointer"
-              title="Download file"
-              aria-label="Download file"
-            >
-              <Download className="w-5 h-5" />
-            </a>
+            {safeDocumentUrl && (
+              <a
+                href={safeDocumentUrl}
+                download={documentName || 'document'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-full text-google-grey700 hover:text-google-blue hover:bg-google-grey100 transition cursor-pointer"
+                title="Download file"
+                aria-label="Download file"
+              >
+                <Download className="w-5 h-5" />
+              </a>
+            )}
             <button
               onClick={onClose}
               className="p-2 rounded-full text-google-grey700 hover:text-google-grey900 hover:bg-google-grey100 transition cursor-pointer"
@@ -151,10 +156,20 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 
         {/* Content Viewer */}
         <div className="flex-1 overflow-auto bg-google-grey50 flex flex-col items-center justify-center min-h-[350px]">
-          {docType === 'pdf' && (
+          {!safeDocumentUrl && (
+            <div
+              data-testid="attachment-unavailable"
+              className="flex flex-col items-center justify-center p-8 gap-3 text-center m-auto"
+            >
+              <AlertCircle className="w-8 h-8 text-google-grey700" />
+              <p className="text-sm font-semibold text-google-grey900">{ATTACHMENT_UNAVAILABLE_TEXT}</p>
+            </div>
+          )}
+
+          {safeDocumentUrl && docType === 'pdf' && (
             <div className="w-full h-[70vh] min-h-[450px]">
               <iframe
-                src={documentUrl}
+                src={safeDocumentUrl}
                 title={documentName || 'PDF Document'}
                 data-testid="pdf-preview-frame"
                 className="w-full h-full border-0 bg-white"
@@ -162,7 +177,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             </div>
           )}
 
-          {docType === 'text' && (
+          {safeDocumentUrl && docType === 'text' && (
             <div className="w-full h-full p-4 flex flex-col">
               {isLoadingText && (
                 <div className="flex flex-col items-center justify-center p-12 gap-3 m-auto">
@@ -176,7 +191,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                   <AlertCircle className="w-8 h-8 text-google-red" />
                   <p className="text-sm font-semibold text-google-grey900">{errorText}</p>
                   <a
-                    href={documentUrl}
+                    href={safeDocumentUrl}
                     download={documentName || 'document'}
                     className="mt-2 px-4 py-2 bg-google-blue hover:bg-google-blue-hover text-white rounded-xl text-xs font-semibold shadow-xs transition"
                   >
@@ -196,7 +211,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             </div>
           )}
 
-          {docType === 'binary' && (
+          {safeDocumentUrl && docType === 'binary' && (
             <div
               data-testid="binary-preview-card"
               className="flex flex-col items-center justify-center p-8 sm:p-12 text-center gap-4 m-auto"
@@ -223,7 +238,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 This file format cannot be viewed directly inside the browser. Download the file to view it on your device.
               </p>
               <a
-                href={documentUrl}
+                href={safeDocumentUrl}
                 download={documentName || 'document'}
                 className="mt-2 px-6 py-2.5 bg-google-blue hover:bg-google-blue-hover text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm transition cursor-pointer"
               >

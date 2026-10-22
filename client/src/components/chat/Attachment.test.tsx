@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { ChatArea } from './ChatArea';
 import { RoomChatArea } from '../room/RoomChatArea';
+import { DocumentPreviewModal } from './DocumentPreviewModal';
+import { ImageLightboxModal } from './ImageLightboxModal';
 import { AuthContext } from '../../context/AuthContext';
 import { SocketContext } from '../../context/SocketContext';
 import {
@@ -374,6 +376,139 @@ describe('File Attachments, Image Preview & Message Cards', () => {
 
       fireEvent.click(modalBackdrop);
       expect(screen.queryByTestId('document-preview-modal')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Safe URL Rendering (cyber-upgradation Ticket 06)', () => {
+    const UNSAFE_URL = 'javascript:alert(1)';
+
+    function expectNoJavascriptUrlInDom() {
+      const sinks = document.body.querySelectorAll('[href], [src]');
+      sinks.forEach((el) => {
+        const value = (el.getAttribute('href') ?? el.getAttribute('src') ?? '').trim().toLowerCase();
+        expect(value.startsWith('javascript:')).toBe(false);
+      });
+      document.body.querySelectorAll('iframe').forEach((frame) => {
+        expect((frame.getAttribute('src') ?? '').trim().toLowerCase().startsWith('javascript:')).toBe(false);
+      });
+    }
+
+    function buildMessage(overrides: Partial<DirectReceiveMessagePayload>): DirectReceiveMessagePayload {
+      return {
+        id: 'unsafe-msg-1',
+        directChatId: 'chat-1',
+        senderId: 'partner-user-id',
+        sender: { id: 'partner-user-id', username: 'bob', avatarUrl: null },
+        content: 'Quarterly report',
+        type: MessageType.DOCUMENT,
+        status: MessageStatus.SENT,
+        attachmentUrl: UNSAFE_URL,
+        attachmentName: 'report.pdf',
+        attachmentSize: 1024 * 100,
+        createdAt: new Date().toISOString(),
+        ...overrides,
+      };
+    }
+
+    function renderMessage(message: DirectReceiveMessagePayload) {
+      return renderWithProviders(
+        <ChatArea
+          activeChat={mockChat}
+          messages={[message]}
+          isLoadingMessages={false}
+          onSendMessage={vi.fn()}
+        />
+      );
+    }
+
+    it('DOCUMENT with a javascript: attachmentUrl renders no href, src or iframe carrying that scheme and never opens it (A18)', () => {
+      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+      const fetchSpy = vi.spyOn(global, 'fetch');
+
+      renderMessage(buildMessage({}));
+
+      expectNoJavascriptUrlInDom();
+      expect(screen.getByText('Tệp đính kèm không còn khả dụng')).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /download/i })).not.toBeInTheDocument();
+      // The caption text is still readable
+      expect(screen.getByText('Quarterly report')).toBeInTheDocument();
+
+      // Trying to open the attachment (card, if any) must not open a preview with that URL
+      const card = screen.queryByTestId('document-attachment-card');
+      if (card) fireEvent.click(card);
+      expect(screen.queryByTestId('pdf-preview-frame')).not.toBeInTheDocument();
+      expectNoJavascriptUrlInDom();
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalledWith(UNSAFE_URL);
+
+      openSpy.mockRestore();
+      fetchSpy.mockRestore();
+    });
+
+    it('IMAGE with a javascript: attachmentUrl renders the unavailable state instead of an image or lightbox', () => {
+      renderMessage(
+        buildMessage({ type: MessageType.IMAGE, attachmentName: 'cat.png', content: 'Look at my cat' })
+      );
+
+      expectNoJavascriptUrlInDom();
+      expect(screen.queryByRole('img', { name: /cat\.png|image attachment/i })).not.toBeInTheDocument();
+      expect(screen.getByText('Tệp đính kèm không còn khả dụng')).toBeInTheDocument();
+      expect(screen.getByText('Look at my cat')).toBeInTheDocument();
+    });
+
+    it('a valid https DOCUMENT still renders its Download link and opens the PDF preview iframe', async () => {
+      const httpsUrl = 'https://storage.example.com/object/sign/attachments/report.pdf?token=abc';
+      renderMessage(buildMessage({ attachmentUrl: httpsUrl }));
+
+      expect(screen.queryByText('Tệp đính kèm không còn khả dụng')).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /download report\.pdf/i })).toHaveAttribute('href', httpsUrl);
+
+      fireEvent.click(screen.getByTestId('document-attachment-card'));
+      expect(await screen.findByTestId('pdf-preview-frame')).toHaveAttribute('src', httpsUrl);
+      expect(screen.getByRole('link', { name: /^download file$/i })).toHaveAttribute('href', httpsUrl);
+    });
+
+    it('a valid https IMAGE still renders and opens in the lightbox with its Download link', async () => {
+      const httpsUrl = 'https://storage.example.com/object/sign/attachments/cat.png?token=abc';
+      renderMessage(
+        buildMessage({ type: MessageType.IMAGE, attachmentUrl: httpsUrl, attachmentName: 'cat.png' })
+      );
+
+      const thumbnail = screen.getByRole('img', { name: 'cat.png' });
+      expect(thumbnail).toHaveAttribute('src', httpsUrl);
+      fireEvent.click(thumbnail);
+
+      const lightbox = await screen.findByTestId('image-lightbox-modal');
+      expect(within(lightbox).getByRole('img', { name: 'cat.png' })).toHaveAttribute('src', httpsUrl);
+      expect(within(lightbox).getByRole('link', { name: /download full image/i })).toHaveAttribute('href', httpsUrl);
+    });
+
+    it.each(['report.pdf', 'notes.txt', 'archive.zip'])(
+      'Document Preview opened with a javascript: URL for %s renders no iframe, fetch or download link',
+      (name) => {
+        const fetchSpy = vi.spyOn(global, 'fetch');
+        render(
+          <DocumentPreviewModal isOpen onClose={vi.fn()} documentUrl={UNSAFE_URL} documentName={name} />
+        );
+
+        expect(screen.getByTestId('document-preview-modal')).toBeInTheDocument();
+        expect(document.body.querySelector('iframe')).toBeNull();
+        expect(screen.queryByRole('link')).not.toBeInTheDocument();
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(screen.getByText('Tệp đính kèm không còn khả dụng')).toBeInTheDocument();
+        expectNoJavascriptUrlInDom();
+        fetchSpy.mockRestore();
+      }
+    );
+
+    it('Image Lightbox opened with a javascript: URL renders no image source or download link', () => {
+      render(<ImageLightboxModal isOpen onClose={vi.fn()} imageUrl={UNSAFE_URL} imageName="cat.png" />);
+
+      expect(screen.getByTestId('image-lightbox-modal')).toBeInTheDocument();
+      expect(screen.queryByRole('link')).not.toBeInTheDocument();
+      expect(screen.queryByRole('img')).not.toBeInTheDocument();
+      expect(screen.getByText('Tệp đính kèm không còn khả dụng')).toBeInTheDocument();
+      expectNoJavascriptUrlInDom();
     });
   });
 
