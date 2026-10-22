@@ -1,60 +1,21 @@
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
+import { Router, type RequestHandler } from 'express';
 import type { StorageConfig } from '../config.js';
 
-// Upload directory resolution (defaults to <cwd>/uploads)
+// Local adapter directory (defaults to <cwd>/uploads)
 export const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads');
 
-export function ensureUploadsDirExists(): void {
-  if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-  }
+export interface PutOptions {
+  /** The `Content-Type` detected by the server, never the one the client declared. */
+  contentType: string;
 }
 
-export interface UploadResult {
+export interface StoredObject {
+  /** Random UUID naming the object in storage; never derived from the original file name. */
+  storageKey: string;
   url: string;
-  name: string;
-  filename: string;
-  size: number;
-  mimeType: string;
-}
-
-/**
- * Validates whether the given MIME type is an allowed image or document.
- */
-export function isAllowedMimeType(mimeType: string): boolean {
-  if (!mimeType) return false;
-  const mime = mimeType.toLowerCase();
-
-  // Images: any image/*
-  if (mime.startsWith('image/')) {
-    return true;
-  }
-
-  // Common documents
-  const allowedDocMimes = [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'text/plain',
-    'text/csv',
-    'text/markdown',
-    'text/xml',
-    'application/zip',
-    'application/x-zip-compressed',
-    'application/x-zip',
-    'application/json',
-    'application/xml',
-    'application/rtf',
-    'application/octet-stream',
-  ];
-
-  return allowedDocMimes.includes(mime);
 }
 
 // ==========================================
@@ -63,71 +24,91 @@ export function isAllowedMimeType(mimeType: string): boolean {
 
 export interface StorageAdapter {
   readonly name: string;
-  upload(file: Express.Multer.File): Promise<UploadResult>;
+  put(data: Buffer, options: PutOptions): Promise<StoredObject>;
+  /**
+   * Only for adapters whose files this server serves itself (local): the handler mounted
+   * at `/uploads`.
+   */
+  createRequestHandler?(): RequestHandler;
 }
 
-async function readUploadedFile(file: Express.Multer.File): Promise<Buffer> {
-  if (file.buffer) {
-    return file.buffer;
-  }
-  if (file.path && fs.existsSync(file.path)) {
-    return fs.promises.readFile(file.path);
-  }
-  throw new Error('File data is missing');
-}
-
-async function removeTemporaryFile(file: Express.Multer.File): Promise<void> {
-  if (file.path && fs.existsSync(file.path)) {
-    await fs.promises.unlink(file.path).catch(() => {});
-  }
-}
+const STORAGE_KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 // Dev and test only: the app is served from a single origin, so the URL is relative.
+// Each object is `<dir>/<storageKey>`, with its content type in `<dir>/<storageKey>.json`.
 export class LocalStorageAdapter implements StorageAdapter {
   readonly name = 'local';
 
-  async upload(file: Express.Multer.File): Promise<UploadResult> {
-    const filename = file.filename || file.originalname;
+  constructor(private readonly dir: string = UPLOADS_DIR) {}
 
-    return {
-      url: `/uploads/${filename}`,
-      name: file.originalname,
-      filename: file.originalname,
-      size: file.size,
-      mimeType: file.mimetype,
-    };
+  async put(data: Buffer, { contentType }: PutOptions): Promise<StoredObject> {
+    const storageKey = randomUUID();
+    await fs.promises.mkdir(this.dir, { recursive: true });
+    await fs.promises.writeFile(path.join(this.dir, storageKey), data);
+    await fs.promises.writeFile(path.join(this.dir, `${storageKey}.json`), JSON.stringify({ contentType }));
+    return { storageKey, url: `/uploads/${storageKey}` };
+  }
+
+  /**
+   * Serves stored files as downloads with their stored type and `nosniff`, so the browser
+   * never renders one as a page of this origin.
+   */
+  createRequestHandler(): RequestHandler {
+    const router = Router();
+    router.get('/:storageKey', async (req, res, next) => {
+      const { storageKey } = req.params;
+      if (!STORAGE_KEY_PATTERN.test(storageKey)) {
+        next();
+        return;
+      }
+      try {
+        const meta = JSON.parse(await fs.promises.readFile(path.join(this.dir, `${storageKey}.json`), 'utf8'));
+        const data = await fs.promises.readFile(path.join(this.dir, storageKey));
+        res.set({
+          'Content-Type': meta.contentType,
+          'Content-Disposition': 'attachment',
+          'X-Content-Type-Options': 'nosniff',
+        });
+        res.send(data);
+      } catch (err: any) {
+        if (err?.code === 'ENOENT') {
+          next();
+          return;
+        }
+        next(err);
+      }
+    });
+    return router;
   }
 }
 
 const MEMORY_URL_PREFIX = 'memory://';
 
+export interface MemoryObject {
+  data: Buffer;
+  contentType: string;
+}
+
 // Test only: keeps uploaded bytes in process memory, addressed by the returned URL.
 export class InMemoryStorageAdapter implements StorageAdapter {
   readonly name = 'memory';
-  private readonly objects = new Map<string, Buffer>();
+  private readonly objects = new Map<string, MemoryObject>();
 
-  async upload(file: Express.Multer.File): Promise<UploadResult> {
-    try {
-      const data = await readUploadedFile(file);
-      const key = randomUUID();
-      this.objects.set(key, data);
-
-      return {
-        url: `${MEMORY_URL_PREFIX}${key}`,
-        name: file.originalname,
-        filename: key,
-        size: data.length,
-        mimeType: file.mimetype,
-      };
-    } finally {
-      await removeTemporaryFile(file);
-    }
+  async put(data: Buffer, { contentType }: PutOptions): Promise<StoredObject> {
+    const storageKey = randomUUID();
+    this.objects.set(storageKey, { data, contentType });
+    return { storageKey, url: `${MEMORY_URL_PREFIX}${storageKey}` };
   }
 
-  /** Returns the stored bytes for a URL returned by `upload`, if any. */
-  read(url: string): Buffer | undefined {
+  /** Returns the stored object for a URL returned by `put`, if any. */
+  readObject(url: string): MemoryObject | undefined {
     if (!url.startsWith(MEMORY_URL_PREFIX)) return undefined;
     return this.objects.get(url.slice(MEMORY_URL_PREFIX.length));
+  }
+
+  /** Returns the stored bytes for a URL returned by `put`, if any. */
+  read(url: string): Buffer | undefined {
+    return this.readObject(url)?.data;
   }
 }
 
@@ -154,46 +135,34 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     this.fetch = options.fetch ?? ((input, init) => fetch(input, init));
   }
 
-  async upload(file: Express.Multer.File): Promise<UploadResult> {
+  async put(data: Buffer, { contentType }: PutOptions): Promise<StoredObject> {
     if (!this.supabaseUrl || !this.secretKey) {
       throw new Error('Supabase storage is not configured');
     }
 
-    try {
-      const fileBuffer = await readUploadedFile(file);
+    const storageKey = randomUUID();
+    const uploadUrl = `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${storageKey}`;
 
-      const sanitized = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const objectPath = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${sanitized}`;
-      const uploadUrl = `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${objectPath}`;
+    // Secret keys are not JWTs: Supabase accepts them only in the `apikey` header,
+    // and rejects them as a `Bearer` token.
+    const res = await this.fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        apikey: this.secretKey,
+        'Content-Type': contentType,
+      },
+      body: data,
+    });
 
-      // Secret keys are not JWTs: Supabase accepts them only in the `apikey` header,
-      // and rejects them as a `Bearer` token.
-      const res = await this.fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          apikey: this.secretKey,
-          'Content-Type': file.mimetype,
-        },
-        body: fileBuffer,
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Supabase storage upload failed: ${errText}`);
-      }
-
-      const publicUrl = `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/${objectPath}`;
-
-      return {
-        url: publicUrl,
-        name: file.originalname,
-        filename: objectPath,
-        size: file.size,
-        mimeType: file.mimetype,
-      };
-    } finally {
-      await removeTemporaryFile(file);
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Supabase storage upload failed: ${errText}`);
     }
+
+    return {
+      storageKey,
+      url: `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/${storageKey}`,
+    };
   }
 }
 
