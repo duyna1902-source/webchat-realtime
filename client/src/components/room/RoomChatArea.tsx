@@ -380,7 +380,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                   )}
 
                   <div
-                    className={`max-w-full min-w-0 px-4 py-2.5 rounded-2xl shadow-xs text-sm break-words [overflow-wrap:anywhere] whitespace-pre-wrap ${
+                    className={`max-w-full min-w-0 px-4 py-2.5 rounded-2xl shadow-xs text-sm [overflow-wrap:anywhere] whitespace-pre-wrap ${
                       isGif
                         ? isMe
                           ? 'bg-google-blue text-white p-1 rounded-2xl rounded-br-xs shadow-xs'
@@ -567,7 +567,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                   ? 'Add a caption (optional)...'
                   : `Message #${activeRoom.name}...`
               }
-              className="w-full bg-transparent resize-none outline-none text-base sm:text-sm text-google-grey900 placeholder-google-grey700 max-h-24 break-words [overflow-wrap:anywhere]"
+              className="w-full bg-transparent resize-none outline-none text-base sm:text-sm text-google-grey900 placeholder-google-grey700 max-h-24 [overflow-wrap:anywhere]"
             />
           </div>
 
