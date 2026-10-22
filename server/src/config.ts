@@ -24,8 +24,7 @@ export type LogLevel = (typeof LOG_LEVELS)[number];
 
 export type StorageConfig =
   | { provider: 'local' }
-  | { provider: 'supabase'; url: string; secretKey: string; bucket: string }
-  | { provider: 'cloudinary'; cloudName: string; uploadPreset: string | null; apiKey: string | null };
+  | { provider: 'supabase'; url: string; secretKey: string; bucket: string };
 
 export interface RateLimitRule {
   max: number;
@@ -226,19 +225,6 @@ export function loadConfig(env: Env, options: LoadConfigOptions = {}): AppConfig
     if (!secretKey) fail('SUPABASE_SECRET_KEY', 'is required when STORAGE_PROVIDER=supabase');
     if (!bucket) fail('SUPABASE_STORAGE_BUCKET', 'is required when STORAGE_PROVIDER=supabase');
     if (url && secretKey && bucket) storage = { provider: 'supabase', url, secretKey, bucket };
-  } else if (provider === 'cloudinary') {
-    // Kept until ticket 04 removes the Cloudinary adapter.
-    const cloudName = read(env, 'CLOUDINARY_CLOUD_NAME');
-    if (!cloudName) {
-      fail('CLOUDINARY_CLOUD_NAME', 'is required when STORAGE_PROVIDER=cloudinary');
-    } else {
-      storage = {
-        provider: 'cloudinary',
-        cloudName,
-        uploadPreset: read(env, 'CLOUDINARY_UPLOAD_PRESET') ?? null,
-        apiKey: read(env, 'CLOUDINARY_API_KEY') ?? null,
-      };
-    }
   } else if (provider !== '' && provider !== 'local') {
     fail('STORAGE_PROVIDER', 'must be one of local, supabase');
   }
