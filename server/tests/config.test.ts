@@ -178,6 +178,14 @@ describe('loadConfig', () => {
     expect(err.issues.map((issue) => issue.variable)).toEqual(['SUPABASE_SECRET_KEY']);
   });
 
+  it('rejects the removed Cloudinary storage provider', () => {
+    const err = configErrorOf(() =>
+      loadConfig({ ...devEnv, STORAGE_PROVIDER: 'cloudinary', CLOUDINARY_CLOUD_NAME: 'demo-cloud' }, { clientDistPath: missingClientDist })
+    );
+
+    expect(err.issues.map((issue) => issue.variable)).toEqual(['STORAGE_PROVIDER']);
+  });
+
   it('rejects production when the client build is missing', () => {
     const err = configErrorOf(() => loadConfig(productionEnv, { clientDistPath: missingClientDist }));
 

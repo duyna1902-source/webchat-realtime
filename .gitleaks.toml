@@ -1,0 +1,16 @@
+# gitleaks configuration for webchat-realtime.
+# Used by the pre-commit hook (.githooks/pre-commit) and by manual scans. See README "Secret scanning".
+
+title = "webchat-realtime"
+
+[extend]
+# Keep every built-in gitleaks rule; this file only adds allowlists.
+useDefault = true
+
+[allowlist]
+description = "Fake secrets that exist only as test fixtures"
+# Server tests sign tokens with throwaway values; they never reach a deployed environment.
+# Both separators so the pattern matches Windows paths in `gitleaks dir` too.
+paths = [
+  '''^server[\\/]tests[\\/]''',
+]
