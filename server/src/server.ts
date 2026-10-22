@@ -7,11 +7,14 @@ import { initPrisma } from './lib/prisma.js';
 import { setupSocketServer } from './socket/index.js';
 import { createApp } from './app.js';
 import { attachServerContext } from './context.js';
+import { createLogger, Logger } from './lib/logger.js';
 
 export interface CreateServerOptions {
   /** Validated configuration from `loadConfig()`. */
   config: AppConfig;
   storage: StorageAdapter;
+  /** Defaults to a JSON logger on stdout at `config.logLevel`. */
+  logger?: Logger;
 }
 
 export interface WebchatServer {
@@ -19,20 +22,22 @@ export interface WebchatServer {
   httpServer: http.Server;
   app: Express;
   io: SocketServer;
+  logger: Logger;
 }
 
 /**
  * Server factory: the single way to build the server, in production and in tests.
  * Connects the database, then wires Express and Socket.IO onto one HTTP server.
  */
-export async function createServer({ config, storage }: CreateServerOptions): Promise<WebchatServer> {
+export async function createServer({ config, storage, logger: injectedLogger }: CreateServerOptions): Promise<WebchatServer> {
+  const logger = injectedLogger ?? createLogger({ level: config.logLevel });
   await initPrisma(config.databaseUrl);
 
-  const app = createApp(config);
+  const app = createApp(config, logger);
   const httpServer = http.createServer(app);
   // Socket.IO must attach after Express so it can intercept `/socket.io` requests first.
-  const io = setupSocketServer(httpServer, config);
+  const io = setupSocketServer(httpServer, config, logger);
   attachServerContext(app.locals, { config, storage, io });
 
-  return { httpServer, app, io };
+  return { httpServer, app, io, logger };
 }

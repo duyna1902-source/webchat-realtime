@@ -106,7 +106,7 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
     });
 
     expect(joinRes.success).toBe(false);
-    expect(joinRes.error).toMatch(/not a member/i);
+    expect(joinRes.error).toBe('FORBIDDEN');
   });
 
   it('allows members to join room and broadcasts room messages to room members', async () => {
@@ -168,7 +168,7 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
     });
 
     expect(sendRes.success).toBe(false);
-    expect(sendRes.error).toMatch(/not a member/i);
+    expect(sendRes.error).toBe('FORBIDDEN');
 
     await new Promise((r) => setTimeout(r, 300));
     expect(bobReceived).toBe(false);
@@ -255,7 +255,7 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
     });
 
     expect(outsiderRes.success).toBe(false);
-    expect(outsiderRes.error).toMatch(/not a member/i);
+    expect(outsiderRes.error).toBe('FORBIDDEN');
   });
 
   it('automatically joins member socket to room channel on connect so they receive room messages without explicit room:join', async () => {
@@ -317,7 +317,7 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
     });
 
     expect(sendRes.success).toBe(false);
-    expect(sendRes.error).toMatch(/exceeds character limit/i);
+    expect(sendRes.error).toBe('MESSAGE_TOO_LONG');
 
     // Ensure owner did not receive broadcast
     await new Promise((r) => setTimeout(r, 200));
@@ -455,7 +455,7 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
       });
 
       expect(ownerSendRes.success).toBe(false);
-      expect(ownerSendRes.error).toMatch(/exceeds character limit/i);
+      expect(ownerSendRes.error).toBe('MESSAGE_TOO_LONG');
 
       // 2. ADMIN sends 4001 characters
       const adminOversized = 'a'.repeat(MESSAGE_LIMITS.ROOM_LEADER + 1);
@@ -472,7 +472,7 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
       });
 
       expect(adminSendRes.success).toBe(false);
-      expect(adminSendRes.error).toMatch(/exceeds character limit/i);
+      expect(adminSendRes.error).toBe('MESSAGE_TOO_LONG');
 
       // Verify neither message was saved
       const ownerMsg = await prisma.roomMessage.findFirst({

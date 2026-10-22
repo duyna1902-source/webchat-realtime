@@ -29,7 +29,7 @@ Spec: [`../spec.md`](../spec.md), mục *Dependency*. Quyết định Q37 trong 
 - **Giữ `prisma` (CLI) trong `dependencies`**, vì chuyển nó là không khả thi. Lệnh start trên Render chạy `prisma migrate deploy` (ticket 03), và `postinstall` ở gốc chạy `prisma generate` để sinh `@prisma/client`. Nếu `prisma` nằm trong devDependencies thì mọi lần cài bỏ dev (`npm ci --omit=dev`) sẽ hỏng ngay ở `postinstall`, và server không migrate được lúc start.
 - Tailwind giữ nguyên v3.4.19 (Q37). Không đụng đến gói nào khác.
 
-**Kiểm tra build trên Render:** chạy `NODE_ENV=production npm ci --include=dev && npm run build` (giống `buildCommand` trong `render.yaml`) thì thành công, và `prisma --version` vẫn chạy trong workspace server. Toàn bộ test server (21 file, 193 test) và client (15 file, 166 test) pass, `npm run build` thành công.
+**Kiểm tra build trên Render:** chạy `NODE_ENV=production npm ci --include=dev && npm run build` (giống `buildCommand` trong `render.yaml`) thì thành công, và `prisma --version` vẫn chạy trong workspace server. Toàn bộ test server (24 file, 209 test, sau khi merge ticket 02) và client (15 file, 166 test) pass, `npm run build` thành công.
 
 **`npm audit`**
 

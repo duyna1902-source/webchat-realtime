@@ -5,6 +5,7 @@ import { loadConfig, AppConfig, RateLimitsConfig, TimingConfig } from '../../src
 import { createServer, WebchatServer } from '../../src/server.js';
 import { InMemoryStorageAdapter, StorageAdapter } from '../../src/lib/storage.js';
 import { signToken, JwtPayload } from '../../src/lib/jwt.js';
+import type { Logger } from '../../src/lib/logger.js';
 
 export const TEST_JWT_SECRET = 'test-jwt-secret-key-at-least-32-chars-long';
 export const TEST_APP_ORIGIN = 'http://localhost:5173';
@@ -28,6 +29,8 @@ export function createTestConfig(overrides: TestConfigOverrides = {}): AppConfig
   const { rateLimits, timing, ...rest } = overrides;
   return {
     ...base,
+    // Quiet by default; tests that inspect logs inject their own logger with a sink.
+    logLevel: 'silent',
     ...rest,
     rateLimits: { ...base.rateLimits, ...rateLimits },
     timing: { ...base.timing, ...timing },
@@ -45,6 +48,8 @@ export interface TestServer<S extends StorageAdapter = StorageAdapter> extends W
 export interface CreateTestServerOptions<S extends StorageAdapter> {
   config?: TestConfigOverrides;
   storage?: S;
+  /** Logger to build the server with, e.g. one writing to a test sink. */
+  logger?: Logger;
   /** Listen on a random port (needed for socket.io-client). Supertest works without it. */
   listen?: boolean;
 }
@@ -55,7 +60,7 @@ export async function createTestServer<S extends StorageAdapter = InMemoryStorag
 ): Promise<TestServer<S>> {
   const config = createTestConfig(options.config);
   const storage = (options.storage ?? new InMemoryStorageAdapter()) as S;
-  const server = await createServer({ config, storage });
+  const server = await createServer({ config, storage, logger: options.logger });
 
   let port = 0;
   if (options.listen) {

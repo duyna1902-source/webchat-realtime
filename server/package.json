@@ -28,6 +28,7 @@
     "multer": "^2.4.0",
     "pg": "^8.13.1",
     "pglite-prisma-adapter": "^0.7.2",
+    "pino": "^10.4.0",
     "prisma": "^7.10.1",
     "socket.io": "^4.8.1"
   },

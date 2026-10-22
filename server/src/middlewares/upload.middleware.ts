@@ -1,7 +1,9 @@
 import multer from 'multer';
 import path from 'path';
 import { Request, Response, NextFunction } from 'express';
+import { ERROR_CODES } from '@webchat/shared';
 import { UPLOADS_DIR, ensureUploadsDirExists, isAllowedMimeType } from '../lib/storage.js';
+import { AppError } from '../lib/errors.js';
 
 ensureUploadsDirExists();
 
@@ -26,7 +28,7 @@ const upload = multer({
     if (isAllowedMimeType(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Unsupported file type. Only standard images and documents are allowed.'));
+      cb(new AppError(400, ERROR_CODES.BAD_REQUEST, 'Unsupported file type. Only standard images and documents are allowed.'));
     }
   },
 });
@@ -35,14 +37,15 @@ export function uploadSingleFile(req: Request, res: Response, next: NextFunction
   upload.single('file')(req, res, (err: any) => {
     if (err) {
       if (err instanceof multer.MulterError) {
-        if (err.code === 'LIMIT_FILE_SIZE') {
-          res.status(400).json({ message: 'File size exceeds 10MB limit' });
-          return;
-        }
-        res.status(400).json({ message: err.message });
+        next(
+          err.code === 'LIMIT_FILE_SIZE'
+            ? new AppError(413, ERROR_CODES.PAYLOAD_TOO_LARGE, 'File size exceeds 10MB limit')
+            : new AppError(400, ERROR_CODES.BAD_REQUEST, 'Invalid upload request')
+        );
         return;
       }
-      res.status(400).json({ message: err.message || 'File upload failed' });
+      // Our own file filter rejection, or an unexpected disk error (generic 500 via the error handler).
+      next(err);
       return;
     }
 
