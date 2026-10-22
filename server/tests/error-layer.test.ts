@@ -89,7 +89,7 @@ describe('Error layer (SEC-05, SEC-09)', () => {
 });
 
 class FailingStorageAdapter extends InMemoryStorageAdapter {
-  async upload(): Promise<never> {
+  async put(): Promise<never> {
     throw new Error('Supabase bucket "private-attachments" rejected path 2026/secret.pdf');
   }
 }

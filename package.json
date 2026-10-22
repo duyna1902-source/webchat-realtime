@@ -34,6 +34,7 @@
     "esbuild@0.21.5": true,
     "esbuild@0.25.12": true,
     "prisma@7.10.1": true,
-    "@prisma/engines@7.10.1": true
+    "@prisma/engines@7.10.1": true,
+    "sharp@0.34.5": false
   }
 }

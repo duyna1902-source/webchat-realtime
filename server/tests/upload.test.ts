@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import sharp from 'sharp';
 import type { Express } from 'express';
 import { createTestServer, generateToken } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
@@ -13,11 +14,21 @@ import {
 } from '../src/lib/storage.js';
 
 let app: Express;
+let uploadsDir: string;
 
 beforeAll(async () => {
-  // Local disk storage, so uploaded files can be fetched back through /uploads.
-  ({ app } = await createTestServer({ storage: new LocalStorageAdapter() }));
+  // Local disk storage in a temp dir, so uploaded files can be fetched back through /uploads.
+  uploadsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'webchat-upload-test-'));
+  ({ app } = await createTestServer({ storage: new LocalStorageAdapter(uploadsDir) }));
 });
+
+afterAll(() => {
+  fs.rmSync(uploadsDir, { recursive: true, force: true });
+});
+
+function pngImage(): Promise<Buffer> {
+  return sharp({ create: { width: 2, height: 2, channels: 3, background: '#ea4335' } }).png().toBuffer();
+}
 
 describe('File Upload REST API (POST /api/upload)', () => {
   let authToken: string;
@@ -54,7 +65,7 @@ describe('File Upload REST API (POST /api/upload)', () => {
   });
 
   it('successfully uploads a valid image file and returns metadata', async () => {
-    const imageBuffer = Buffer.from('fake-png-binary-data');
+    const imageBuffer = await pngImage();
 
     const res = await request(app)
       .post('/api/upload')
@@ -68,12 +79,12 @@ describe('File Upload REST API (POST /api/upload)', () => {
     expect(res.body).toHaveProperty('url');
     expect(res.body).toHaveProperty('size');
     expect(res.body).toHaveProperty('mimeType', 'image/png');
-    expect(res.body.size).toBe(imageBuffer.length);
-    expect(res.body.filename || res.body.name).toBe('avatar.png');
+    expect(res.body.name).toBe('avatar.png');
 
-    // Verify file can be retrieved via the returned URL
-    const getRes = await request(app).get(res.body.url).expect(200);
-    expect(getRes.body).toBeDefined();
+    // The file can be retrieved via the returned URL, with the size the server reported.
+    const getRes = await request(app).get(res.body.url).buffer(true).expect(200);
+    expect(getRes.headers['content-type']).toBe('image/png');
+    expect(Number(getRes.headers['content-length'])).toBe(res.body.size);
   });
 
   it('successfully uploads a valid document file (PDF)', async () => {
@@ -91,10 +102,10 @@ describe('File Upload REST API (POST /api/upload)', () => {
     expect(res.body).toHaveProperty('url');
     expect(res.body.mimeType).toBe('application/pdf');
     expect(res.body.size).toBe(pdfBuffer.length);
-    expect(res.body.filename || res.body.name).toBe('document.pdf');
+    expect(res.body.name).toBe('document.pdf');
   });
 
-  it('rejects files exceeding 10MB limit with 400 or 413', async () => {
+  it('rejects files exceeding 10MB limit with 413', async () => {
     // 10MB + 1KB buffer
     const largeBuffer = Buffer.alloc(10 * 1024 * 1024 + 1024);
 
@@ -104,14 +115,14 @@ describe('File Upload REST API (POST /api/upload)', () => {
       .attach('file', largeBuffer, {
         filename: 'large-file.zip',
         contentType: 'application/zip',
-      });
+      })
+      .expect(413);
 
-    expect([400, 413]).toContain(res.status);
     expect(res.body.message).toMatch(/limit|large|10MB|size/i);
   });
 
-  it('rejects disallowed file types with 400', async () => {
-    const exeBuffer = Buffer.from('MZ fake exe data');
+  it('rejects disallowed file types with 415', async () => {
+    const exeBuffer = Buffer.from([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, 0x00]);
 
     const res = await request(app)
       .post('/api/upload')
@@ -120,9 +131,9 @@ describe('File Upload REST API (POST /api/upload)', () => {
         filename: 'malicious.exe',
         contentType: 'application/x-msdownload',
       })
-      .expect(400);
+      .expect(415);
 
-    expect(res.body.message).toMatch(/unsupported|invalid|disallowed|mime/i);
+    expect(res.body.message).toMatch(/not allowed/i);
   });
 
   describe('Supabase storage adapter behind the server factory', () => {
@@ -145,14 +156,16 @@ describe('File Upload REST API (POST /api/upload)', () => {
         const res = await request(supabase.app)
           .post('/api/upload')
           .set('Authorization', `Bearer ${authToken}`)
-          .attach('file', Buffer.from('fake-png-binary-data'), { filename: 'photo.png', contentType: 'image/png' })
+          .attach('file', await pngImage(), { filename: 'photo.png', contentType: 'application/octet-stream' })
           .expect(200);
 
         expect(res.body.url).toMatch(/^https:\/\/project\.supabase\.co\/storage\/v1\/object\/public\/attachments\//);
         expect(requests).toHaveLength(1);
-        expect(requests[0].url).toMatch(/^https:\/\/project\.supabase\.co\/storage\/v1\/object\/attachments\//);
+        expect(requests[0].url).toMatch(/^https:\/\/project\.supabase\.co\/storage\/v1\/object\/attachments\/[0-9a-f-]{36}$/);
         expect(requests[0].headers.get('apikey')).toBe('sb_secret_test_only');
         expect(requests[0].headers.has('authorization')).toBe(false);
+        // Stored with the detected type, not the one the client declared.
+        expect(requests[0].headers.get('content-type')).toBe('image/png');
       } finally {
         await supabase.close();
       }
@@ -160,23 +173,6 @@ describe('File Upload REST API (POST /api/upload)', () => {
   });
 
   describe('Cloud Storage Adapter Architecture (ADR 0004)', () => {
-    it('uses LocalStorageAdapter with same-origin relative URLs', async () => {
-      const adapter = new LocalStorageAdapter();
-      expect(adapter.name).toBe('local');
-
-      const mockFile: any = {
-        originalname: 'sample.png',
-        filename: '123-sample.png',
-        size: 1024,
-        mimetype: 'image/png',
-      };
-
-      const result = await adapter.upload(mockFile);
-      expect(result.url).toBe('/uploads/123-sample.png');
-      expect(result.name).toBe('sample.png');
-      expect(result.size).toBe(1024);
-    });
-
     it('builds the adapter selected by the storage configuration in createStorageAdapter', () => {
       expect(createStorageAdapter({ provider: 'local' }).name).toBe('local');
       expect(
@@ -189,8 +185,8 @@ describe('File Upload REST API (POST /api/upload)', () => {
       ).toBe('supabase');
     });
 
-    it('SupabaseStorageAdapter unlinks ephemeral local file on success and failure', async () => {
-      const fakeFetch = vi.fn<typeof fetch>();
+    it('SupabaseStorageAdapter reports a failed upload as an error', async () => {
+      const fakeFetch = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response('Bucket not found', { status: 400 }));
       const adapter = new SupabaseStorageAdapter({
         url: 'https://fake.supabase.co',
         secretKey: 'secret-key',
@@ -198,62 +194,7 @@ describe('File Upload REST API (POST /api/upload)', () => {
         fetch: fakeFetch,
       });
 
-      const tmpFilePath = path.join(os.tmpdir(), `test-supabase-${Date.now()}.pdf`);
-      fs.writeFileSync(tmpFilePath, 'fake pdf data');
-      expect(fs.existsSync(tmpFilePath)).toBe(true);
-
-      const mockFile: any = {
-        path: tmpFilePath,
-        originalname: 'test.pdf',
-        filename: 'test.pdf',
-        size: 13,
-        mimetype: 'application/pdf',
-      };
-
-      fakeFetch.mockResolvedValueOnce(new Response('{}', { status: 200 }));
-
-      const result = await adapter.upload(mockFile);
-      expect(result.url).toContain('https://fake.supabase.co/storage/v1/object/public/attachments/');
-      expect(fs.existsSync(tmpFilePath)).toBe(false);
-
-      // Verify unlinks on failure
-      const tmpFailPath = path.join(os.tmpdir(), `test-supabase-fail-${Date.now()}.pdf`);
-      fs.writeFileSync(tmpFailPath, 'fake error pdf');
-      expect(fs.existsSync(tmpFailPath)).toBe(true);
-
-      const mockFailFile: any = {
-        path: tmpFailPath,
-        originalname: 'fail.pdf',
-        filename: 'fail.pdf',
-        size: 14,
-        mimetype: 'application/pdf',
-      };
-
-      fakeFetch.mockResolvedValueOnce(new Response('Bucket not found', { status: 400 }));
-
-      await expect(adapter.upload(mockFailFile)).rejects.toThrow();
-      expect(fs.existsSync(tmpFailPath)).toBe(false);
-    });
-
-    it('LocalStorageAdapter retains local file on disk', async () => {
-      const adapter = new LocalStorageAdapter();
-
-      const tmpFilePath = path.join(os.tmpdir(), `test-local-${Date.now()}.txt`);
-      fs.writeFileSync(tmpFilePath, 'local data');
-      expect(fs.existsSync(tmpFilePath)).toBe(true);
-
-      const mockFile: any = {
-        path: tmpFilePath,
-        originalname: 'local.txt',
-        filename: 'local.txt',
-        size: 10,
-        mimetype: 'text/plain',
-      };
-
-      await adapter.upload(mockFile);
-      // Local storage adapter must retain the file
-      expect(fs.existsSync(tmpFilePath)).toBe(true);
-      fs.unlinkSync(tmpFilePath);
+      await expect(adapter.put(Buffer.from('%PDF-1.4'), { contentType: 'application/pdf' })).rejects.toThrow();
     });
   });
 });
