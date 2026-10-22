@@ -8,7 +8,6 @@ import { createTestServer, generateToken } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import {
   LocalStorageAdapter,
-  CloudinaryStorageAdapter,
   SupabaseStorageAdapter,
   createStorageAdapter,
 } from '../src/lib/storage.js';
@@ -126,6 +125,40 @@ describe('File Upload REST API (POST /api/upload)', () => {
     expect(res.body.message).toMatch(/unsupported|invalid|disallowed|mime/i);
   });
 
+  describe('Supabase storage adapter behind the server factory', () => {
+    it('sends the upload to Supabase with only the secret key in the apikey header', async () => {
+      const requests: { url: string; headers: Headers }[] = [];
+      const fakeFetch: typeof fetch = async (input, init) => {
+        requests.push({ url: String(input), headers: new Headers(init?.headers) });
+        return new Response('{}', { status: 200 });
+      };
+      const supabase = await createTestServer({
+        storage: new SupabaseStorageAdapter({
+          url: 'https://project.supabase.co',
+          secretKey: 'sb_secret_test_only',
+          bucket: 'attachments',
+          fetch: fakeFetch,
+        }),
+      });
+
+      try {
+        const res = await request(supabase.app)
+          .post('/api/upload')
+          .set('Authorization', `Bearer ${authToken}`)
+          .attach('file', Buffer.from('fake-png-binary-data'), { filename: 'photo.png', contentType: 'image/png' })
+          .expect(200);
+
+        expect(res.body.url).toMatch(/^https:\/\/project\.supabase\.co\/storage\/v1\/object\/public\/attachments\//);
+        expect(requests).toHaveLength(1);
+        expect(requests[0].url).toMatch(/^https:\/\/project\.supabase\.co\/storage\/v1\/object\/attachments\//);
+        expect(requests[0].headers.get('apikey')).toBe('sb_secret_test_only');
+        expect(requests[0].headers.has('authorization')).toBe(false);
+      } finally {
+        await supabase.close();
+      }
+    });
+  });
+
   describe('Cloud Storage Adapter Architecture (ADR 0004)', () => {
     it('uses LocalStorageAdapter with same-origin relative URLs', async () => {
       const adapter = new LocalStorageAdapter();
@@ -147,9 +180,6 @@ describe('File Upload REST API (POST /api/upload)', () => {
     it('builds the adapter selected by the storage configuration in createStorageAdapter', () => {
       expect(createStorageAdapter({ provider: 'local' }).name).toBe('local');
       expect(
-        createStorageAdapter({ provider: 'cloudinary', cloudName: 'demo-cloud', uploadPreset: null, apiKey: null }).name
-      ).toBe('cloudinary');
-      expect(
         createStorageAdapter({
           provider: 'supabase',
           url: 'https://demo.supabase.co',
@@ -159,65 +189,13 @@ describe('File Upload REST API (POST /api/upload)', () => {
       ).toBe('supabase');
     });
 
-    it('CloudinaryStorageAdapter unlinks ephemeral local file on success and failure', async () => {
-      const adapter = new CloudinaryStorageAdapter({ cloudName: 'test-cloud' });
-
-      // Create a temp file on disk
-      const tmpFilePath = path.join(os.tmpdir(), `test-cloudinary-${Date.now()}.png`);
-      fs.writeFileSync(tmpFilePath, 'fake image data');
-      expect(fs.existsSync(tmpFilePath)).toBe(true);
-
-      const mockFile: any = {
-        path: tmpFilePath,
-        originalname: 'test.png',
-        filename: 'test.png',
-        size: 15,
-        mimetype: 'image/png',
-      };
-
-      // Mock successful fetch
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          secure_url: 'https://cloudinary.com/fake.png',
-          public_id: 'fake_id',
-          bytes: 15,
-        }),
-      } as any);
-
-      const result = await adapter.upload(mockFile);
-      expect(result.url).toBe('https://cloudinary.com/fake.png');
-      expect(fs.existsSync(tmpFilePath)).toBe(false);
-
-      // Verify unlinks on failure
-      const tmpFailPath = path.join(os.tmpdir(), `test-cloudinary-fail-${Date.now()}.png`);
-      fs.writeFileSync(tmpFailPath, 'fake error data');
-      expect(fs.existsSync(tmpFailPath)).toBe(true);
-
-      const mockFailFile: any = {
-        path: tmpFailPath,
-        originalname: 'fail.png',
-        filename: 'fail.png',
-        size: 15,
-        mimetype: 'image/png',
-      };
-
-      fetchSpy.mockResolvedValueOnce({
-        ok: false,
-        text: async () => 'Invalid credentials',
-      } as any);
-
-      await expect(adapter.upload(mockFailFile)).rejects.toThrow();
-      expect(fs.existsSync(tmpFailPath)).toBe(false);
-
-      fetchSpy.mockRestore();
-    });
-
     it('SupabaseStorageAdapter unlinks ephemeral local file on success and failure', async () => {
+      const fakeFetch = vi.fn<typeof fetch>();
       const adapter = new SupabaseStorageAdapter({
         url: 'https://fake.supabase.co',
         secretKey: 'secret-key',
         bucket: 'attachments',
+        fetch: fakeFetch,
       });
 
       const tmpFilePath = path.join(os.tmpdir(), `test-supabase-${Date.now()}.pdf`);
@@ -232,9 +210,7 @@ describe('File Upload REST API (POST /api/upload)', () => {
         mimetype: 'application/pdf',
       };
 
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
-        ok: true,
-      } as any);
+      fakeFetch.mockResolvedValueOnce(new Response('{}', { status: 200 }));
 
       const result = await adapter.upload(mockFile);
       expect(result.url).toContain('https://fake.supabase.co/storage/v1/object/public/attachments/');
@@ -253,15 +229,10 @@ describe('File Upload REST API (POST /api/upload)', () => {
         mimetype: 'application/pdf',
       };
 
-      fetchSpy.mockResolvedValueOnce({
-        ok: false,
-        text: async () => 'Bucket not found',
-      } as any);
+      fakeFetch.mockResolvedValueOnce(new Response('Bucket not found', { status: 400 }));
 
       await expect(adapter.upload(mockFailFile)).rejects.toThrow();
       expect(fs.existsSync(tmpFailPath)).toBe(false);
-
-      fetchSpy.mockRestore();
     });
 
     it('LocalStorageAdapter retains local file on disk', async () => {

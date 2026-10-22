@@ -7,22 +7,27 @@ services:
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm run start --workspace=server
     healthCheckPath: /health
+    # Never put a secret value in this file: it is public. Every secret uses `sync: false`,
+    # so Render asks for its value on the first deploy and keeps it in the dashboard.
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      - key: APP_ORIGIN
+        value: https://webchat-realtime.onrender.com
       - key: DATABASE_URL
         sync: false
+      # Removed by ticket 10 when Session cookies replace JWT.
       - key: JWT_SECRET
-        value: webchat_jwt_secret_production_key_49b5c2a1e80df789a7146e2938
+        sync: false
       - key: STORAGE_PROVIDER
         value: supabase
       - key: SUPABASE_URL
-        value: https://dpxpgpjblbapivaijwoo.supabase.co
-      - key: SUPABASE_ANON_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRweHBncGpibGJhcGl2YWlqd29vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwMTg2MTAsImV4cCI6MjEwNzU5NDYxMH0.rbLRQLaSiWW2P0fzqQ30dO6Iar8_RbETQU5bOh7b1Rk
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRweHBncGpibGJhcGl2YWlqd29vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MjAxODYxMCwiZXhwIjoyMTA3NTk0NjEwfQ.Cpyrh_G786ZceaHChepr5T-jfDdo4e5TfY5lqqcw8b8
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
       - key: SUPABASE_STORAGE_BUCKET
         value: attachments
+      - key: GIPHY_API_KEY
+        sync: false
