@@ -1,0 +1,7 @@
+# Known findings in git history, recorded so scans of the current state stay clean.
+# History is not rewritten (decision Q3). These keys are being rotated and deactivated
+# (ticket 05); treat them as compromised. Format: <commit>:<file>:<rule>:<line>.
+#
+# Legacy Supabase anon and service_role keys committed in render.yaml.
+25121a13b12988fa898a1556ef10770891d61d2f:render.yaml:jwt:24
+25121a13b12988fa898a1556ef10770891d61d2f:render.yaml:jwt:26
