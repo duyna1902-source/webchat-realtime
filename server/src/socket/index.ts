@@ -14,11 +14,8 @@ export interface AuthenticatedSocket extends Socket {
 }
 
 export function setupSocketServer(httpServer: http.Server, config: AppConfig): Server {
+  // No `cors` option: the client is served from the same origin (ADR 0010).
   const io = new Server(httpServer, {
-    cors: {
-      origin: '*',
-      methods: ['GET', 'POST'],
-    },
     transports: ['websocket', 'polling'],
     connectionStateRecovery: {
       maxDisconnectionDuration: config.timing.connectionStateRecoveryMs,
