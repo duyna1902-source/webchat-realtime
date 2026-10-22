@@ -247,7 +247,7 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, lo
 
       const typingPayload: RoomTypingPayload = {
         roomId,
-        userId: (socket.data.user as any).id || socket.data.user.userId,
+        userId: socket.data.user.userId,
         username: socket.data.user.username,
         isTyping,
       };

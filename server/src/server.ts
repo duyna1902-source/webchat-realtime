@@ -8,6 +8,7 @@ import { setupSocketServer } from './socket/index.js';
 import { createApp } from './app.js';
 import { attachServerContext } from './context.js';
 import { createLogger, Logger } from './lib/logger.js';
+import { createSessionStore, SessionStore } from './lib/session-store.js';
 
 export interface CreateServerOptions {
   /** Validated configuration from `loadConfig()`. */
@@ -23,6 +24,7 @@ export interface WebchatServer {
   app: Express;
   io: SocketServer;
   logger: Logger;
+  sessions: SessionStore;
 }
 
 /**
@@ -31,13 +33,19 @@ export interface WebchatServer {
  */
 export async function createServer({ config, storage, logger: injectedLogger }: CreateServerOptions): Promise<WebchatServer> {
   const logger = injectedLogger ?? createLogger({ level: config.logLevel });
-  await initPrisma(config.databaseUrl);
+  const prisma = await initPrisma(config.databaseUrl);
+  const sessions = createSessionStore({
+    prisma,
+    idleTtlMs: config.timing.sessionIdleTtlMs,
+    absoluteTtlMs: config.timing.sessionAbsoluteTtlMs,
+    touchIntervalMs: config.timing.sessionTouchIntervalMs,
+  });
 
   const app = createApp(config, logger);
   const httpServer = http.createServer(app);
   // Socket.IO must attach after Express so it can intercept `/socket.io` requests first.
-  const io = setupSocketServer(httpServer, config, logger);
-  attachServerContext(app.locals, { config, storage, io });
+  const io = setupSocketServer(httpServer, { config, logger, sessions });
+  attachServerContext(app.locals, { config, storage, io, sessions });
 
-  return { httpServer, app, io, logger };
+  return { httpServer, app, io, logger, sessions };
 }

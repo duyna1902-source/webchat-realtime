@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import http from 'http';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { createTestServer, generateToken } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { SOCKET_EVENTS, PresenceUpdatePayload } from '@webchat/shared';
 import { clearPresenceState } from '../src/socket/presence.handler.js';
@@ -61,9 +61,9 @@ describe('Presence Management & Grace Period Integration', { timeout: 30000 }, (
   });
 
   it('broadcasts presence:update with isOnline: true and updates DB when user connects', async () => {
-    const tokenBob = generateToken({ userId: userBob.id, username: userBob.username });
+    const sessionBob = await loginAs(httpServer, userBob);
     clientBob = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenBob },
+      extraHeaders: sessionBob,
       transports: ['websocket'],
     });
 
@@ -73,9 +73,9 @@ describe('Presence Management & Grace Period Integration', { timeout: 30000 }, (
     const presencePromise = waitForEvent<PresenceUpdatePayload>(clientBob, SOCKET_EVENTS.PRESENCE_UPDATE);
 
     // Alice connects
-    const tokenAlice = generateToken({ userId: userAlice.id, username: userAlice.username });
+    const sessionAlice = await loginAs(httpServer, userAlice);
     clientAlice = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenAlice },
+      extraHeaders: sessionAlice,
       transports: ['websocket'],
     });
 
@@ -92,16 +92,16 @@ describe('Presence Management & Grace Period Integration', { timeout: 30000 }, (
   });
 
   it('delays marking user offline and broadcasting until grace period expires', async () => {
-    const tokenBob = generateToken({ userId: userBob.id, username: userBob.username });
+    const sessionBob = await loginAs(httpServer, userBob);
     clientBob = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenBob },
+      extraHeaders: sessionBob,
       transports: ['websocket'],
     });
     await waitForEvent(clientBob, 'connect');
 
-    const tokenAlice = generateToken({ userId: userAlice.id, username: userAlice.username });
+    const sessionAlice = await loginAs(httpServer, userAlice);
     clientAlice = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenAlice },
+      extraHeaders: sessionAlice,
       transports: ['websocket'],
     });
     await waitForEvent(clientAlice, 'connect');
@@ -143,16 +143,16 @@ describe('Presence Management & Grace Period Integration', { timeout: 30000 }, (
   });
 
   it('cancels grace period and keeps user online if user reconnects before grace period expires', async () => {
-    const tokenBob = generateToken({ userId: userBob.id, username: userBob.username });
+    const sessionBob = await loginAs(httpServer, userBob);
     clientBob = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenBob },
+      extraHeaders: sessionBob,
       transports: ['websocket'],
     });
     await waitForEvent(clientBob, 'connect');
 
-    const tokenAlice = generateToken({ userId: userAlice.id, username: userAlice.username });
+    const sessionAlice = await loginAs(httpServer, userAlice);
     clientAlice = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenAlice },
+      extraHeaders: sessionAlice,
       transports: ['websocket'],
     });
     await waitForEvent(clientAlice, 'connect');
@@ -171,7 +171,7 @@ describe('Presence Management & Grace Period Integration', { timeout: 30000 }, (
     await new Promise((r) => setTimeout(r, 40));
 
     const clientAliceReconnect = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenAlice },
+      extraHeaders: sessionAlice,
       transports: ['websocket'],
     });
     await waitForEvent(clientAliceReconnect, 'connect');
@@ -190,22 +190,22 @@ describe('Presence Management & Grace Period Integration', { timeout: 30000 }, (
   });
 
   it('keeps user online when one of multiple devices/tabs disconnects', async () => {
-    const tokenBob = generateToken({ userId: userBob.id, username: userBob.username });
+    const sessionBob = await loginAs(httpServer, userBob);
     clientBob = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenBob },
+      extraHeaders: sessionBob,
       transports: ['websocket'],
     });
     await waitForEvent(clientBob, 'connect');
 
-    const tokenAlice = generateToken({ userId: userAlice.id, username: userAlice.username });
+    const sessionAlice = await loginAs(httpServer, userAlice);
     // Alice connects tab 1
     const aliceTab1 = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenAlice },
+      extraHeaders: sessionAlice,
       transports: ['websocket'],
     });
     // Alice connects tab 2
     const aliceTab2 = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenAlice },
+      extraHeaders: sessionAlice,
       transports: ['websocket'],
     });
 

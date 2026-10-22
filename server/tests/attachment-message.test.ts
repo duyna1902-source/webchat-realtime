@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import http from 'http';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { createTestServer, generateToken } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { SOCKET_EVENTS, MessageType, normalizeDirectChatPair, MESSAGE_LIMITS } from '@webchat/shared';
 
@@ -75,15 +75,15 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
       },
     });
 
-    const tokenAlice = generateToken({ userId: userAlice.id, username: userAlice.username });
-    const tokenBob = generateToken({ userId: userBob.id, username: userBob.username });
+    const sessionAlice = await loginAs(httpServer, userAlice);
+    const sessionBob = await loginAs(httpServer, userBob);
 
     clientAlice = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenAlice },
+      extraHeaders: sessionAlice,
       transports: ['websocket'],
     });
     clientBob = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenBob },
+      extraHeaders: sessionBob,
       transports: ['websocket'],
     });
 

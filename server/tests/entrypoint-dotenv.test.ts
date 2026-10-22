@@ -5,7 +5,6 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import jwt from 'jsonwebtoken';
 
 const require = createRequire(import.meta.url);
 const SERVER_ROOT = path.resolve(__dirname, '..');
@@ -13,8 +12,8 @@ const ENTRYPOINT = path.join(SERVER_ROOT, 'src', 'index.ts');
 const SHARED_SRC = path.resolve(SERVER_ROOT, '../shared/src/index.ts');
 const TSX_CLI = require.resolve('tsx/cli');
 
-const DOTENV_SECRET = 'from-dotenv-file-secret-at-least-32-bytes-long';
-const LEAKED_DEFAULT_SECRET = 'webchat-realtime-default-secret-key-32-chars';
+// Not the origin the tests use elsewhere, so only the `.env` file can have put it in effect.
+const DOTENV_APP_ORIGIN = 'http://dotenv-origin.test:5173';
 
 function getFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -44,8 +43,9 @@ async function waitForHealth(baseUrl: string, child: ChildProcess, output: () =>
   throw new Error(`Server did not become healthy in time:\n${output()}`);
 }
 
-// Reproduces audit step B1 (SEC-02): the entrypoint is started from a directory whose
-// `.env` holds the only JWT_SECRET. The issued token must be signed with that secret.
+// Reproduces audit step B1 (SEC-02): the entrypoint is started from a directory whose `.env`
+// holds the only configuration. It must be loaded before any module reads its config: the server
+// starts at all, and it checks request Origins against the APP_ORIGIN from that file.
 describe('Entrypoint loads .env before anything else (B1)', () => {
   let workDir: string;
   let child: ChildProcess;
@@ -63,8 +63,7 @@ describe('Entrypoint loads .env before anything else (B1)', () => {
         'NODE_ENV=test',
         `PORT=${port}`,
         'DATABASE_URL=memory:',
-        'APP_ORIGIN=http://localhost:5173',
-        `JWT_SECRET=${DOTENV_SECRET}`,
+        `APP_ORIGIN=${DOTENV_APP_ORIGIN}`,
         '',
       ].join('\n')
     );
@@ -78,7 +77,7 @@ describe('Entrypoint loads .env before anything else (B1)', () => {
 
     // The child must see only what the `.env` file provides.
     const env: NodeJS.ProcessEnv = { ...process.env };
-    for (const key of ['NODE_ENV', 'PORT', 'DATABASE_URL', 'APP_ORIGIN', 'JWT_SECRET', 'STORAGE_PROVIDER', 'VITEST', 'VITEST_POOL_ID', 'VITEST_WORKER_ID']) {
+    for (const key of ['NODE_ENV', 'PORT', 'DATABASE_URL', 'APP_ORIGIN', 'STORAGE_PROVIDER', 'VITEST', 'VITEST_POOL_ID', 'VITEST_WORKER_ID']) {
       delete env[key];
     }
 
@@ -103,16 +102,18 @@ describe('Entrypoint loads .env before anything else (B1)', () => {
     if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
   });
 
-  it('B1: token issued at registration is signed with JWT_SECRET from .env, not a built-in default', async () => {
-    const res = await fetch(`${baseUrl}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'alice', email: 'alice@example.com', password: 'password123' }),
-    });
-    expect(res.status).toBe(201);
-    const { token } = (await res.json()) as { token: string };
+  it('B1: the server runs with APP_ORIGIN from .env', async () => {
+    const register = (origin: string, username: string) =>
+      fetch(`${baseUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: origin },
+        body: JSON.stringify({ username, email: `${username}@example.com`, password: 'password123' }),
+      });
 
-    expect(() => jwt.verify(token, LEAKED_DEFAULT_SECRET)).toThrow();
-    expect(() => jwt.verify(token, DOTENV_SECRET)).not.toThrow();
+    expect((await register('http://localhost:5173', 'alice')).status).toBe(403);
+
+    const res = await register(DOTENV_APP_ORIGIN, 'bob');
+    expect(res.status).toBe(201);
+    expect(res.headers.get('set-cookie')).toMatch(/^__Host-session=/);
   });
 });

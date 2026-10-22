@@ -59,6 +59,7 @@ export async function resetDatabase(): Promise<void> {
     // Truncate all tables
     await pgliteInstance.exec(`
       TRUNCATE TABLE 
+        "Session", 
         "RoomMessage", 
         "RoomMember", 
         "Room", 
@@ -71,6 +72,7 @@ export async function resetDatabase(): Promise<void> {
   } else if (prismaInstance) {
     await prismaInstance.$executeRawUnsafe(`
       TRUNCATE TABLE 
+        "Session", 
         "RoomMessage", 
         "RoomMember", 
         "Room", 

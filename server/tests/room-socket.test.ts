@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import http from 'http';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { createTestServer, generateToken } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { SOCKET_EVENTS, RoomRole, MessageType, RoomTypingPayload, MESSAGE_LIMITS } from '@webchat/shared';
 
@@ -74,20 +74,20 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
       },
     });
 
-    const tokenOwner = generateToken({ userId: ownerUser.id, username: ownerUser.username });
-    const tokenMember = generateToken({ userId: memberUser.id, username: memberUser.username });
-    const tokenOutsider = generateToken({ userId: outsiderUser.id, username: outsiderUser.username });
+    const sessionOwner = await loginAs(httpServer, ownerUser);
+    const sessionMember = await loginAs(httpServer, memberUser);
+    const sessionOutsider = await loginAs(httpServer, outsiderUser);
 
     clientOwner = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenOwner },
+      extraHeaders: sessionOwner,
       transports: ['websocket'],
     });
     clientMember = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenMember },
+      extraHeaders: sessionMember,
       transports: ['websocket'],
     });
     clientOutsider = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenOutsider },
+      extraHeaders: sessionOutsider,
       transports: ['websocket'],
     });
 
@@ -279,12 +279,10 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
     const bobDeletePromise = waitForEvent(clientMember, SOCKET_EVENTS.ROOM_MEMBER_CHANGE);
 
     // Alice deletes the room via REST API
-    const tokenOwner = generateToken({ userId: ownerUser.id, username: ownerUser.username });
+    const sessionOwner = await loginAs(httpServer, ownerUser);
     const res = await fetch(`http://localhost:${serverPort}/api/rooms/${testRoom.id}`, {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${tokenOwner}`,
-      },
+      headers: sessionOwner,
     });
 
     expect(res.status).toBe(200);
@@ -368,9 +366,9 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
     await prisma.roomMember.create({
       data: { roomId: testRoom.id, userId: adminUser.id, role: RoomRole.ADMIN },
     });
-    const tokenAdmin = generateToken({ userId: adminUser.id, username: adminUser.username });
+    const sessionAdmin = await loginAs(httpServer, adminUser);
     const clientAdmin = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenAdmin },
+      extraHeaders: sessionAdmin,
       transports: ['websocket'],
     });
 
@@ -433,9 +431,9 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
     await prisma.roomMember.create({
       data: { roomId: testRoom.id, userId: adminUser.id, role: RoomRole.ADMIN },
     });
-    const tokenAdmin = generateToken({ userId: adminUser.id, username: adminUser.username });
+    const sessionAdmin = await loginAs(httpServer, adminUser);
     const clientAdmin = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenAdmin },
+      extraHeaders: sessionAdmin,
       transports: ['websocket'],
     });
 

@@ -2,6 +2,7 @@ import type { Request } from 'express';
 import type { Server } from 'socket.io';
 import type { AppConfig } from './config.js';
 import type { StorageAdapter } from './lib/storage.js';
+import type { SessionStore } from './lib/session-store.js';
 
 /**
  * Dependencies of one server instance, built by the server factory and attached to its
@@ -11,6 +12,7 @@ export interface ServerContext {
   config: AppConfig;
   storage: StorageAdapter;
   io: Server;
+  sessions: SessionStore;
 }
 
 const CONTEXT_KEY = 'serverContext';

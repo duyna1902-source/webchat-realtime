@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
-import { createTestServer, generateToken } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { normalizeDirectChatPair, MessageType, RoomRole, PaginatedMessagesDto, DirectReceiveMessagePayload, RoomReceiveMessagePayload } from '@webchat/shared';
 
@@ -15,8 +15,8 @@ describe('Cursor-Based Pagination Integration (Direct & Room Chats)', () => {
   let userAlice: any;
   let userBob: any;
   let userCharlie: any;
-  let tokenAlice: string;
-  let tokenCharlie: string;
+  let sessionAlice: SessionHeaders;
+  let sessionCharlie: SessionHeaders;
   let directChat: any;
   let room: any;
 
@@ -33,8 +33,8 @@ describe('Cursor-Based Pagination Integration (Direct & Room Chats)', () => {
       data: { username: 'charlie', email: 'charlie@test.com', passwordHash: 'hash' },
     });
 
-    tokenAlice = generateToken({ userId: userAlice.id, username: userAlice.username });
-    tokenCharlie = generateToken({ userId: userCharlie.id, username: userCharlie.username });
+    sessionAlice = await loginAs(app, userAlice);
+    sessionCharlie = await loginAs(app, userCharlie);
 
     const [u1, u2] = normalizeDirectChatPair(userAlice.id, userBob.id);
     directChat = await prisma.directChat.create({
@@ -85,7 +85,7 @@ describe('Cursor-Based Pagination Integration (Direct & Room Chats)', () => {
       // 1. Initial fetch without cursor: defaults to limit=50
       const res1 = await request(app)
         .get(`/api/direct-chats/${directChat.id}/messages?limit=50`)
-        .set('Authorization', `Bearer ${tokenAlice}`)
+        .set(sessionAlice)
         .expect(200);
 
       const batch1: PaginatedMessagesDto<DirectReceiveMessagePayload> = res1.body;
@@ -108,7 +108,7 @@ describe('Cursor-Based Pagination Integration (Direct & Room Chats)', () => {
       // 2. Fetch older messages with ?before=<oldestId>
       const res2 = await request(app)
         .get(`/api/direct-chats/${directChat.id}/messages?limit=50&before=${oldestInBatch1.id}`)
-        .set('Authorization', `Bearer ${tokenAlice}`)
+        .set(sessionAlice)
         .expect(200);
 
       const batch2: PaginatedMessagesDto<DirectReceiveMessagePayload> = res2.body;
@@ -128,7 +128,7 @@ describe('Cursor-Based Pagination Integration (Direct & Room Chats)', () => {
     it('rejects access for non-participants', async () => {
       await request(app)
         .get(`/api/direct-chats/${directChat.id}/messages?limit=50`)
-        .set('Authorization', `Bearer ${tokenCharlie}`)
+        .set(sessionCharlie)
         .expect(403);
     });
   });
@@ -157,7 +157,7 @@ describe('Cursor-Based Pagination Integration (Direct & Room Chats)', () => {
       // 1. Initial fetch (limit 50)
       const res1 = await request(app)
         .get(`/api/rooms/${room.id}/messages?limit=50`)
-        .set('Authorization', `Bearer ${tokenAlice}`)
+        .set(sessionAlice)
         .expect(200);
 
       const batch1: PaginatedMessagesDto<RoomReceiveMessagePayload> = res1.body;
@@ -174,7 +174,7 @@ describe('Cursor-Based Pagination Integration (Direct & Room Chats)', () => {
       // 2. Fetch older messages with ?before=
       const res2 = await request(app)
         .get(`/api/rooms/${room.id}/messages?limit=50&before=${oldestInBatch1.id}`)
-        .set('Authorization', `Bearer ${tokenAlice}`)
+        .set(sessionAlice)
         .expect(200);
 
       const batch2: PaginatedMessagesDto<RoomReceiveMessagePayload> = res2.body;
@@ -188,7 +188,7 @@ describe('Cursor-Based Pagination Integration (Direct & Room Chats)', () => {
     it('rejects access for non-members', async () => {
       await request(app)
         .get(`/api/rooms/${room.id}/messages?limit=50`)
-        .set('Authorization', `Bearer ${tokenCharlie}`)
+        .set(sessionCharlie)
         .expect(403);
     });
   });

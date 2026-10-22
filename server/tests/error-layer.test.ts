@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
-import { createTestServer, generateToken, TestServer } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders, TestServer, TEST_APP_ORIGIN } from './helpers/server.js';
 import { createLogSink, LogSink } from './helpers/log-sink.js';
 import { InMemoryStorageAdapter } from '../src/lib/storage.js';
 import { getPrisma } from '../src/lib/prisma.js';
@@ -13,19 +13,19 @@ beforeAll(async () => {
 });
 
 describe('Error layer (SEC-05, SEC-09)', () => {
-  let token: string;
+  let session: SessionHeaders;
 
   beforeEach(async () => {
     const user = await getPrisma().user.create({
       data: { username: 'err_user', email: 'err@test.com', passwordHash: 'hash' },
     });
-    token = generateToken({ userId: user.id, username: user.username });
+    session = await loginAs(app, user);
   });
 
   it('A25/A26: a malformed room payload returns a generic 500 and the server keeps answering /health', async () => {
     const res = await request(app)
       .post('/api/rooms')
-      .set('Authorization', `Bearer ${token}`)
+      .set(session)
       .send({ name: 'x', description: 12345 })
       .timeout(3000);
 
@@ -43,6 +43,7 @@ describe('Error layer (SEC-05, SEC-09)', () => {
   it('A24: a JSON body over the limit returns 413 with a generic error', async () => {
     const res = await request(app)
       .post('/api/auth/login')
+      .set('Origin', TEST_APP_ORIGIN)
       .set('Content-Type', 'application/json')
       .send(JSON.stringify({ emailOrUsername: 'a'.repeat(200 * 1024), password: 'x' }));
 
@@ -57,6 +58,7 @@ describe('Error layer (SEC-05, SEC-09)', () => {
   it('malformed JSON returns 400 without the parser message', async () => {
     const res = await request(app)
       .post('/api/auth/login')
+      .set('Origin', TEST_APP_ORIGIN)
       .set('Content-Type', 'application/json')
       .send('{"emailOrUsername": "alice", ');
 
@@ -71,6 +73,7 @@ describe('Error layer (SEC-05, SEC-09)', () => {
   it('A07: a Prisma failure does not leak query or model details', async () => {
     const res = await request(app)
       .post('/api/auth/register')
+      .set('Origin', TEST_APP_ORIGIN)
       .send({ username: { a: 1 }, email: 'a07@test.com', password: 'password123' });
 
     expect(res.status).toBeGreaterThanOrEqual(400);
@@ -98,7 +101,7 @@ describe('Error logging', () => {
   let sink: LogSink;
   let server: TestServer;
   let userId: string;
-  let token: string;
+  let session: SessionHeaders;
 
   beforeAll(async () => {
     sink = createLogSink();
@@ -110,13 +113,13 @@ describe('Error logging', () => {
       data: { username: 'log_user', email: 'log@test.com', passwordHash: 'hash' },
     });
     userId = user.id;
-    token = generateToken({ userId: user.id, username: user.username });
+    session = await loginAs(server.app, user);
   });
 
   it('a storage failure is hidden from the client but logged with stack, requestId and userId', async () => {
     const res = await request(server.app)
       .post('/api/upload')
-      .set('Authorization', `Bearer ${token}`)
+      .set(session)
       .attach('file', Buffer.from('%PDF-1.4'), { filename: 'doc.pdf', contentType: 'application/pdf' });
 
     expect(res.status).toBe(500);

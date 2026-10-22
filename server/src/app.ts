@@ -12,6 +12,7 @@ import type { AppConfig } from './config.js';
 import type { Logger } from './lib/logger.js';
 import { requestContext } from './middlewares/request-id.js';
 import { errorHandler } from './middlewares/error-handler.js';
+import { requireSameOrigin } from './middlewares/origin-check.js';
 
 /** Largest JSON body accepted; bigger bodies get `413`. */
 export const JSON_BODY_LIMIT = '100kb';
@@ -34,6 +35,8 @@ export function createApp(config: AppConfig, logger: Logger): express.Express {
   // Single-host, same-origin app (ADR 0010): no CORS. Security headers go first so every response has them.
   app.use(securityHeaders(config));
   app.use(requestContext(logger));
+  // Before any body parsing: a cross-site write is refused without reading its body.
+  app.use(requireSameOrigin(config.appOrigin));
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
   // Ensure uploads folder exists and serve statically

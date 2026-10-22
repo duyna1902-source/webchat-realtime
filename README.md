@@ -25,7 +25,7 @@ The system is engineered across three progressive technical tiers, enhanced with
 ### Level 1: Core Prerequisites
 * **Real-time Two-Way Communication**: Stable WebSocket / Socket.io bidirectional connection with automatic background room subscriptions.
 * **Persistent Message History**: Reliable PostgreSQL database storage (with automatic in-memory **PGlite** fallback for zero-config local/test runs) and historical message retrieval upon reopening chat sessions.
-* **JWT Authentication**: Secure user authentication for both HTTP REST APIs and Socket Handshake, paired with a **Zero-Shift Auth UI**.
+* **Session Cookie Authentication**: Server-side Sessions carried in an `HttpOnly; Secure; SameSite=Strict` cookie for both HTTP REST APIs and Socket Handshake (ADR 0010), paired with a **Zero-Shift Auth UI**.
 
 ### Level 2: Standard Enhancements
 * **Room Chats**: Multi-user group chat spaces with role-based administration (`OWNER`, `ADMIN`, `MEMBER`).
@@ -125,7 +125,7 @@ Create `.env` configuration files (or copy from `.env.example` / `server/.env.ex
   PORT=4000
   NODE_ENV=development
   DATABASE_URL="postgresql://user:password@host:port/dbname?sslmode=require"
-  JWT_SECRET="your_super_secret_jwt_key"
+  APP_ORIGIN="http://localhost:5173" # the origin the browser sees
   STORAGE_PROVIDER="local" # Options: local | supabase (supabase also needs SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_STORAGE_BUCKET)
   # Optional: GIPHY_API_KEY="your-giphy-api-key"
   ```

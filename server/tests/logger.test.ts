@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import request from 'supertest';
 import { installProcessHandlers } from '../src/lib/logger.js';
 import { createLogSink } from './helpers/log-sink.js';
-import { createTestServer } from './helpers/server.js';
+import { createTestServer, sessionCookieOf, TEST_APP_ORIGIN } from './helpers/server.js';
 
 const PASSWORD = 'Hunter2-Sup3r-Passw0rd';
 const COOKIE_VALUE = 'cookie-value-7f3a9c';
@@ -89,22 +89,25 @@ describe('Logger redaction (SEC-17)', () => {
     expect(entry.err.request.headers.apikey).toBe('public');
   });
 
-  it('logs no password or cookie value while serving auth requests, even on a 5xx', async () => {
+  it('logs no password, cookie value or issued Session token while serving auth requests, even on a 5xx', async () => {
     const sink = createLogSink();
     const { app } = await createTestServer({ logger: sink.logger });
 
-    await request(app)
+    const registered = await request(app)
       .post('/api/auth/register')
+      .set('Origin', TEST_APP_ORIGIN)
       .set('Cookie', `__Host-session=${COOKIE_VALUE}`)
       .send({ username: 'log_alice', email: 'log_alice@test.com', password: PASSWORD })
       .expect(201);
-    await request(app)
+    const loggedIn = await request(app)
       .post('/api/auth/login')
+      .set('Origin', TEST_APP_ORIGIN)
       .set('Cookie', `__Host-session=${COOKIE_VALUE}`)
       .send({ emailOrUsername: 'log_alice', password: PASSWORD })
       .expect(200);
     const failed = await request(app)
       .post('/api/auth/register')
+      .set('Origin', TEST_APP_ORIGIN)
       .set('Cookie', `__Host-session=${COOKIE_VALUE}`)
       .send({ username: { a: 1 }, email: 'log_bob@test.com', password: PASSWORD });
 
@@ -112,5 +115,9 @@ describe('Logger redaction (SEC-17)', () => {
     expect(sink.entries().some((e) => e.requestId === failed.body.requestId)).toBe(true);
     expect(sink.text()).not.toContain(PASSWORD);
     expect(sink.text()).not.toContain(COOKIE_VALUE);
+    for (const issued of [registered, loggedIn]) {
+      const token = sessionCookieOf(issued).split('=')[1];
+      expect(sink.text()).not.toContain(token);
+    }
   });
 });

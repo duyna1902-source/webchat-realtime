@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import type { Express } from 'express';
-import { createTestServer, generateToken } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders, TEST_APP_ORIGIN } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import {
   LocalStorageAdapter,
@@ -20,10 +20,10 @@ beforeAll(async () => {
 });
 
 describe('File Upload REST API (POST /api/upload)', () => {
-  let authToken: string;
+  let authSession: SessionHeaders;
   let testUser: any;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     const prisma = getPrisma();
     testUser = await prisma.user.create({
       data: {
@@ -32,22 +32,23 @@ describe('File Upload REST API (POST /api/upload)', () => {
         passwordHash: 'hash123',
       },
     });
-    authToken = generateToken({ userId: testUser.id, username: testUser.username });
+    authSession = await loginAs(app, testUser);
   });
 
   it('rejects upload when unauthenticated with 401', async () => {
     const res = await request(app)
       .post('/api/upload')
+      .set('Origin', TEST_APP_ORIGIN)
       .attach('file', Buffer.from('dummy file content'), 'test.txt')
       .expect(401);
 
-    expect(res.body.message).toMatch(/authorization required|token/i);
+    expect(res.body.message).toMatch(/authentication required/i);
   });
 
   it('rejects upload when no file is attached with 400', async () => {
     const res = await request(app)
       .post('/api/upload')
-      .set('Authorization', `Bearer ${authToken}`)
+      .set(authSession)
       .expect(400);
 
     expect(res.body.message).toMatch(/no file/i);
@@ -58,7 +59,7 @@ describe('File Upload REST API (POST /api/upload)', () => {
 
     const res = await request(app)
       .post('/api/upload')
-      .set('Authorization', `Bearer ${authToken}`)
+      .set(authSession)
       .attach('file', imageBuffer, {
         filename: 'avatar.png',
         contentType: 'image/png',
@@ -81,7 +82,7 @@ describe('File Upload REST API (POST /api/upload)', () => {
 
     const res = await request(app)
       .post('/api/upload')
-      .set('Authorization', `Bearer ${authToken}`)
+      .set(authSession)
       .attach('file', pdfBuffer, {
         filename: 'document.pdf',
         contentType: 'application/pdf',
@@ -100,7 +101,7 @@ describe('File Upload REST API (POST /api/upload)', () => {
 
     const res = await request(app)
       .post('/api/upload')
-      .set('Authorization', `Bearer ${authToken}`)
+      .set(authSession)
       .attach('file', largeBuffer, {
         filename: 'large-file.zip',
         contentType: 'application/zip',
@@ -115,7 +116,7 @@ describe('File Upload REST API (POST /api/upload)', () => {
 
     const res = await request(app)
       .post('/api/upload')
-      .set('Authorization', `Bearer ${authToken}`)
+      .set(authSession)
       .attach('file', exeBuffer, {
         filename: 'malicious.exe',
         contentType: 'application/x-msdownload',
@@ -144,7 +145,7 @@ describe('File Upload REST API (POST /api/upload)', () => {
       try {
         const res = await request(supabase.app)
           .post('/api/upload')
-          .set('Authorization', `Bearer ${authToken}`)
+          .set(authSession)
           .attach('file', Buffer.from('fake-png-binary-data'), { filename: 'photo.png', contentType: 'image/png' })
           .expect(200);
 

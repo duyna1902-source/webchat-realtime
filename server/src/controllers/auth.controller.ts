@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { getPrisma } from '../lib/prisma.js';
-import { signToken } from '../lib/jwt.js';
 import { getServerContext } from '../context.js';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
-import { UserDto } from '@webchat/shared';
+import { clearSessionCookie, readSessionToken, setSessionCookie } from '../lib/session-cookie.js';
+import { AuthResponseDto, UserDto } from '@webchat/shared';
 
 function toUserDto(user: any): UserDto {
   return {
@@ -17,6 +17,13 @@ function toUserDto(user: any): UserDto {
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   };
+}
+
+/** Starts a Session for the User and hands its token to the browser in the Session cookie. */
+async function startSession(req: Request, res: Response, userId: string): Promise<void> {
+  const { sessions, config } = getServerContext(req);
+  const token = await sessions.create(userId, { ip: req.ip, userAgent: req.get('user-agent') });
+  setSessionCookie(res, token, config.timing.sessionAbsoluteTtlMs);
 }
 
 export async function register(req: Request, res: Response): Promise<void> {
@@ -58,18 +65,10 @@ export async function register(req: Request, res: Response): Promise<void> {
     },
   });
 
-  const token = signToken(
-    {
-      userId: newUser.id,
-      username: newUser.username,
-    },
-    getServerContext(req).config.jwtSecret
-  );
+  await startSession(req, res, newUser.id);
 
-  res.status(201).json({
-    token,
-    user: toUserDto(newUser),
-  });
+  const body: AuthResponseDto = { user: toUserDto(newUser) };
+  res.status(201).json(body);
 }
 
 export async function login(req: Request, res: Response): Promise<void> {
@@ -103,35 +102,25 @@ export async function login(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const token = signToken(
-    {
-      userId: user.id,
-      username: user.username,
-    },
-    getServerContext(req).config.jwtSecret
-  );
+  await startSession(req, res, user.id);
 
-  res.status(200).json({
-    token,
-    user: toUserDto(user),
-  });
+  const body: AuthResponseDto = { user: toUserDto(user) };
+  res.status(200).json(body);
 }
 
 export async function me(req: AuthenticatedRequest, res: Response): Promise<void> {
-  if (!req.user) {
-    res.status(401).json({ message: 'Authorization required' });
-    return;
+  // `authMiddleware` has resolved the Session and its User.
+  const body: AuthResponseDto = { user: toUserDto(req.sessionUser) };
+  res.status(200).json(body);
+}
+
+/** Ends the current Session on the server and clears the cookie. Answers 204 even without a Session. */
+export async function logout(req: Request, res: Response): Promise<void> {
+  const { sessions } = getServerContext(req);
+  const resolved = await sessions.resolve(readSessionToken(req.headers.cookie));
+  if (resolved) {
+    await sessions.revoke(resolved.session.id);
   }
-
-  const prisma = getPrisma();
-  const user = await prisma.user.findUnique({
-    where: { id: req.user.userId },
-  });
-
-  if (!user) {
-    res.status(404).json({ message: 'User not found' });
-    return;
-  }
-
-  res.status(200).json(toUserDto(user));
+  clearSessionCookie(res);
+  res.status(204).end();
 }
