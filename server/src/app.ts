@@ -1,6 +1,5 @@
 import path from 'node:path';
 import express from 'express';
-import cors from 'cors';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import directChatRoutes from './routes/direct-chat.routes.js';
@@ -8,6 +7,7 @@ import roomRoutes from './routes/room.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import gifRoutes from './routes/gif.routes.js';
 import { UPLOADS_DIR, ensureUploadsDirExists } from './lib/storage.js';
+import { securityHeaders } from './middlewares/security-headers.js';
 import type { AppConfig } from './config.js';
 import type { Logger } from './lib/logger.js';
 import { requestContext } from './middlewares/request-id.js';
@@ -16,15 +16,24 @@ import { errorHandler } from './middlewares/error-handler.js';
 /** Largest JSON body accepted; bigger bodies get `413`. */
 export const JSON_BODY_LIMIT = '100kb';
 
+const SERVER_OWNED_PATH_PREFIXES = ['/api', '/socket.io', '/health', '/uploads'];
+
+/** True for `/api`, `/api/...` and the like, but not for SPA routes such as `/apiary`. */
+function isServerOwnedPath(requestPath: string): boolean {
+  return SERVER_OWNED_PATH_PREFIXES.some((prefix) => requestPath === prefix || requestPath.startsWith(`${prefix}/`));
+}
+
 /**
  * Builds the Express app for one server instance. Use `createServer()` rather than calling this
  * directly: it also attaches the server context (config, storage, Socket.IO) the handlers read.
  */
 export function createApp(config: AppConfig, logger: Logger): express.Express {
   const app = express();
+  app.disable('x-powered-by');
 
+  // Single-host, same-origin app (ADR 0010): no CORS. Security headers go first so every response has them.
+  app.use(securityHeaders(config));
   app.use(requestContext(logger));
-  app.use(cors());
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
   // Ensure uploads folder exists and serve statically
@@ -48,8 +57,9 @@ export function createApp(config: AppConfig, logger: Logger): express.Express {
   const { clientDistPath } = config;
   if (clientDistPath) {
     app.use(express.static(clientDistPath));
+    // `index.html` fallback for client-side routes: only GET, and never for server-owned paths.
     app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/socket.io') || req.path.startsWith('/health')) {
+      if (isServerOwnedPath(req.path)) {
         return next();
       }
       res.sendFile(path.join(clientDistPath, 'index.html'));

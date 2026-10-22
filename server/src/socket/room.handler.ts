@@ -35,6 +35,23 @@ export async function autoJoinUserRooms(io: Server, socket: AuthenticatedSocket,
   }
 }
 
+/**
+ * Returns the `room:<id>` realtime rooms among `rooms` that the User is no longer a Room Member of.
+ * Other rooms (`user:<id>`, the socket's own id) are never reported.
+ */
+export async function findRevokedRoomChannels(userId: string, rooms: Iterable<string>): Promise<Set<string>> {
+  const roomIds = [...rooms].filter((r) => r.startsWith('room:')).map((r) => r.slice('room:'.length));
+  if (roomIds.length === 0) return new Set();
+
+  const prisma = getPrisma();
+  const memberships = await prisma.roomMember.findMany({
+    where: { userId, roomId: { in: roomIds } },
+    select: { roomId: true },
+  });
+  const stillMember = new Set(memberships.map((m) => m.roomId));
+  return new Set(roomIds.filter((id) => !stillMember.has(id)).map((id) => `room:${id}`));
+}
+
 export function syncUserSocketsRoomMembership(
   io: Server,
   userId: string,

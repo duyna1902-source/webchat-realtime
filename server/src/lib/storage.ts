@@ -131,119 +131,47 @@ export class InMemoryStorageAdapter implements StorageAdapter {
   }
 }
 
-export interface CloudinaryStorageOptions {
-  cloudName: string;
-  uploadPreset?: string | null;
-  apiKey?: string | null;
-}
-
-export class CloudinaryStorageAdapter implements StorageAdapter {
-  readonly name = 'cloudinary';
-  private cloudName: string;
-  private uploadPreset?: string;
-  private apiKey?: string;
-
-  constructor(options: CloudinaryStorageOptions) {
-    this.cloudName = options.cloudName;
-    this.uploadPreset = options.uploadPreset ?? undefined;
-    this.apiKey = options.apiKey ?? undefined;
-  }
-
-  async upload(file: Express.Multer.File): Promise<UploadResult> {
-    if (!this.cloudName) {
-      throw new Error('CLOUDINARY_CLOUD_NAME is not configured');
-    }
-
-    try {
-      let fileBuffer: Buffer;
-      if (file.buffer) {
-        fileBuffer = file.buffer;
-      } else if (file.path && fs.existsSync(file.path)) {
-        fileBuffer = await fs.promises.readFile(file.path);
-      } else {
-        throw new Error('File data is missing');
-      }
-
-      const formData = new FormData();
-      const blob = new Blob([fileBuffer], { type: file.mimetype });
-      formData.append('file', blob, file.originalname);
-      if (this.uploadPreset) {
-        formData.append('upload_preset', this.uploadPreset);
-      }
-      if (this.apiKey) {
-        formData.append('api_key', this.apiKey);
-      }
-
-      const uploadUrl = `https://api.cloudinary.com/v1_1/${this.cloudName}/auto/upload`;
-      const response = await fetch(uploadUrl, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Cloudinary upload failed: ${errText}`);
-      }
-
-      const data: any = await response.json();
-      return {
-        url: data.secure_url || data.url,
-        name: file.originalname,
-        filename: data.public_id || file.originalname,
-        size: data.bytes || file.size,
-        mimeType: file.mimetype,
-      };
-    } finally {
-      if (file.path && fs.existsSync(file.path)) {
-        await fs.promises.unlink(file.path).catch(() => {});
-      }
-    }
-  }
-}
-
 export interface SupabaseStorageOptions {
   url: string;
+  /** A Supabase secret key (`sb_secret_...`), never a legacy JWT-based `service_role` key. */
   secretKey: string;
   bucket: string;
+  /** HTTP client; injectable so tests never reach the real Supabase. */
+  fetch?: typeof fetch;
 }
 
 export class SupabaseStorageAdapter implements StorageAdapter {
   readonly name = 'supabase';
   private supabaseUrl: string;
-  private serviceKey: string;
+  private secretKey: string;
   private bucket: string;
+  private fetch: typeof fetch;
 
   constructor(options: SupabaseStorageOptions) {
-    this.supabaseUrl = options.url;
-    this.serviceKey = options.secretKey;
+    this.supabaseUrl = options.url.replace(/\/$/, '');
+    this.secretKey = options.secretKey;
     this.bucket = options.bucket;
+    this.fetch = options.fetch ?? ((input, init) => fetch(input, init));
   }
 
   async upload(file: Express.Multer.File): Promise<UploadResult> {
-    if (!this.supabaseUrl || !this.serviceKey) {
+    if (!this.supabaseUrl || !this.secretKey) {
       throw new Error('Supabase storage is not configured');
     }
 
     try {
-      let fileBuffer: Buffer;
-      if (file.buffer) {
-        fileBuffer = file.buffer;
-      } else if (file.path && fs.existsSync(file.path)) {
-        fileBuffer = await fs.promises.readFile(file.path);
-      } else {
-        throw new Error('File data is missing');
-      }
+      const fileBuffer = await readUploadedFile(file);
 
       const sanitized = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
       const objectPath = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${sanitized}`;
-      const cleanUrl = this.supabaseUrl.replace(/\/$/, '');
-      const uploadUrl = `${cleanUrl}/storage/v1/object/${this.bucket}/${objectPath}`;
+      const uploadUrl = `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${objectPath}`;
 
-      const res = await fetch(uploadUrl, {
+      // Secret keys are not JWTs: Supabase accepts them only in the `apikey` header,
+      // and rejects them as a `Bearer` token.
+      const res = await this.fetch(uploadUrl, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${this.serviceKey}`,
-          apikey: this.serviceKey,
+          apikey: this.secretKey,
           'Content-Type': file.mimetype,
         },
         body: fileBuffer,
@@ -254,7 +182,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         throw new Error(`Supabase storage upload failed: ${errText}`);
       }
 
-      const publicUrl = `${cleanUrl}/storage/v1/object/public/${this.bucket}/${objectPath}`;
+      const publicUrl = `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/${objectPath}`;
 
       return {
         url: publicUrl,
@@ -264,9 +192,7 @@ export class SupabaseStorageAdapter implements StorageAdapter {
         mimeType: file.mimetype,
       };
     } finally {
-      if (file.path && fs.existsSync(file.path)) {
-        await fs.promises.unlink(file.path).catch(() => {});
-      }
+      await removeTemporaryFile(file);
     }
   }
 }
@@ -274,8 +200,6 @@ export class SupabaseStorageAdapter implements StorageAdapter {
 /** Builds the real storage adapter selected by the validated configuration. */
 export function createStorageAdapter(config: StorageConfig): StorageAdapter {
   switch (config.provider) {
-    case 'cloudinary':
-      return new CloudinaryStorageAdapter(config);
     case 'supabase':
       return new SupabaseStorageAdapter(config);
     case 'local':

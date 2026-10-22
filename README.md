@@ -51,7 +51,7 @@ The system is engineered across three progressive technical tiers, enhanced with
 - **Backend**: Node.js, Express, Socket.io, TypeScript
 - **Frontend**: React 18, Vite, Tailwind CSS, Lucide Icons, TypeScript
 - **Database & ORM**: PostgreSQL (Neon / Supabase) + Prisma v7 Driver Adapters (`@prisma/adapter-pg` & in-memory `@electric-sql/pglite`)
-- **Storage**: Cloud Storage Adapter Pattern (`LocalStorageAdapter` / `SupabaseStorageAdapter` / `CloudinaryStorageAdapter`)
+- **Storage**: Cloud Storage Adapter Pattern (`LocalStorageAdapter` / `SupabaseStorageAdapter`)
 - **Testing**: Vitest + Supertest (Backend) & Vitest + React Testing Library + JSDOM (Frontend)
 
 ```mermaid
@@ -125,7 +125,7 @@ Create `.env` configuration files (or copy from `.env.example` / `server/.env.ex
   NODE_ENV=development
   DATABASE_URL="postgresql://user:password@host:port/dbname?sslmode=require"
   JWT_SECRET="your_super_secret_jwt_key"
-  STORAGE_PROVIDER="local" # Options: local | supabase | cloudinary
+  STORAGE_PROVIDER="local" # Options: local | supabase (supabase also needs SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_STORAGE_BUCKET)
   # Optional: GIPHY_API_KEY="your-giphy-api-key"
   ```
   *(Note: If `DATABASE_URL` is omitted or set to `memory:`, the server automatically boots with an in-memory **PGlite** PostgreSQL instance initialized from `server/prisma/schema.sql`.)*
@@ -161,6 +161,31 @@ npm run test:server
 # Frontend React UI & responsive behavior tests
 npm run test:client
 ```
+
+---
+
+## Secret scanning
+
+This repository is public, so secrets must never be committed. Real values live only in your gitignored `.env` and in the Render dashboard; `render.yaml` declares every secret with `sync: false` and holds no values.
+
+A [gitleaks](https://github.com/gitleaks/gitleaks) pre-commit hook in `.githooks/pre-commit` blocks a commit whose staged changes contain a secret. Set it up once per clone:
+
+1. Install gitleaks 8.19 or newer so it is on your `PATH`:
+   - Windows: `winget install --id Gitleaks.Gitleaks` (or `scoop install gitleaks`)
+   - macOS: `brew install gitleaks`
+   - Linux: download a release binary from <https://github.com/gitleaks/gitleaks/releases>
+2. Point git at the repository's hooks directory (this only changes this clone's `.git/config`):
+   ```bash
+   git config core.hooksPath .githooks
+   ```
+
+The hook refuses to commit if gitleaks is missing. To scan the whole working tree or the git history by hand:
+```bash
+gitleaks dir . --redact   # current files
+gitleaks git . --redact   # every commit
+```
+
+Rules come from `.gitleaks.toml` (the gitleaks defaults plus an allowlist for fake test fixtures in `server/tests/`). Findings that already exist in git history are recorded in `.gitleaksignore`; history is not rewritten, and those keys are treated as compromised and rotated. If gitleaks flags a real secret, do not add it to `.gitleaksignore`: remove it from the change and rotate it.
 
 ---
 
