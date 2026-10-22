@@ -1,3 +1,8 @@
+-- GENERATED FILE: DO NOT EDIT BY HAND.
+-- Regenerate after changing prisma/schema.prisma: npm run db:schema-sql --workspace=server
+-- Source: prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script
+-- Loaded into in-memory PGlite by the tests. Production schema changes go through prisma/migrations.
+
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
@@ -195,3 +200,4 @@ ALTER TABLE "RoomMessage" ADD CONSTRAINT "RoomMessage_roomId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "RoomMessage" ADD CONSTRAINT "RoomMessage_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+

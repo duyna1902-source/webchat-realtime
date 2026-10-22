@@ -5,7 +5,8 @@ services:
     plan: free
     region: singapore
     buildCommand: npm install --include=dev && npm run build
-    startCommand: npm run start --workspace=server
+    # Applies pending Prisma migrations (prisma/migrations) before the server starts.
+    startCommand: npm run db:deploy --workspace=server && npm run start --workspace=server
     healthCheckPath: /health
     # Never put a secret value in this file: it is public. Every secret uses `sync: false`,
     # so Render asks for its value on the first deploy and keeps it in the dashboard.
