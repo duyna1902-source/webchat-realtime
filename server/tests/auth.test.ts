@@ -6,7 +6,9 @@ import { createTestServer } from './helpers/server.js';
 let app: Express;
 
 beforeAll(async () => {
-  ({ app } = await createTestServer());
+  // One server for the whole file registers far more than 5 users from one IP; the register
+  // limit itself is covered in rate-limit.test.ts.
+  ({ app } = await createTestServer({ config: { rateLimits: { register: { max: 1000, windowMs: 60_000 } } } }));
 });
 
 describe('Auth REST API Endpoints', () => {

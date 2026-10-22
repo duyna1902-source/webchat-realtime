@@ -24,5 +24,6 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
     code: publicError.code,
     requestId: req.requestId,
   };
+  if (publicError.retryAfterMs !== undefined) body.retryAfterMs = publicError.retryAfterMs;
   res.status(publicError.status).json(body);
 };

@@ -58,6 +58,7 @@ export function socketHandler<P = unknown>(
         }
         if (ack) {
           const response: SocketErrorAck = { success: false, error: publicError.code, requestId };
+          if (publicError.retryAfterMs !== undefined) response.retryAfterMs = publicError.retryAfterMs;
           ack(response);
         }
       })

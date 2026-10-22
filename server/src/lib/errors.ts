@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { ERROR_CODES, ErrorCode } from '@webchat/shared';
+import { ERROR_CODES, ErrorCode, formatRateLimitMessage } from '@webchat/shared';
 
 /**
  * An expected failure whose `message` is safe to show the user. Anything thrown that is
@@ -17,10 +17,24 @@ export class AppError extends Error {
   }
 }
 
+/** A request or socket event over its rate limit (SEC-07); the client may retry after `retryAfterMs`. */
+export class RateLimitedError extends AppError {
+  readonly retryAfterMs: number;
+
+  constructor(retryAfterMs: number) {
+    const wait = Math.max(1, Math.ceil(retryAfterMs));
+    super(429, ERROR_CODES.RATE_LIMITED, formatRateLimitMessage(wait));
+    this.name = 'RateLimitedError';
+    this.retryAfterMs = wait;
+  }
+}
+
 export interface PublicError {
   status: number;
   code: ErrorCode;
   message: string;
+  /** Only for `RATE_LIMITED`. */
+  retryAfterMs?: number;
 }
 
 export const INTERNAL_ERROR: PublicError = {
@@ -34,6 +48,9 @@ export const INTERNAL_ERROR: PublicError = {
  * raised by Express itself (body parsing) keep their status; their raw messages are never used.
  */
 export function toPublicError(err: unknown): PublicError {
+  if (err instanceof RateLimitedError) {
+    return { status: err.status, code: err.code, message: err.message, retryAfterMs: err.retryAfterMs };
+  }
   if (err instanceof AppError) {
     return { status: err.status, code: err.code, message: err.message };
   }

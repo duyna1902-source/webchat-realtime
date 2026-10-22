@@ -4,6 +4,7 @@ import { getPrisma } from '../lib/prisma.js';
 import { AppError } from '../lib/errors.js';
 import { socketHandler } from '../lib/async-handler.js';
 import type { Logger } from '../lib/logger.js';
+import type { SocketRateLimits } from '../lib/rate-limit.js';
 import { presenceManager } from './presence.handler.js';
 import {
   SOCKET_EVENTS,
@@ -66,7 +67,7 @@ export async function handleDirectMessagesDeliveryOnConnect(io: Server, userId: 
   }
 }
 
-export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSocket, log: Logger): void {
+export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSocket, log: Logger, limits: SocketRateLimits): void {
   const userId = socket.data.user.userId;
 
   // Automatically join user room for targeted 1-1 messaging
@@ -75,6 +76,7 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
   socket.on(
     SOCKET_EVENTS.DIRECT_SEND,
     socketHandler<DirectSendMessagePayload>(log, SOCKET_EVENTS.DIRECT_SEND, async (payload) => {
+      limits.consumeMessageSend();
       const { directChatId, content, type, attachmentUrl, attachmentName, attachmentSize } = payload || ({} as DirectSendMessagePayload);
 
       if (!directChatId || (!content && !attachmentUrl)) {
@@ -168,6 +170,9 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
       }
 
       const { directChatId, isTyping } = payload;
+      // Over the limit: dropped silently (SEC-07).
+      if (!limits.allowTyping(`direct:${directChatId}`, isTyping)) return;
+
       const prisma = getPrisma();
 
       // Verify that direct chat exists and sender is a participant
