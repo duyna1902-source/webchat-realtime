@@ -26,8 +26,12 @@ _Avoid_: Bloated multi-line header, Stacked navigation bar
 
 
 **User**:
-Tài khoản người dùng đã được định danh và xác thực qua hệ thống bằng JWT.
+Tài khoản người dùng đã được định danh và xác thực qua một Session còn hiệu lực.
 _Avoid_: Account, Client, Profile
+
+**Session**:
+Phiên đăng nhập của một User trên một thiết bị, bắt đầu khi đăng nhập và kết thúc khi đăng xuất, hết hạn, hoặc bị thu hồi. Một User có thể có nhiều Session cùng lúc; thu hồi một Session chỉ đăng xuất thiết bị đó, còn "đăng xuất mọi thiết bị" thu hồi toàn bộ Session của User.
+_Avoid_: Token, Login, Connection
 
 **Direct Chat**:
 Không gian trò chuyện trực tiếp riêng tư giữa đúng hai người dùng độc lập.
@@ -70,8 +74,8 @@ Con số hiển thị tổng lượng tin nhắn mới chưa được người d
 _Avoid_: Notification Counter, Unseen Badge
 
 **Attachment**:
-Tệp đính kèm (hình ảnh, tài liệu) được lưu trữ trên cloud lưu trữ ngoài (Cloudinary / Supabase Storage) và liên kết vào tin nhắn thông qua URL.
-_Avoid_: File, Media, Upload
+Tệp đính kèm (hình ảnh, tài liệu) được lưu trữ trên cloud lưu trữ ngoài và gắn vào một tin nhắn. Quyền xem một Attachment đi theo quyền truy cập cuộc trò chuyện chứa nó: chỉ Direct Chat Participant hoặc Room Member hiện tại mới xem được, và người đã rời hoặc bị kick sẽ mất quyền xem.
+_Avoid_: File, Media, Upload, Public link
 
 **Document Preview**:
 Khả năng xem trực tiếp nội dung hoặc thông tin tóm tắt của tệp tài liệu đính kèm ngay trong không gian ứng dụng trước hoặc thay cho việc tải tệp về thiết bị.
@@ -88,7 +92,7 @@ Phân cấp vai trò quản trị trong Room Chat gồm `OWNER` (chủ phòng), 
 Bản ghi liên kết giữa người dùng và một Direct Chat để quản lý vị trí đọc (`lastReadMessageId`) của từng người.
 
 **Connection State Recovery**:
-Cơ chế của Socket.io tự động khôi phục các sự kiện/gói tin bị gián đoạn trong thời gian mất mạng tạm thời ngắn.
+Cơ chế của Socket.io tự động khôi phục các sự kiện/gói tin bị gián đoạn trong thời gian mất mạng tạm thời ngắn. Cơ chế này chỉ khôi phục gói tin, không khôi phục quyền: danh tính và tư cách thành viên của người dùng vẫn được kiểm tra lại khi kết nối được khôi phục.
 
 **Catch-up Sync**:
 Quy trình client gọi REST API để kéo lại toàn bộ tin nhắn bị bỏ lỡ sau khi kết nối mạng phục hồi từ gián đoạn dài.

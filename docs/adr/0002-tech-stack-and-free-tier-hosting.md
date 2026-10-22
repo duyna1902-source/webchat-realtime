@@ -3,7 +3,7 @@
 Hệ thống yêu cầu chạy thực tế trên browser với chi phí 0 đồng (free services) và hỗ trợ kết nối hai chiều thời gian thực liên tục. Chúng tôi quyết định sử dụng Full-stack TypeScript với React (Vite) triển khai trên Vercel, Node.js + Socket.io chạy trên Render (Web Service), và PostgreSQL lưu trữ trên Neon/Supabase đi kèm Prisma ORM.
 
 ## Status
-accepted
+accepted, một phần bị thay thế bởi ADR-0010 (frontend không còn trên Vercel, chuyển sang single-host trên Render)
 
 ## Considered Options
 - **Vercel Serverless + Pusher/Ably**: Vercel không hỗ trợ duy trì kết nối WebSocket lâu dài nên phải dùng dịch vụ trung gian ngoài (Pusher/Ably). Bị từ chối vì giới hạn tin nhắn nghiêm ngặt ở gói miễn phí và phụ thuộc bên thứ 3.
