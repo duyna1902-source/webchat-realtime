@@ -10,8 +10,10 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:schema-sql": "node scripts/generate-schema-sql.mjs",
+    "db:upgrade-data": "tsx src/cli/upgrade-data.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.10",
