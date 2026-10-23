@@ -11,7 +11,7 @@
 
 [![Status](https://img.shields.io/badge/status-completed%20%26%20verified-success.svg)]()
 [![TypeScript](https://img.shields.io/badge/typescript-%5E5.7-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/node.js-v18%2B-green.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/node.js-v20.19%2B-green.svg)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/react-v18-61dafb.svg)](https://react.dev/)
 [![Socket.io](https://img.shields.io/badge/socket.io-v4.8-orange.svg)](https://socket.io/)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
@@ -110,9 +110,8 @@ webchat-realtime/
 ## Getting Started & Installation
 
 ### Prerequisites
-- **Node.js** (v18 or higher)
-- **NPM** (v9+)
-- **PostgreSQL Database** (Optional for local dev/testing thanks to built-in **PGlite** in-memory fallback; recommended for persistent storage via local Postgres or free Neon/Supabase cloud DB)
+- **Node.js** 20.19 or newer (required by Prisma 7; developed on Node 24) and **npm** 10+
+- **PostgreSQL** 15+: a local Postgres, a Docker container, or a free Supabase project. The server always needs a real database; only the test suites use in-memory PGlite.
 
 ### 1. Clone the Repository
 ```bash
@@ -121,45 +120,57 @@ cd webchat-realtime
 ```
 
 ### 2. Install Dependencies
-Install all workspaces dependencies from the root directory:
+Install all workspaces dependencies from the root directory (this also runs `prisma generate`):
 ```bash
 npm install
 ```
 
 ### 3. Environment Configuration
-Create `.env` configuration files (or copy from `.env.example` / `server/.env.example`):
+Copy `server/.env.example` to **`server/.env`** and fill it in. The server, the operator commands and Prisma all load `.env` from the `server/` directory (the root `.env.example` is the same file, kept for discoverability). `server/src/config.ts` is the only code that reads these variables. It refuses to start and lists **every** invalid variable, and it never falls back to a default secret.
 
-* **`server/.env`** (or root `.env`):
-  ```env
-  PORT=4000
-  NODE_ENV=development
-  DATABASE_URL="postgresql://user:password@host:port/dbname?sslmode=require"
-  APP_ORIGIN="http://localhost:5173" # the origin the browser sees
-  STORAGE_PROVIDER="local" # Options: local | supabase (supabase also needs SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_STORAGE_BUCKET)
-  # Optional: GIPHY_API_KEY="your-giphy-api-key"
-  ```
-  *(Note: If `DATABASE_URL` is omitted or set to `memory:`, the server automatically boots with an in-memory **PGlite** PostgreSQL instance initialized from `server/prisma/schema.sql`.)*
+| Variable | Required | Meaning |
+|---|---|---|
+| `DATABASE_URL` | Always | Postgres connection string. With Supabase, use the direct or session-mode connection, **not** the transaction pooler on port `6543` (Prisma Migrate fails through it). `memory:` (PGlite) is accepted only under `NODE_ENV=test`. |
+| `APP_ORIGIN` | Always | The origin the browser sees, without a path: `http://localhost:5173` in development, `https://webchat-realtime.onrender.com` in production. Every write request and Socket.IO handshake must come from it (CSRF and Cross-Site WebSocket Hijacking protection). |
+| `NODE_ENV` | No (default `development`) | `development`, `test` or `production`. |
+| `PORT` | No (default `4000`) | Port the server listens on (Render uses `10000`). |
+| `STORAGE_PROVIDER` | Must be `supabase` in production | `local` (files in `server/uploads/`, development only) or `supabase`. |
+| `SUPABASE_URL` | With `supabase` storage | `https://<project-ref>.supabase.co`. Its origin is also added to the CSP. |
+| `SUPABASE_SECRET_KEY` | With `supabase` storage | A Supabase **secret key** (`sb_secret_...`). Never the legacy `anon` or `service_role` keys. |
+| `SUPABASE_STORAGE_BUCKET` | With `supabase` storage | The private Attachment bucket, `attachments`. |
+| `LOG_LEVEL` | No (default `info`) | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. |
+| `GIPHY_API_KEY` | No | GIF search; without it the app uses built-in curated GIFs. |
 
-### 4. Database Migration (When Using External PostgreSQL)
-The schema is managed with versioned Prisma Migrate migrations (`db push` is no longer used). Apply them to your database:
+In production the server also refuses to start without the built client (`client/dist/index.html`). `JWT_SECRET`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `PUBLIC_URL`, the Cloudinary variables and `VITE_API_URL`/`VITE_SOCKET_URL` no longer exist: delete them wherever they are still set.
+
+### 4. Database Migrations
+The schema is managed with versioned Prisma Migrate migrations in `server/prisma/migrations/` (`db push` is no longer used). Apply them to your database:
 ```bash
 npm run db:deploy --workspace=server
 ```
-On Render this runs automatically before the server starts. See [`docs/database-migrations.md`](docs/database-migrations.md) for adding a migration, the one-time production baseline step, and the data upgrade command.
+The migration workflow ([`docs/database-migrations.md`](docs/database-migrations.md) has the details):
+1. **Baseline**: `0_baseline` is the schema production had when it was created with `db push`. An existing database created that way is marked as already having it, once: `npx prisma migrate resolve --applied 0_baseline` (run from `server/`). A fresh database needs nothing special.
+2. **`migrate deploy`**: applies every pending migration. On Render it runs automatically in the start command, before the server starts.
+3. **Data upgrade command**: normalizes existing data to the new rules (usernames, emails, room names, legacy Attachments) and deletes unreferenced bucket objects. Back up with `pg_dump` first, then run it with `--dry-run` and read the report before applying:
+   ```bash
+   npm run db:upgrade-data --workspace=server -- --dry-run
+   npm run db:upgrade-data --workspace=server
+   ```
+
+Schema changes follow **expand → data upgrade → contract**. Every new table must enable Row Level Security; the test suite fails otherwise.
 
 ### 5. Run in Development Mode
 Start both the backend server and frontend client concurrently:
 ```bash
 npm run dev
 ```
-* **Frontend**: `http://localhost:5173`
-* **Backend API / WebSocket**: `http://localhost:4000`
+Open **`http://localhost:5173`**. The Vite dev server proxies `/api`, `/socket.io` and `/uploads` to the backend on `http://localhost:4000`, so development is same-origin, with the same session cookie and `Origin` checks as production. Do not open the app on port 4000 directly: requests from there do not match `APP_ORIGIN`.
 
 ---
 
 ## Running Tests
 
-Run the entire test suite (14 backend integration suites + 13 frontend UI suites):
+Run the entire test suite (backend integration suites, then frontend UI suites):
 ```bash
 npm test
 ```
@@ -200,19 +211,62 @@ Rules come from `.gitleaks.toml` (the gitleaks defaults plus an allowlist for fa
 
 ---
 
-## Free-Tier Deployment Strategy
+## Deployment: Single Host on Render
 
-This application is architected to run completely free of charge on modern cloud free-tiers (supporting both **Decoupled** and **Unified Single-Host** deployment modes):
-1. **Frontend**: Deployed as a static SPA bundle on **Vercel** (`vercel.json`), or served directly from Express when `client/dist` is built (`npm run build`).
-2. **Backend**: Hosted as a Web Service on **Render** (`render.yaml`, includes `/health` checks and built-in UI reconnection banners for Render's cold-start sleep behavior).
-3. **Database & Storage**: Managed PostgreSQL database on **Neon / Supabase** and file attachments stored in **Supabase Storage Buckets** (`attachments`).
+Production runs as **one Render web service** ([ADR 0010](docs/adr/0010-single-host-render-with-session-cookie.md)) at `https://webchat-realtime.onrender.com`. The Express server serves the built SPA, the REST API and Socket.IO from that one origin. There is no Vercel deployment and no CORS. The database and the private Attachment bucket live in Supabase.
+
+`render.yaml` is the blueprint:
+- **Build**: `npm install --include=dev && npm run build` (shared → server → client).
+- **Start**: `npm run db:deploy --workspace=server && npm run start --workspace=server`. Pending migrations are applied before the server starts; if one fails, the server does not start.
+- **Health check**: `/health` (liveness). `/health/ready` also checks the database and answers `503` when it is unreachable.
+- **Environment**: `NODE_ENV=production`, `PORT=10000`, `APP_ORIGIN`, `STORAGE_PROVIDER=supabase` and `SUPABASE_STORAGE_BUCKET=attachments` are plain values. The secrets `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `GIPHY_API_KEY` are `sync: false`: the file holds no values.
+
+To deploy:
+1. Create the service from the blueprint (Render dashboard → **New** → **Blueprint**), or use the existing `webchat-realtime` service. Render asks for `sync: false` values **only when a blueprint is first created**. On an existing service, set or change them by hand under **Environment**, and delete variables that no longer exist (`JWT_SECRET`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
+2. For a database first created with `db push`, mark the baseline as applied once, before the first deploy that runs `migrate deploy` (see [`docs/database-migrations.md`](docs/database-migrations.md#production-one-time-baseline-ticket-21-done-by-a-human)).
+3. Push to `main`. Render builds, runs the migrations and starts the server.
+4. Check that `https://webchat-realtime.onrender.com/health/ready` answers `200`, and that after signing in DevTools shows no CSP errors and a `__Host-session` cookie with `HttpOnly`, `Secure` and `SameSite=Strict`.
+
+Free-tier caveats: Render sleeps the instance after 15 minutes without traffic (the first visit then takes 30–50 seconds), and Supabase pauses a free project after about a week without activity. Both are covered in the [incident runbook](docs/incident-runbook.md).
+
+---
+
+## REST API Overview
+
+All endpoints are same-origin under `/api`. Authentication is the `__Host-session` cookie set by register and login; there is no `Authorization` header and no `token` in any response. Every `POST`, `PATCH`, `PUT` and `DELETE` must carry an `Origin` header equal to `APP_ORIGIN` (or `Sec-Fetch-Site: same-origin`), otherwise it gets `403`. Errors have the shape `{ message, code, requestId }`; validation errors add `fields`, and rate-limit errors (`429`, with a `Retry-After` header) add `retryAfterMs`.
+
+| Endpoint | Notes |
+|---|---|
+| `POST /api/auth/register` | `201 { user }` and sets the session cookie. `user` is the caller's own profile (`SelfUserDto`, with email). |
+| `POST /api/auth/login` | Body `{ emailOrUsername, password }`. `200 { user }` and sets the cookie; wrong credentials are always `401` with the same message. |
+| `GET /api/auth/me` | `200 { user }` or `401`. |
+| `POST /api/auth/logout` | `204`: ends the current Session and clears the cookie. |
+| `POST /api/auth/logout-all` | `204`: ends every Session of the user, on every device. |
+| `GET /api/users?q=<text>` | User search. `q` is required (1–32 characters after trimming, otherwise `400`), matches usernames only, case-insensitively, and returns at most 20 users as `PublicUserDto` (`{ id, username, isOnline, lastSeenAt }`, no email). The old `?search=` parameter and the full user list are gone. |
+| `GET/POST /api/direct-chats`, `GET /api/direct-chats/:id/messages` | Direct Chats and their messages (cursor pagination with `before`/`after`). |
+| `/api/rooms/...` | Rooms, Room Members, roles and messages. |
+| `POST /api/upload` | Multipart upload (10MB). `201 { attachment }`; disallowed file types get `415`. Send the message with its `attachmentId` over the socket. |
+| `GET /api/attachments/:id/url` | Fresh signed URL `{ url, expiresAt }` for a Direct Chat Participant or current Room Member, otherwise `404`. |
+| `GET /api/gifs/search`, `GET /api/gifs/trending` | Giphy proxy. |
+
+Other users appear everywhere (member lists, Direct Chat partners, message senders) as `PublicUserDto`; only `/api/auth/*` returns an email.
+
+---
+
+## Security
+
+- Report vulnerabilities privately as described in [`SECURITY.md`](SECURITY.md), which also lists the accepted risks.
+- Operators: the [incident runbook](docs/incident-runbook.md) covers the security log events, key rotation, Session revocation (`npm run sessions:revoke --workspace=server -- --user <username|id>` or `-- --all`), impact assessment and user notification.
 
 ---
 
 ## Documentation
 
-For deep technical dives into our design patterns, data models, domain glossary, and architectural decision records (ADRs `0001`–`0008`), please check out:
+For deep technical dives into our design patterns, data models, domain glossary, and architectural decision records (ADRs `0001`–`0010`), please check out:
 - [System Architecture Documentation](docs/adr/SYSTEM_ARCHITECTURE.md)
+- [Database migrations](docs/database-migrations.md)
+- [Incident runbook](docs/incident-runbook.md)
+- [Security policy](SECURITY.md)
 - [Domain Glossary (GDG-HUST)](GLOSSARY.md)
 
 ---

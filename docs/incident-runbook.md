@@ -142,7 +142,7 @@ Remove-Item Env:DATABASE_URL, Env:APP_ORIGIN
 
 Leave `NODE_ENV` unset: with `NODE_ENV=production` the configuration also demands the Supabase variables and a client build. Variables set in the shell win over `server/.env`.
 
-`npm run sessions:revoke` runs the TypeScript source through `tsx`, a devDependency. On a machine with only a build, run the compiled command from `server/` instead: `npm run build`, then `node dist/cli/revoke-sessions.js --all` (or `--user <username or id>`).
+`npm run sessions:revoke --workspace=server` runs the TypeScript source through `tsx`, a devDependency. On a machine with only a build, run the compiled command from `server/` instead: `npm run build`, then `node dist/cli/revoke-sessions.js --all` (or `--user <username or id>`).
 
 What to expect:
 
@@ -224,9 +224,22 @@ npm run db:upgrade-data --workspace=server -- --dry-run   # report only, changes
 npm run db:upgrade-data --workspace=server                # apply
 ```
 
-It loads the normal server configuration, so set `DATABASE_URL` and `APP_ORIGIN` in the shell as for [`sessions:revoke`](#3-contain-revoke-sessions). To include the bucket, also set `STORAGE_PROVIDER=supabase`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `SUPABASE_STORAGE_BUCKET`. Save the report of both runs in the incident ticket.
+It loads the normal server configuration, so set `DATABASE_URL` and `APP_ORIGIN` in the shell as for [`sessions:revoke`](#3-contain-revoke-sessions), and **also** `STORAGE_PROVIDER=supabase`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `SUPABASE_STORAGE_BUCKET` with the production values. Save the report of both runs in the incident ticket.
 
-> TODO(ticket 14): describe the legacy Attachment steps (turning old bucket URLs into Attachment records, removing unsafe attachments, deleting unreferenced bucket objects): which step names appear in the report, what their counts mean, and which storage variables they need.
+The last three steps handle legacy Attachments (ADR 0009):
+
+| Step in the report | What its count means |
+|---|---|
+| `migrate-legacy-attachments` | Messages whose old public bucket URL became an Attachment record, plus messages whose attachment was removed (`javascript:`, another domain, empty, another bucket, an object already used by an earlier message). Removed ones keep their text and show "Tệp đính kèm không còn khả dụng". |
+| `convert-foreign-gifs` | GIF messages whose URL was not a Giphy URL, turned into empty `TEXT` messages marked unavailable. |
+| `delete-orphaned-objects` | Bucket objects that no Attachment references, deleted. They may have been planted with a leaked key. |
+
+Two cautions:
+
+- **Without the Supabase variables, every legacy attachment counts as foreign and is removed.** Old URLs are matched against `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_STORAGE_BUCKET}/`. Check in the `--dry-run` report that `migrate-legacy-attachments` creates Attachments before you apply.
+- **Run it while nobody is uploading.** A file uploaded during the run, before its Attachment row is committed, counts as an orphan and is deleted. Run it right after a deploy at a quiet time, and tell users beforehand if there are any.
+
+In a dry run the storage deletions are skipped and only listed in the report.
 
 ## Supabase free plan pauses inactive projects
 

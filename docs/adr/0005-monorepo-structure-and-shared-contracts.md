@@ -11,4 +11,4 @@ accepted
 
 ## Consequences
 - Đảm bảo tính toàn vẹn 100% về type giữa frontend và backend khi phát triển.
-- Dễ dàng thiết lập CI/CD: Vercel trỏ vào thư mục `client`, Render trỏ vào thư mục `server`.
+- Dễ dàng thiết lập CI/CD: một lệnh `npm run build` ở gốc repo build lần lượt `shared`, `server` và `client`. Ban đầu dự kiến Vercel trỏ vào thư mục `client` và Render trỏ vào thư mục `server`; từ [ADR 0010](./0010-single-host-render-with-session-cookie.md), chỉ còn Render build toàn bộ monorepo và phục vụ cả SPA lẫn API.
