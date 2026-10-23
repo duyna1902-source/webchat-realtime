@@ -25,11 +25,6 @@ const lowercaseEmails: UpgradeStep = {
   },
 };
 
-function fakeFile(name: string, content: string): Express.Multer.File {
-  const buffer = Buffer.from(content);
-  return { originalname: name, mimetype: 'text/plain', size: buffer.length, buffer } as Express.Multer.File;
-}
-
 describe('Data upgrade command (seam 3)', () => {
   let db: PGlite;
   let prisma: PrismaClient;
@@ -107,14 +102,14 @@ describe('Data upgrade command (seam 3)', () => {
     const uploadStep: UpgradeStep = {
       name: 'upload-marker',
       async run({ storage: store }) {
-        uploadedUrl = (await store.upload(fakeFile('marker.txt', 'hello')))?.url;
+        uploadedUrl = (await store.put(Buffer.from('hello'), { contentType: 'text/plain; charset=utf-8' }))?.url;
         return { changed: 1 };
       },
     };
 
     const dry = await run(['--dry-run'], [uploadStep]);
     expect(uploadedUrl).toBeUndefined();
-    expect(dry.steps[0].skippedStorageWrites).toEqual(['upload']);
+    expect(dry.steps[0].skippedStorageWrites).toEqual(['put']);
 
     const real = await run([], [uploadStep]);
     expect(real.steps[0].skippedStorageWrites).toEqual([]);

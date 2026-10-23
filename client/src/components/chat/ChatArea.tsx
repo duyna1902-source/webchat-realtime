@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { DirectChatListItemDto, DirectReceiveMessagePayload, MessageType, MessageStatus, MESSAGE_LIMITS } from '@webchat/shared';
+import { DirectChatListItemDto, DirectReceiveMessagePayload, MessageType, MessageStatus, MESSAGE_LIMITS, UPLOAD_ACCEPT } from '@webchat/shared';
 
 function getDirectStatusWatermark(messages: Array<{ id: string; senderId: string; status: string }>, currentUserId: string) {
   let lastReadOutgoingId: string | null = null;
@@ -27,6 +27,7 @@ import { SendDirectMessageOptions } from '../../hooks/useDirectMessages';
 import { MobileBackButton } from '../common/MobileBackButton';
 import { getAvatarColorClass } from '../../utils/avatarColor';
 import { truncateUnicodeSafe } from '../../utils/unicode';
+import { describeUploadError } from '../../utils/uploadErrors';
 import {
   Send,
   MessageSquare,
@@ -204,8 +205,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     });
 
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.message || 'File upload failed');
+      throw new Error(await describeUploadError(res));
     }
 
     return res.json();
@@ -574,6 +574,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               ref={fileInputRef}
               type="file"
               data-testid="file-upload-input"
+              accept={UPLOAD_ACCEPT}
               className="hidden"
               onChange={handleFileSelect}
             />

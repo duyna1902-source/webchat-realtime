@@ -6,7 +6,7 @@ import directChatRoutes from './routes/direct-chat.routes.js';
 import roomRoutes from './routes/room.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import gifRoutes from './routes/gif.routes.js';
-import { UPLOADS_DIR, ensureUploadsDirExists } from './lib/storage.js';
+import type { StorageAdapter } from './lib/storage.js';
 import { securityHeaders } from './middlewares/security-headers.js';
 import type { AppConfig } from './config.js';
 import type { Logger } from './lib/logger.js';
@@ -28,7 +28,7 @@ function isServerOwnedPath(requestPath: string): boolean {
  * Builds the Express app for one server instance. Use `createServer()` rather than calling this
  * directly: it also attaches the server context (config, storage, Socket.IO) the handlers read.
  */
-export function createApp(config: AppConfig, logger: Logger): express.Express {
+export function createApp(config: AppConfig, logger: Logger, storage: StorageAdapter): express.Express {
   const app = express();
   app.disable('x-powered-by');
 
@@ -39,9 +39,10 @@ export function createApp(config: AppConfig, logger: Logger): express.Express {
   app.use(requireSameOrigin(config.appOrigin));
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
-  // Ensure uploads folder exists and serve statically
-  ensureUploadsDirExists();
-  app.use('/uploads', express.static(UPLOADS_DIR));
+  // Files of the local adapter (dev and test only), served as downloads. Other adapters serve their own.
+  if (storage.createRequestHandler) {
+    app.use('/uploads', storage.createRequestHandler());
+  }
 
   // Health check endpoint
   app.get('/health', (_req, res) => {
