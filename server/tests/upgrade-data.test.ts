@@ -98,22 +98,22 @@ describe('Data upgrade command (seam 3)', () => {
   });
 
   it('--dry-run skips storage writes and lists them in the report', async () => {
-    let uploadedUrl: string | undefined;
+    let uploadedKey: string | undefined;
     const uploadStep: UpgradeStep = {
       name: 'upload-marker',
       async run({ storage: store }) {
-        uploadedUrl = (await store.put(Buffer.from('hello'), { contentType: 'text/plain; charset=utf-8' }))?.url;
+        uploadedKey = (await store.put(Buffer.from('hello'), { contentType: 'text/plain; charset=utf-8' }))?.storageKey;
         return { changed: 1 };
       },
     };
 
     const dry = await run(['--dry-run'], [uploadStep]);
-    expect(uploadedUrl).toBeUndefined();
+    expect(uploadedKey).toBeUndefined();
     expect(dry.steps[0].skippedStorageWrites).toEqual(['put']);
 
     const real = await run([], [uploadStep]);
     expect(real.steps[0].skippedStorageWrites).toEqual([]);
-    expect(storage.read(uploadedUrl!)?.toString()).toBe('hello');
+    expect(storage.getObject(uploadedKey!)?.data.toString()).toBe('hello');
   });
 
   it('rolls back every step when one step fails', async () => {

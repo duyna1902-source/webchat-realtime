@@ -103,7 +103,6 @@ describe('Direct Chat Socket.io Real-Time Integration', () => {
     clientAlice.emit(SOCKET_EVENTS.DIRECT_SEND, {
       directChatId: directChat.id,
       content: 'Hello Bob from Alice!',
-      type: 'TEXT',
     });
 
     const [bobMsg, aliceMsg] = await Promise.all([bobReceivePromise, aliceReceivePromise]);
@@ -145,7 +144,6 @@ describe('Direct Chat Socket.io Real-Time Integration', () => {
     clientAlice.emit(SOCKET_EVENTS.DIRECT_SEND, {
       directChatId: directChat.id,
       content: 'Hey Bob, leaving you a message while you are offline',
-      type: 'TEXT',
     });
 
     const aliceMsg = await aliceReceivePromise;
@@ -173,7 +171,6 @@ describe('Direct Chat Socket.io Real-Time Integration', () => {
     clientCharlie.emit(SOCKET_EVENTS.DIRECT_SEND, {
       directChatId: directChat.id,
       content: 'I am eavesdropping!',
-      type: 'TEXT',
     });
 
     // Wait a brief moment to ensure nothing is delivered
@@ -203,7 +200,6 @@ describe('Direct Chat Socket.io Real-Time Integration', () => {
         {
           directChatId: directChat.id,
           content: oversizedContent,
-          type: 'TEXT',
         },
         resolve
       );
@@ -234,7 +230,6 @@ describe('Direct Chat Socket.io Real-Time Integration', () => {
         {
           directChatId: directChat.id,
           content: exactContent,
-          type: 'TEXT',
         },
         resolve
       );

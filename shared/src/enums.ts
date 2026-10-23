@@ -16,3 +16,8 @@ export enum MessageStatus {
   DELIVERED = 'DELIVERED',
   READ = 'READ',
 }
+
+export enum AttachmentKind {
+  IMAGE = 'IMAGE',
+  DOCUMENT = 'DOCUMENT',
+}

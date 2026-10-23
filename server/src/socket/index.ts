@@ -3,6 +3,8 @@ import { Server, Socket } from 'socket.io';
 import { verifyToken, JwtPayload } from '../lib/jwt.js';
 import type { AppConfig } from '../config.js';
 import type { Logger } from '../lib/logger.js';
+import type { StorageAdapter } from '../lib/storage.js';
+import type { AttachmentSigner } from '../lib/attachments.js';
 import { SOCKET_EVENTS } from '@webchat/shared';
 import { registerDirectChatHandlers, handleDirectMessagesDeliveryOnConnect } from './direct.handler.js';
 import { registerRoomHandlers, autoJoinUserRooms, findRevokedRoomChannels } from './room.handler.js';
@@ -17,7 +19,13 @@ export interface AuthenticatedSocket extends Socket {
 /** 64KB: comfortably above the largest valid event (a 4000-character message). */
 export const SOCKET_MAX_HTTP_BUFFER_SIZE = 64 * 1024;
 
-export function setupSocketServer(httpServer: http.Server, config: AppConfig, logger: Logger): Server {
+export function setupSocketServer(
+  httpServer: http.Server,
+  config: AppConfig,
+  logger: Logger,
+  storage: StorageAdapter
+): Server {
+  const signer: AttachmentSigner = { storage, ttlSeconds: config.timing.signedUrlTtlSeconds };
   // No `cors` option: the client is served from the same origin (ADR 0010).
   const io = new Server(httpServer, {
     transports: ['websocket', 'polling'],
@@ -71,9 +79,9 @@ export function setupSocketServer(httpServer: http.Server, config: AppConfig, lo
       }
 
       // Register direct chat events
-      registerDirectChatHandlers(io, authSocket, log);
+      registerDirectChatHandlers(io, authSocket, log, signer);
       // Register room chat events
-      registerRoomHandlers(io, authSocket, log);
+      registerRoomHandlers(io, authSocket, log, signer);
       // Automatically subscribe to user's rooms in the background
       await autoJoinUserRooms(io, authSocket, log);
     } catch (err) {

@@ -12,8 +12,11 @@ import {
 import { parseInput } from '../lib/validation.js';
 import { toUserDto } from './user.controller.js';
 import { parsePaginationParams, fetchPaginatedMessages } from '../lib/pagination.js';
+import { attachmentOf, signAttachments, SignedAttachments } from '../lib/attachments.js';
+import { attachmentSigner } from '../context.js';
 
-export function toDirectReceiveMessagePayload(msg: any): DirectReceiveMessagePayload {
+/** `msg` must include `sender` and `attachment`; `attachments` holds its signed Attachment. */
+export function toDirectReceiveMessagePayload(msg: any, attachments: SignedAttachments): DirectReceiveMessagePayload {
   return {
     id: msg.id,
     directChatId: msg.directChatId,
@@ -25,9 +28,7 @@ export function toDirectReceiveMessagePayload(msg: any): DirectReceiveMessagePay
     content: msg.content,
     type: msg.type,
     status: msg.status,
-    attachmentUrl: msg.attachmentUrl ?? null,
-    attachmentName: msg.attachmentName ?? null,
-    attachmentSize: msg.attachmentSize ?? null,
+    attachment: attachmentOf(msg, attachments),
     createdAt: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : new Date(msg.createdAt).toISOString(),
   };
 }
@@ -141,6 +142,7 @@ export async function getDirectChats(req: AuthenticatedRequest, res: Response): 
         take: 1,
         include: {
           sender: true,
+          attachment: true,
         },
       },
     },
@@ -168,11 +170,16 @@ export async function getDirectChats(req: AuthenticatedRequest, res: Response): 
     lastReadMap.set(m.id, m.createdAt);
   });
 
+  const signedAttachments = await signAttachments(
+    attachmentSigner(req),
+    chats.map((chat) => chat.messages[0]?.attachment)
+  );
+
   const listItems: DirectChatListItemDto[] = await Promise.all(
     chats.map(async (chat) => {
       const partner = chat.user1Id === currentUserId ? chat.user2 : chat.user1;
       const partnerId = partner.id;
-      const lastMsg = chat.messages[0] ? toDirectReceiveMessagePayload(chat.messages[0]) : null;
+      const lastMsg = chat.messages[0] ? toDirectReceiveMessagePayload(chat.messages[0], signedAttachments) : null;
       const myParticipant = chat.participants.find((p) => p.userId === currentUserId);
       const partnerParticipant = chat.participants.find((p) => p.userId !== currentUserId);
 
@@ -263,12 +270,17 @@ export async function getDirectChatMessages(req: AuthenticatedRequest, res: Resp
         ...query,
         include: {
           sender: true,
+          attachment: true,
         },
       }),
   });
 
+  const signedAttachments = await signAttachments(
+    attachmentSigner(req),
+    messages.map((m: any) => m.attachment)
+  );
   const response: PaginatedMessagesDto<DirectReceiveMessagePayload> = {
-    messages: messages.map(toDirectReceiveMessagePayload),
+    messages: messages.map((m) => toDirectReceiveMessagePayload(m, signedAttachments)),
     nextCursor,
     hasMore,
   };

@@ -70,17 +70,16 @@ describe('Socket payload validation (SEC-05)', () => {
     expect(ack).toEqual(validationError('content'));
   });
 
-  it('A19: attachment metadata longer than its limit is refused', async () => {
+  it('A19: attachment metadata declared by the client is refused', async () => {
     const ack = await emitWithAck(client!, SOCKET_EVENTS.DIRECT_SEND, {
       directChatId,
       content: 'file',
-      attachmentUrl: 'https://example.com/a.pdf',
       attachmentName: 'n'.repeat(20_000),
     });
     expect(ack).toEqual(validationError('attachmentName'));
   });
 
-  it('a made-up message type or a negative attachment size is refused', async () => {
+  it('a client-declared message type or attachment size is refused', async () => {
     expect(await emitWithAck(client!, SOCKET_EVENTS.ROOM_SEND, { roomId, content: 'x', type: 'SCRIPT' })).toEqual(
       validationError('type')
     );
@@ -88,7 +87,6 @@ describe('Socket payload validation (SEC-05)', () => {
       await emitWithAck(client!, SOCKET_EVENTS.ROOM_SEND, {
         roomId,
         content: 'x',
-        attachmentUrl: 'https://example.com/a.pdf',
         attachmentSize: -1,
       })
     ).toEqual(validationError('attachmentSize'));

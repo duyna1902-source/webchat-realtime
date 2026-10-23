@@ -2,6 +2,7 @@ import type { Request } from 'express';
 import type { Server } from 'socket.io';
 import type { AppConfig } from './config.js';
 import type { StorageAdapter } from './lib/storage.js';
+import type { AttachmentSigner } from './lib/attachments.js';
 
 /**
  * Dependencies of one server instance, built by the server factory and attached to its
@@ -25,4 +26,10 @@ export function getServerContext(req: Request): ServerContext {
     throw new Error('Server context is missing. Build the server through createServer().');
   }
   return context;
+}
+
+/** Storage and TTL for signing the Attachments a request hands out. */
+export function attachmentSigner(req: Request): AttachmentSigner {
+  const { storage, config } = getServerContext(req);
+  return { storage, ttlSeconds: config.timing.signedUrlTtlSeconds };
 }

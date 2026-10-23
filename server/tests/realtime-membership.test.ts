@@ -121,7 +121,7 @@ describe('Realtime Room Membership (SEC-06)', () => {
   }
 
   async function sendRoomMessage(sender: ClientSocketType, content: string): Promise<void> {
-    const res = await emitWithAck(sender, SOCKET_EVENTS.ROOM_SEND, { roomId, content, type: MessageType.TEXT });
+    const res = await emitWithAck(sender, SOCKET_EVENTS.ROOM_SEND, { roomId, content });
     expect(res.success).toBe(true);
   }
 

@@ -12,6 +12,7 @@ Run every command below from `server/`, or through `npm run <script> --workspace
 | `server/prisma/migrations/0_baseline/` | The schema as production had it when it was created with `db push`. It is the output of `prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script` at the commit that added it. Never edit it. |
 | `server/prisma/migrations/20261023000000_enable_rls/` | Enables Row Level Security, with no policy, on every table that exists at that point, including Prisma's `_prisma_migrations` (decision Q42). |
 | `server/prisma/migrations/20261024000000_expand_username_normalized/` | Expand (ticket 07): adds the nullable `User.usernameNormalized` key. The data upgrade fills it; ticket 20 makes it required and unique. |
+| `server/prisma/migrations/20261025000000_expand_attachments/` | Expand (ticket 13, ADR 0009): adds the `Attachment` table (RLS on) with nullable, unique links to a Direct Message or Room Message. The legacy `attachmentUrl`/`attachmentName`/`attachmentSize` columns stay until ticket 20. |
 | `server/prisma/schema.sql` | **Generated. Do not edit by hand.** It is the DDL that the tests load into in-memory PGlite. Regenerate it with `npm run db:schema-sql`. |
 | `server/scripts/generate-schema-sql.mjs` | The generator. With `--check` it fails if `schema.sql` is stale, and the test suite runs that check. |
 | `server/src/upgrade/` and `server/src/cli/upgrade-data.ts` | The data upgrade command (see below). |

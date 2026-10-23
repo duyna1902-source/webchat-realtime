@@ -23,6 +23,14 @@ import {
   roomTypingSchema,
 } from '@webchat/shared';
 import { parseInput } from '../lib/validation.js';
+import {
+  AttachmentSigner,
+  findSendableAttachment,
+  linkAttachment,
+  messageTypeFor,
+  signAttachments,
+} from '../lib/attachments.js';
+import { toRoomReceiveMessagePayload } from '../controllers/room.controller.js';
 
 export async function autoJoinUserRooms(io: Server, socket: AuthenticatedSocket, log: Logger): Promise<void> {
   const userId = socket.data?.user?.userId;
@@ -79,7 +87,12 @@ export function syncUserSocketsRoomMembership(
   }
 }
 
-export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, log: Logger): void {
+export function registerRoomHandlers(
+  io: Server,
+  socket: AuthenticatedSocket,
+  log: Logger,
+  signer: AttachmentSigner
+): void {
   const userId = socket.data.user.userId;
 
   async function requireMember(roomId: string) {
@@ -121,7 +134,7 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, lo
   socket.on(
     SOCKET_EVENTS.ROOM_SEND,
     socketHandler<RoomSendMessagePayload>(log, SOCKET_EVENTS.ROOM_SEND, async (payload) => {
-      const { roomId, content, type, attachmentUrl, attachmentName, attachmentSize } = parseInput(roomSendSchema, payload);
+      const { roomId, content, attachmentId, gifUrl } = parseInput(roomSendSchema, payload);
 
       const prisma = getPrisma();
 
@@ -137,20 +150,25 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, lo
         throw new AppError(400, ERROR_CODES.MESSAGE_TOO_LONG, `Message exceeds character limit of ${limit}`);
       }
 
-      // Create RoomMessage in DB
-      const message = await prisma.roomMessage.create({
-        data: {
-          roomId,
-          senderId: userId,
-          content: content || '',
-          type: type || MessageType.TEXT,
-          attachmentUrl: attachmentUrl || null,
-          attachmentName: attachmentName || null,
-          attachmentSize: attachmentSize || null,
-        },
-        include: {
-          sender: true,
-        },
+      // Create the RoomMessage; its type and file metadata come from the server, never the client.
+      // A GIF travels in `content`, as before.
+      const message = await prisma.$transaction(async (tx) => {
+        const attachment = attachmentId ? await findSendableAttachment(tx, attachmentId, userId) : null;
+        const created = await tx.roomMessage.create({
+          data: {
+            roomId,
+            senderId: userId,
+            content: gifUrl ?? content ?? '',
+            type: gifUrl ? MessageType.EMOJI_GIF : attachment ? messageTypeFor(attachment.kind) : MessageType.TEXT,
+          },
+        });
+        if (attachment) {
+          await linkAttachment(tx, attachment.id, userId, { roomMessageId: created.id });
+        }
+        return tx.roomMessage.findUniqueOrThrow({
+          where: { id: created.id },
+          include: { sender: true, attachment: true },
+        });
       });
 
       // Update room updatedAt
@@ -159,21 +177,10 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, lo
         data: { updatedAt: new Date() },
       });
 
-      const receivePayload: RoomReceiveMessagePayload = {
-        id: message.id,
-        roomId: message.roomId,
-        senderId: message.senderId,
-        sender: {
-          id: message.sender.id,
-          username: message.sender.username,
-        },
-        content: message.content,
-        type: message.type as MessageType,
-        attachmentUrl: message.attachmentUrl,
-        attachmentName: message.attachmentName,
-        attachmentSize: message.attachmentSize,
-        createdAt: message.createdAt.toISOString(),
-      };
+      const receivePayload: RoomReceiveMessagePayload = toRoomReceiveMessagePayload(
+        message,
+        await signAttachments(signer, [message.attachment])
+      );
 
       // Broadcast to room
       io.to(`room:${roomId}`).emit(SOCKET_EVENTS.ROOM_RECEIVE, receivePayload);

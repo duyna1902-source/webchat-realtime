@@ -16,6 +16,8 @@ export const ERROR_CODES = {
   NOT_FOUND: 'NOT_FOUND',
   FORBIDDEN: 'FORBIDDEN',
   UNSUPPORTED_FILE_TYPE: 'UNSUPPORTED_FILE_TYPE',
+  /** The `attachmentId` of a message does not exist, is someone else's, or is already sent. */
+  ATTACHMENT_INVALID: 'ATTACHMENT_INVALID',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
