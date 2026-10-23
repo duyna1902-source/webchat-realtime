@@ -4,7 +4,7 @@ import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { PrismaClient } from '@prisma/client';
 import { InMemoryStorageAdapter } from '../src/lib/storage.js';
 import { runUpgradeCommand, UpgradeReport } from '../src/upgrade/runner.js';
-import { UPGRADE_STEPS } from '../src/upgrade/steps.js';
+import { upgradeSteps } from '../src/upgrade/steps.js';
 import { applyMigrations, createMigratedDatabase } from './helpers/migrations.js';
 
 // Seam 3: the account and room steps of the data upgrade command (ticket 07), run on junk data
@@ -68,7 +68,7 @@ describe('Data upgrade: account and room rules (seam 3)', () => {
     runUpgradeCommand(argv, {
       prisma,
       storage: new InMemoryStorageAdapter(),
-      steps: UPGRADE_STEPS,
+      steps: upgradeSteps({ provider: 'local' }),
       log: (line) => output.push(line),
     });
   const users = () => prisma.user.findMany({ orderBy: { createdAt: 'asc' } });

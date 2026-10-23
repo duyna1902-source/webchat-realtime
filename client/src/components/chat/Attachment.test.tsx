@@ -505,6 +505,62 @@ describe('File Attachments, Image Preview & Message Cards', () => {
     });
   });
 
+  describe('Legacy attachments removed by the data upgrade (cyber-upgradation Ticket 14)', () => {
+    function legacyMessage(id: string, overrides: Partial<DirectReceiveMessagePayload>): DirectReceiveMessagePayload {
+      return {
+        id,
+        directChatId: 'chat-1',
+        senderId: 'partner-user-id',
+        sender: publicUser('partner-user-id', 'bob'),
+        content: '',
+        type: MessageType.TEXT,
+        status: MessageStatus.SENT,
+        attachment: null,
+        createdAt: new Date().toISOString(),
+        ...overrides,
+      };
+    }
+
+    function renderMessages(messages: DirectReceiveMessagePayload[]) {
+      return renderWithProviders(
+        <ChatArea activeChat={mockChat} messages={messages} isLoadingMessages={false} onSendMessage={vi.fn()} />
+      );
+    }
+
+    it('a text message marked attachmentUnavailable shows the notice and still shows its text', () => {
+      renderMessages([legacyMessage('m1', { content: 'Here is the contract', attachmentUnavailable: true })]);
+
+      expect(screen.getByTestId('attachment-unavailable')).toHaveTextContent('Tệp đính kèm không còn khả dụng');
+      expect(screen.getByText('Here is the contract')).toBeInTheDocument();
+    });
+
+    it('a former GIF (empty text marked attachmentUnavailable) shows only the notice', () => {
+      renderMessages([legacyMessage('m2', { attachmentUnavailable: true })]);
+
+      expect(screen.getByText('Tệp đính kèm không còn khả dụng')).toBeInTheDocument();
+      expectNoImages();
+    });
+
+    it('an image message marked attachmentUnavailable shows the notice and its caption', () => {
+      renderMessages([legacyMessage('m3', { type: MessageType.IMAGE, content: 'Our trip', attachmentUnavailable: true })]);
+
+      expect(screen.getByText('Tệp đính kèm không còn khả dụng')).toBeInTheDocument();
+      expect(screen.getByText('Our trip')).toBeInTheDocument();
+      expectNoImages();
+    });
+
+    it('an ordinary text message shows no notice', () => {
+      renderMessages([legacyMessage('m4', { content: 'Just text', attachmentUnavailable: false })]);
+
+      expect(screen.getByText('Just text')).toBeInTheDocument();
+      expect(screen.queryByText('Tệp đính kèm không còn khả dụng')).not.toBeInTheDocument();
+    });
+
+    function expectNoImages() {
+      expect(screen.queryByRole('img', { name: /gif message|image attachment/i })).not.toBeInTheDocument();
+    }
+  });
+
   describe('Attachment Captions Character Limit & Counter Integration (Ticket 05)', () => {
     const mockRoomForAttachment: RoomListItemDto = {
       id: 'room-1',

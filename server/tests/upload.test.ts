@@ -293,29 +293,38 @@ describe('File Upload REST API (POST /api/upload)', () => {
         });
       });
 
-      it('deletes an object and lists every object key page by page', async () => {
-        const firstPage = Array.from({ length: 1000 }, (_, i) => ({ name: `key-${i}`, id: `id-${i}` }));
+      it('deletes an object and lists every object page by page, in nested folders too', async () => {
+        const firstPage = Array.from({ length: 1000 }, (_, i) => ({ name: `key-${i}`, id: `id-${i}`, metadata: { mimetype: 'image/png' } }));
         const { adapter, calls } = adapterWith((url, init) => {
           if (init.method === 'DELETE') return Response.json([]);
-          const { offset } = JSON.parse(String(init.body));
-          return Response.json(offset === 0 ? firstPage : [{ name: 'last', id: 'id-last' }, { name: 'folder', id: null }]);
+          const { prefix, offset } = JSON.parse(String(init.body));
+          if (prefix === 'folder') return Response.json([{ name: 'sub', id: null }, { name: 'planted.html', id: 'id-p', metadata: {} }]);
+          if (prefix === 'folder/sub') return Response.json([{ name: 'deep.svg', id: 'id-d', metadata: { mimetype: 'image/svg+xml' } }]);
+          return Response.json(offset === 0 ? firstPage : [{ name: 'last', id: 'id-last', metadata: null }, { name: 'folder', id: null }]);
         });
 
         await adapter.delete('k1');
-        const keys = await adapter.list();
+        const objects = await adapter.list();
 
         expect(calls[0]).toMatchObject({
           url: 'https://fake.supabase.co/storage/v1/object/attachments',
           method: 'DELETE',
           body: { prefixes: ['k1'] },
         });
-        expect(calls.slice(1).map((c) => [c.url, c.body.offset])).toEqual([
-          ['https://fake.supabase.co/storage/v1/object/list/attachments', 0],
-          ['https://fake.supabase.co/storage/v1/object/list/attachments', 1000],
+        expect(calls.slice(1).map((c) => [c.url, c.body.prefix, c.body.offset])).toEqual([
+          ['https://fake.supabase.co/storage/v1/object/list/attachments', '', 0],
+          ['https://fake.supabase.co/storage/v1/object/list/attachments', '', 1000],
+          ['https://fake.supabase.co/storage/v1/object/list/attachments', 'folder', 0],
+          ['https://fake.supabase.co/storage/v1/object/list/attachments', 'folder/sub', 0],
         ]);
         expect(calls.every((c) => c.headers.get('apikey') === 'sb_secret_x' && !c.headers.has('authorization'))).toBe(true);
-        expect(keys).toHaveLength(1001);
-        expect(keys.at(-1)).toBe('last');
+        expect(objects).toHaveLength(1003);
+        expect(objects[0]).toEqual({ storageKey: 'key-0', contentType: 'image/png' });
+        expect(objects.slice(-3)).toEqual([
+          { storageKey: 'last', contentType: null },
+          { storageKey: 'folder/planted.html', contentType: null },
+          { storageKey: 'folder/sub/deep.svg', contentType: 'image/svg+xml' },
+        ]);
       });
     });
   });

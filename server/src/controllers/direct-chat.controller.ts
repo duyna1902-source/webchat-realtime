@@ -12,11 +12,12 @@ import {
 import { parseInput } from '../lib/validation.js';
 import { toPublicUserDto } from './user.controller.js';
 import { parsePaginationParams, fetchPaginatedMessages } from '../lib/pagination.js';
-import { attachmentOf, signAttachments, SignedAttachments } from '../lib/attachments.js';
+import { attachmentOf, isAttachmentUnavailable, signAttachments, SignedAttachments } from '../lib/attachments.js';
 import { attachmentSigner } from '../context.js';
 
 /** `msg` must include `sender` and `attachment`; `attachments` holds its signed Attachment. */
 export function toDirectReceiveMessagePayload(msg: any, attachments: SignedAttachments): DirectReceiveMessagePayload {
+  const attachment = attachmentOf(msg, attachments);
   return {
     id: msg.id,
     directChatId: msg.directChatId,
@@ -25,7 +26,8 @@ export function toDirectReceiveMessagePayload(msg: any, attachments: SignedAttac
     content: msg.content,
     type: msg.type,
     status: msg.status,
-    attachment: attachmentOf(msg, attachments),
+    attachment,
+    attachmentUnavailable: isAttachmentUnavailable(msg, attachment),
     createdAt: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : new Date(msg.createdAt).toISOString(),
   };
 }

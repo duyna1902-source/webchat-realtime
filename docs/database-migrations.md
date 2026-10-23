@@ -13,6 +13,7 @@ Run every command below from `server/`, or through `npm run <script> --workspace
 | `server/prisma/migrations/20261023000000_enable_rls/` | Enables Row Level Security, with no policy, on every table that exists at that point, including Prisma's `_prisma_migrations` (decision Q42). |
 | `server/prisma/migrations/20261024000000_expand_username_normalized/` | Expand (ticket 07): adds the nullable `User.usernameNormalized` key. The data upgrade fills it; ticket 20 makes it required and unique. |
 | `server/prisma/migrations/20261025000000_expand_attachments/` | Expand (ticket 13, ADR 0009): adds the `Attachment` table (RLS on) with nullable, unique links to a Direct Message or Room Message. The legacy `attachmentUrl`/`attachmentName`/`attachmentSize` columns stay until ticket 20. |
+| `server/prisma/migrations/20261026000000_expand_attachment_unavailable/` | Expand (ticket 14): adds `attachmentUnavailable` (default false) to `DirectMessage` and `RoomMessage`. The data upgrade sets it on messages whose legacy attachment or GIF it removed; message DTOs carry it. |
 | `server/prisma/schema.sql` | **Generated. Do not edit by hand.** It is the DDL that the tests load into in-memory PGlite. Regenerate it with `npm run db:schema-sql`. |
 | `server/scripts/generate-schema-sql.mjs` | The generator. With `--check` it fails if `schema.sql` is stale, and the test suite runs that check. |
 | `server/src/upgrade/` and `server/src/cli/upgrade-data.ts` | The data upgrade command (see below). |
@@ -93,7 +94,10 @@ Registered steps, in order:
 | `lowercase-emails` | Lowercases emails. A later account whose email clashes gets `+dup<n>` in the local part. |
 | `clear-avatar-urls` | Sets every `avatarUrl` to null (the column is dropped by the contract migration). |
 | `sanitize-rooms` | Removes control characters, trims, and cuts room names to 64 and descriptions to 500 characters. An empty name becomes `Room <first 6 characters of the id>`; an empty description becomes null. |
+| `migrate-legacy-attachments` | For every message with a legacy `attachmentUrl`: a URL starting with `${SUPABASE_URL}/storage/v1/object/public/${bucket}/` on an `IMAGE` or `DOCUMENT` message becomes an `Attachment` (uploader = sender, `kind` from the message type, `mimeType` from the object's metadata or `application/octet-stream`, name cut to 255 characters, a negative or missing size becomes 0). Any other URL (`javascript:`, another domain, empty, another bucket, an object already given to an earlier message) is removed and the message is marked `attachmentUnavailable`; its `content` is kept. The legacy columns are cleared either way. |
+| `convert-foreign-gifs` | An `EMOJI_GIF` message whose URL is not an https Giphy URL becomes a `TEXT` message with empty content, marked `attachmentUnavailable`. |
+| `delete-orphaned-objects` | Deletes every bucket object (in nested folders too) that no `Attachment` references. Run it when nobody is uploading: an object uploaded during the run, before its `Attachment` row is committed, counts as an orphan. |
 
-The report lists each changed username, email, room name and description as `old -> new` (very long values shortened).
+The report lists each changed username, email, room name and description as `old -> new` (very long values shortened), how many Attachments were created, each message that lost its attachment or GIF, and each deleted object.
 
-To add a step, implement `UpgradeStep` from `server/src/upgrade/runner.ts`. Register it in `UPGRADE_STEPS`, then test it through `runUpgradeCommand` against a database built with `tests/helpers/migrations.ts` (see `tests/upgrade-data.test.ts`).
+To add a step, implement `UpgradeStep` from `server/src/upgrade/runner.ts`. Register it in `upgradeSteps()`, then test it through `runUpgradeCommand` against a database built with `tests/helpers/migrations.ts` (see `tests/upgrade-data.test.ts`).

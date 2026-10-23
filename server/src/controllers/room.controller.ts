@@ -20,10 +20,11 @@ import { toPublicUserDto } from './user.controller.js';
 import { attachmentSigner, getServerContext } from '../context.js';
 import { syncUserSocketsRoomMembership } from '../socket/room.handler.js';
 import { parsePaginationParams, fetchPaginatedMessages } from '../lib/pagination.js';
-import { attachmentOf, signAttachments, SignedAttachments } from '../lib/attachments.js';
+import { attachmentOf, isAttachmentUnavailable, signAttachments, SignedAttachments } from '../lib/attachments.js';
 
 /** `msg` must include `sender` and `attachment`; `attachments` holds its signed Attachment. */
 export function toRoomReceiveMessagePayload(msg: any, attachments: SignedAttachments): RoomReceiveMessagePayload {
+  const attachment = attachmentOf(msg, attachments);
   return {
     id: msg.id,
     roomId: msg.roomId,
@@ -31,7 +32,8 @@ export function toRoomReceiveMessagePayload(msg: any, attachments: SignedAttachm
     sender: toPublicUserDto(msg.sender),
     content: msg.content,
     type: msg.type,
-    attachment: attachmentOf(msg, attachments),
+    attachment,
+    attachmentUnavailable: isAttachmentUnavailable(msg, attachment),
     createdAt: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : new Date(msg.createdAt).toISOString(),
   };
 }
