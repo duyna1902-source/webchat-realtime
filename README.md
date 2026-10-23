@@ -24,8 +24,8 @@ The system is engineered across three progressive technical tiers, enhanced with
 
 ### Level 1: Core Prerequisites
 * **Real-time Two-Way Communication**: Stable WebSocket / Socket.io bidirectional connection with automatic background room subscriptions.
-* **Persistent Message History**: Reliable PostgreSQL database storage (with automatic in-memory **PGlite** fallback for zero-config local/test runs) and historical message retrieval upon reopening chat sessions.
-* **Session Cookie Authentication**: Server-side Sessions carried in an `HttpOnly; Secure; SameSite=Strict` cookie for both HTTP REST APIs and Socket Handshake (ADR 0010), paired with a **Zero-Shift Auth UI**.
+* **Persistent Message History**: Reliable PostgreSQL database storage with versioned **Prisma Migrate** migrations (the test suites run on an in-memory **PGlite** instance) and historical message retrieval upon reopening chat sessions.
+* **Session Cookie Authentication**: Server-side Sessions carried in an `HttpOnly; Secure; SameSite=Strict` cookie for both HTTP REST APIs and Socket Handshake ([ADR 0010](docs/adr/0010-single-host-render-with-session-cookie.md)), revocable with **Sign out** and **Sign out of all devices**, paired with a **Zero-Shift Auth UI**.
 
 ### Level 2: Standard Enhancements
 * **Room Chats**: Multi-user group chat spaces with role-based administration (`OWNER`, `ADMIN`, `MEMBER`).
@@ -34,7 +34,7 @@ The system is engineered across three progressive technical tiers, enhanced with
 * **Rich Media Integration**: Built-in Emoji picker popover and GIF search modal via Giphy API (with curated fallback GIFs).
 
 ### Level 3: Advanced Capabilities & Responsive UX
-* **Cloud File Attachments & Previews**: Upload and manage images (with thumbnail previews & full-screen **Image Lightbox**) and documents (with in-app **Document Preview Modal**) up to 10MB via Cloud Storage.
+* **Private File Attachments & Previews**: Upload images (with thumbnail previews & full-screen **Image Lightbox**) and documents (with in-app **Document Preview Modal**) up to 10MB. Files are type-checked by content, stripped of EXIF metadata, stored in a private Supabase bucket and shown through short-lived signed URLs ([ADR 0009](docs/adr/0009-private-attachments-via-records-and-signed-urls.md)).
 * **Dual-Layer Sync Strategy**: Automatic network recovery and missed message synchronization (Socket.io Connection State Recovery `< 2 min` + REST Catch-up Sync `> 2 min`).
 * **Delivery Tracking, Read Receipts & Unread Counters**: Real-time delivery state transitions (`SENT` $\rightarrow$ `DELIVERED` $\rightarrow$ `READ` with a moving `Seen [Mini-Avatar]` watermark) and live unread badges (`unreadCount`).
 * **Cursor-based Pagination**: Infinite scroll message history loading (`limit=50`, `before=<id>`, `after=<id>`) for smooth scroll performance.
@@ -50,15 +50,19 @@ The system is engineered across three progressive technical tiers, enhanced with
 - **Monorepo Manager**: NPM Workspaces (`shared`, `server`, `client`)
 - **Backend**: Node.js, Express, Socket.io, TypeScript
 - **Frontend**: React 18, Vite, Tailwind CSS, Lucide Icons, TypeScript
-- **Database & ORM**: PostgreSQL (Neon / Supabase) + Prisma v7 Driver Adapters (`@prisma/adapter-pg` & in-memory `@electric-sql/pglite`)
-- **Storage**: Cloud Storage Adapter Pattern (`LocalStorageAdapter` / `SupabaseStorageAdapter`)
+- **Database & ORM**: PostgreSQL (Supabase) + Prisma v7 Migrate & Driver Adapters (`@prisma/adapter-pg`, in-memory `@electric-sql/pglite` for tests)
+- **Storage**: Storage Adapter Pattern: Supabase Storage (private bucket, signed URLs) in production, local disk in development, in-memory in tests
+- **Security**: Server-side Sessions in a `__Host-session` cookie, `helmet` (CSP, HSTS...), `zod` schemas shared by client and server, `express-rate-limit`, structured `pino` logs
 - **Testing**: Vitest + Supertest (Backend) & Vitest + React Testing Library + JSDOM (Frontend)
+
+Production is a **single host** on Render ([ADR 0010](docs/adr/0010-single-host-render-with-session-cookie.md)): one Express process serves the built SPA, the REST API and Socket.IO from the same origin, so there is no CORS.
 
 ```mermaid
 flowchart LR
-    Client["React SPA (Vercel)"] -- "WebSocket & REST" --> Server["Node.js / Express / Socket.io (Render)"]
-    Server -- "Prisma ORM (pg / PGlite)" --> DB[("PostgreSQL (Neon/Supabase)")]
-    Server -- "Storage Adapter" --> Storage[("Cloud Storage")]
+    Browser["Browser"] -- "SPA, REST & WebSocket (one origin, session cookie)" --> Server["Render: Express serves client/dist + /api + /socket.io"]
+    Server -- "Prisma ORM (pg)" --> DB[("Supabase PostgreSQL (RLS on)")]
+    Server -- "Storage API (secret key)" --> Storage[("Supabase Storage: private bucket")]
+    Browser -. "signed URL (1 h)" .-> Storage
 ```
 
 ---
@@ -69,31 +73,36 @@ flowchart LR
 webchat-realtime/
 ├── package.json                 # Monorepo root configuration & scripts
 ├── tsconfig.base.json           # Shared TypeScript base config
-├── render.yaml                  # Render Infrastructure-as-Code deployment blueprint
-├── vercel.json                  # Vercel SPA routing configuration
+├── render.yaml                  # Render blueprint (single host, no secret values)
+├── SECURITY.md                  # Security policy: scope, private reporting, accepted risks
 ├── GLOSSARY.md                  # Domain terminology & GDG-HUST design vocabulary
+├── .githooks/pre-commit         # gitleaks secret scanning hook
 ├── image_gdg/                   # GDG-HUST brand assets (banner & logo)
-├── docs/                        # ADRs (0001 - 0008), System Architecture & Agent guides
+├── docs/                        # ADRs (0001 - 0010), System Architecture, migrations, incident runbook
 ├── shared/                      # Shared Contracts package (@webchat/shared)
 │   └── src/
 │       ├── dtos.ts              # Data Transfer Objects & normalizeDirectChatPair
 │       ├── enums.ts             # RoomRole, MessageType, MessageStatus
+│       ├── errors.ts            # ERROR_CODES shared by REST errors and socket acks
+│       ├── validation.ts        # zod schemas shared by client and server
 │       └── events.ts            # SOCKET_EVENTS constants & typed payloads
 ├── server/                      # Backend API & WebSocket Server (@webchat/server)
 │   ├── prisma/
 │   │   ├── schema.prisma        # Prisma database schema definition
 │   │   ├── migrations/          # Versioned Prisma Migrate migrations (0_baseline, RLS, ...)
 │   │   └── schema.sql           # GENERATED DDL for PGlite in tests (npm run db:schema-sql)
-│   ├── src/                     # Controllers, routes, socket handlers & storage adapters
-│   └── tests/                   # 14 Backend integration & boundary test suites
+│   ├── src/                     # Config, server factory, controllers, routes, socket handlers, storage adapters
+│   │   ├── cli/                 # Operator commands: data upgrade, Session revocation
+│   │   └── upgrade/             # Data upgrade steps
+│   └── tests/                   # Backend integration & boundary test suites
 └── client/                      # Frontend React SPA (@webchat/client)
     └── src/
         ├── components/          # Auth, Chat, Common, Dashboard, Media & Room UI
         ├── context/             # AuthContext & SocketContext
         ├── hooks/               # Custom hooks (messages, presence, typing, rooms)
-        ├── utils/               # API client, deterministic 4-color avatar, notifications
-        ├── test/setup.ts        # JSDOM test environment setup
-        └── *.test.tsx           # 13 Client UI & behavior test suites
+        ├── utils/               # API client, safe URL helper, deterministic 4-color avatar, notifications
+        ├── test/                # JSDOM test environment setup & fixtures
+        └── *.test.tsx           # Client UI & behavior test suites
 ```
 
 ---
