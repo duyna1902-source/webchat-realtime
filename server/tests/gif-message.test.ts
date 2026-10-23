@@ -159,8 +159,7 @@ describe('GIF Search API & EMOJI_GIF Real-Time Messaging Integration', () => {
 
       clientAlice.emit(SOCKET_EVENTS.DIRECT_SEND, {
         directChatId: directChat.id,
-        content: gifUrl,
-        type: MessageType.EMOJI_GIF,
+        gifUrl,
       });
 
       const received = await bobReceivePromise;
@@ -222,8 +221,7 @@ describe('GIF Search API & EMOJI_GIF Real-Time Messaging Integration', () => {
 
       clientAlice.emit(SOCKET_EVENTS.ROOM_SEND, {
         roomId: room.id,
-        content: gifUrl,
-        type: MessageType.EMOJI_GIF,
+        gifUrl,
       });
 
       const received = await bobReceivePromise;

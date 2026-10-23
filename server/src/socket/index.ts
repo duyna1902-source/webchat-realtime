@@ -2,6 +2,8 @@ import http from 'http';
 import { Server, Socket, RemoteSocket } from 'socket.io';
 import type { AppConfig } from '../config.js';
 import type { Logger } from '../lib/logger.js';
+import type { StorageAdapter } from '../lib/storage.js';
+import type { AttachmentSigner } from '../lib/attachments.js';
 import type { SessionRevocation, SessionStore } from '../lib/session-store.js';
 import { readSessionToken } from '../lib/session-cookie.js';
 import { createSocketRateLimiter } from '../lib/rate-limit.js';
@@ -29,6 +31,8 @@ export interface SocketServerDeps {
   config: AppConfig;
   logger: Logger;
   sessions: SessionStore;
+  /** Signs the Attachments of the messages sockets send out. */
+  storage: StorageAdapter;
 }
 
 /** Internal room holding every socket of one Session, so they can be cut off together. */
@@ -44,7 +48,8 @@ export function userChannel(userId: string): string {
 /** 64KB: comfortably above the largest valid event (a 4000-character message). */
 export const SOCKET_MAX_HTTP_BUFFER_SIZE = 64 * 1024;
 
-export function setupSocketServer(httpServer: http.Server, { config, logger, sessions }: SocketServerDeps): Server {
+export function setupSocketServer(httpServer: http.Server, { config, logger, sessions, storage }: SocketServerDeps): Server {
+  const signer: AttachmentSigner = { storage, ttlSeconds: config.timing.signedUrlTtlSeconds };
   // No `cors` option: the client is served from the same origin (ADR 0010).
   const io = new Server(httpServer, {
     transports: ['websocket', 'polling'],
@@ -107,9 +112,9 @@ export function setupSocketServer(httpServer: http.Server, { config, logger, ses
       }
 
       // Register direct chat events
-      registerDirectChatHandlers(io, authSocket, log, limits);
+      registerDirectChatHandlers(io, authSocket, log, limits, signer);
       // Register room chat events
-      registerRoomHandlers(io, authSocket, log, limits);
+      registerRoomHandlers(io, authSocket, log, limits, signer);
       // Automatically subscribe to user's rooms in the background
       await autoJoinUserRooms(io, authSocket, log);
     } catch (err) {

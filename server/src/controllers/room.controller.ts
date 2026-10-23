@@ -17,11 +17,13 @@ import {
 } from '@webchat/shared';
 import { parseInput } from '../lib/validation.js';
 import { toPublicUserDto } from './user.controller.js';
-import { getServerContext } from '../context.js';
+import { attachmentSigner, getServerContext } from '../context.js';
 import { syncUserSocketsRoomMembership } from '../socket/room.handler.js';
 import { parsePaginationParams, fetchPaginatedMessages } from '../lib/pagination.js';
+import { attachmentOf, signAttachments, SignedAttachments } from '../lib/attachments.js';
 
-export function toRoomReceiveMessagePayload(msg: any): RoomReceiveMessagePayload {
+/** `msg` must include `sender` and `attachment`; `attachments` holds its signed Attachment. */
+export function toRoomReceiveMessagePayload(msg: any, attachments: SignedAttachments): RoomReceiveMessagePayload {
   return {
     id: msg.id,
     roomId: msg.roomId,
@@ -29,9 +31,7 @@ export function toRoomReceiveMessagePayload(msg: any): RoomReceiveMessagePayload
     sender: toPublicUserDto(msg.sender),
     content: msg.content,
     type: msg.type,
-    attachmentUrl: msg.attachmentUrl ?? null,
-    attachmentName: msg.attachmentName ?? null,
-    attachmentSize: msg.attachmentSize ?? null,
+    attachment: attachmentOf(msg, attachments),
     createdAt: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : new Date(msg.createdAt).toISOString(),
   };
 }
@@ -106,7 +106,7 @@ export async function getRooms(req: AuthenticatedRequest, res: Response): Promis
           messages: {
             orderBy: { createdAt: 'desc' },
             take: 1,
-            include: { sender: true },
+            include: { sender: true, attachment: true },
           },
         },
       },
@@ -138,10 +138,15 @@ export async function getRooms(req: AuthenticatedRequest, res: Response): Promis
     lastReadMap.set(m.id, m.createdAt);
   });
 
+  const signedAttachments = await signAttachments(
+    attachmentSigner(req),
+    memberships.map((m) => m.room.messages[0]?.attachment)
+  );
+
   const listItems: RoomListItemDto[] = await Promise.all(
     memberships.map(async (membership) => {
       const r = membership.room;
-      const lastMsg = r.messages[0] ? toRoomReceiveMessagePayload(r.messages[0]) : null;
+      const lastMsg = r.messages[0] ? toRoomReceiveMessagePayload(r.messages[0], signedAttachments) : null;
 
       let unreadCount = 0;
       if (membership.lastReadMessageId) {
@@ -615,12 +620,17 @@ export async function getRoomMessages(req: AuthenticatedRequest, res: Response):
         ...query,
         include: {
           sender: true,
+          attachment: true,
         },
       }),
   });
 
+  const signedAttachments = await signAttachments(
+    attachmentSigner(req),
+    messages.map((m: any) => m.attachment)
+  );
   const response: PaginatedMessagesDto<RoomReceiveMessagePayload> = {
-    messages: messages.map(toRoomReceiveMessagePayload),
+    messages: messages.map((m) => toRoomReceiveMessagePayload(m, signedAttachments)),
     nextCursor,
     hasMore,
   };

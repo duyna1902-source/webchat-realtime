@@ -15,6 +15,9 @@ CREATE TYPE "MessageType" AS ENUM ('TEXT', 'IMAGE', 'DOCUMENT', 'EMOJI_GIF');
 -- CreateEnum
 CREATE TYPE "MessageStatus" AS ENUM ('SENT', 'DELIVERED', 'READ');
 
+-- CreateEnum
+CREATE TYPE "AttachmentKind" AS ENUM ('IMAGE', 'DOCUMENT');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
@@ -126,6 +129,22 @@ CREATE TABLE "RoomMessage" (
     CONSTRAINT "RoomMessage_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "Attachment" (
+    "id" TEXT NOT NULL,
+    "uploaderId" TEXT NOT NULL,
+    "storageKey" TEXT NOT NULL,
+    "kind" "AttachmentKind" NOT NULL,
+    "mimeType" TEXT NOT NULL,
+    "size" INTEGER NOT NULL,
+    "originalName" VARCHAR(255) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "directMessageId" TEXT,
+    "roomMessageId" TEXT,
+
+    CONSTRAINT "Attachment_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
 
@@ -189,6 +208,18 @@ CREATE INDEX "RoomMessage_roomId_createdAt_idx" ON "RoomMessage"("roomId", "crea
 -- CreateIndex
 CREATE INDEX "RoomMessage_senderId_idx" ON "RoomMessage"("senderId");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "Attachment_storageKey_key" ON "Attachment"("storageKey");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Attachment_directMessageId_key" ON "Attachment"("directMessageId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Attachment_roomMessageId_key" ON "Attachment"("roomMessageId");
+
+-- CreateIndex
+CREATE INDEX "Attachment_uploaderId_idx" ON "Attachment"("uploaderId");
+
 -- AddForeignKey
 ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -224,4 +255,13 @@ ALTER TABLE "RoomMessage" ADD CONSTRAINT "RoomMessage_roomId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "RoomMessage" ADD CONSTRAINT "RoomMessage_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Attachment" ADD CONSTRAINT "Attachment_uploaderId_fkey" FOREIGN KEY ("uploaderId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Attachment" ADD CONSTRAINT "Attachment_directMessageId_fkey" FOREIGN KEY ("directMessageId") REFERENCES "DirectMessage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Attachment" ADD CONSTRAINT "Attachment_roomMessageId_fkey" FOREIGN KEY ("roomMessageId") REFERENCES "RoomMessage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

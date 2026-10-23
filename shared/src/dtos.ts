@@ -1,5 +1,5 @@
 import { RoomRole } from './enums.js';
-import { DirectReceiveMessagePayload, RoomReceiveMessagePayload } from './events.js';
+import { AttachmentDto, DirectReceiveMessagePayload, RoomReceiveMessagePayload } from './events.js';
 
 // ==========================================
 // AUTH DTOs
@@ -133,11 +133,15 @@ export interface PaginatedMessagesDto<T> {
   hasMore: boolean;
 }
 
+/** `201` answer of `POST /api/upload`: the new, not yet sent Attachment. */
 export interface UploadResponseDto {
+  attachment: AttachmentDto;
+}
+
+/** Answer of `GET /api/attachments/:id/url`. */
+export interface AttachmentUrlDto {
   url: string;
-  name: string;
-  size: number;
-  mimeType: string;
+  expiresAt: string; // ISO String
 }
 
 export interface GifItemDto {

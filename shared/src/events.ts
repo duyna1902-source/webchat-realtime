@@ -1,4 +1,4 @@
-import { MessageType, MessageStatus, RoomRole } from './enums.js';
+import { MessageType, MessageStatus, RoomRole, AttachmentKind } from './enums.js';
 import type { PublicUserDto } from './dtos.js';
 
 // ==========================================
@@ -29,16 +29,39 @@ export const SOCKET_EVENTS = {
 } as const;
 
 // ==========================================
+// ATTACHMENTS (ADR 0009)
+// ==========================================
+
+/**
+ * An Attachment as clients see it. `url` is a signed URL that stops working at `urlExpiresAt`;
+ * ask `GET /api/attachments/:id/url` for a fresh one.
+ */
+export interface AttachmentDto {
+  id: string;
+  kind: AttachmentKind;
+  mimeType: string;
+  size: number;
+  name: string;
+  url: string;
+  urlExpiresAt: string; // ISO String
+}
+
+/**
+ * What a client may send with a message, exactly one of: text; text with an uploaded
+ * `attachmentId` (the server fills in the file metadata and the message type); or a Giphy `gifUrl`.
+ */
+export interface SendMessageFields {
+  content?: string;
+  attachmentId?: string;
+  gifUrl?: string;
+}
+
+// ==========================================
 // DIRECT CHAT PAYLOADS
 // ==========================================
 
-export interface DirectSendMessagePayload {
+export interface DirectSendMessagePayload extends SendMessageFields {
   directChatId: string;
-  content: string;
-  type?: MessageType;
-  attachmentUrl?: string | null;
-  attachmentName?: string | null;
-  attachmentSize?: number | null;
 }
 
 export interface DirectReceiveMessagePayload {
@@ -49,9 +72,8 @@ export interface DirectReceiveMessagePayload {
   content: string;
   type: MessageType;
   status: MessageStatus;
-  attachmentUrl?: string | null;
-  attachmentName?: string | null;
-  attachmentSize?: number | null;
+  /** The message's Attachment with a freshly signed URL; null (or absent) when it has none. */
+  attachment?: AttachmentDto | null;
   createdAt: string; // ISO String
 }
 
@@ -85,13 +107,8 @@ export interface RoomLeavePayload {
   roomId: string;
 }
 
-export interface RoomSendMessagePayload {
+export interface RoomSendMessagePayload extends SendMessageFields {
   roomId: string;
-  content: string;
-  type?: MessageType;
-  attachmentUrl?: string | null;
-  attachmentName?: string | null;
-  attachmentSize?: number | null;
 }
 
 export interface RoomReceiveMessagePayload {
@@ -101,9 +118,8 @@ export interface RoomReceiveMessagePayload {
   sender: PublicUserDto;
   content: string;
   type: MessageType;
-  attachmentUrl?: string | null;
-  attachmentName?: string | null;
-  attachmentSize?: number | null;
+  /** The message's Attachment with a freshly signed URL; null (or absent) when it has none. */
+  attachment?: AttachmentDto | null;
   createdAt: string; // ISO String
 }
 

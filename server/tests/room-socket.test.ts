@@ -128,7 +128,6 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
     clientOwner.emit(SOCKET_EVENTS.ROOM_SEND, {
       roomId: testRoom.id,
       content: 'Welcome team to the new room!',
-      type: MessageType.TEXT,
     });
 
     const receivedMessage = await bobReceivePromise;
@@ -161,7 +160,6 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
         {
           roomId: testRoom.id,
           content: 'I want to spam this room',
-          type: MessageType.TEXT,
         },
         resolve
       );
@@ -194,7 +192,6 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
     clientOwner.emit(SOCKET_EVENTS.ROOM_SEND, {
       roomId: testRoom.id,
       content: 'Bob, are you still there?',
-      type: MessageType.TEXT,
     });
 
     await new Promise((r) => setTimeout(r, 400));
@@ -308,7 +305,6 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
         {
           roomId: testRoom.id,
           content: oversizedContent,
-          type: 'TEXT',
         },
         resolve
       );
@@ -339,7 +335,6 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
         {
           roomId: testRoom.id,
           content: exactContent,
-          type: 'TEXT',
         },
         resolve
       );
@@ -383,7 +378,6 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
           {
             roomId: testRoom.id,
             content: ownerContent,
-            type: 'TEXT',
           },
           resolve
         );
@@ -403,7 +397,6 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
           {
             roomId: testRoom.id,
             content: adminContent,
-            type: 'TEXT',
           },
           resolve
         );
@@ -446,7 +439,6 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
           {
             roomId: testRoom.id,
             content: ownerOversized,
-            type: 'TEXT',
           },
           resolve
         );
@@ -463,7 +455,6 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
           {
             roomId: testRoom.id,
             content: adminOversized,
-            type: 'TEXT',
           },
           resolve
         );

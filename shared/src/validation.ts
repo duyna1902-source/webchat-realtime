@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MessageType, RoomRole } from './enums.js';
+import { RoomRole } from './enums.js';
 
 // ==========================================
 // INPUT VALIDATION (SEC-05, SEC-08)
@@ -18,6 +18,36 @@ export const ACCOUNT_RULES = {
   PASSWORD_MAX_BYTES: 72,
   EMAIL_MAX_LENGTH: 254,
 } as const;
+
+export const ATTACHMENT_RULES = {
+  /** Upload file names are cut to this many characters (code points). */
+  NAME_MAX_LENGTH: 255,
+} as const;
+
+/** Upper bound for a GIF URL sent by clients. */
+const GIF_URL_MAX_LENGTH = 2048;
+/** Giphy's media CDNs: `media.giphy.com`, `media0.giphy.com` ... and `i.giphy.com`. */
+const GIPHY_MEDIA_HOST = /^(media\d*|i)\.giphy\.com$/;
+
+/**
+ * True for an `https:` URL on a Giphy media host, with no credentials or port. Anything else
+ * (`javascript:`, `http:`, other hosts) is not a GIF this app will render.
+ */
+export function isAllowedGifUrl(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  return (
+    url.protocol === 'https:' &&
+    GIPHY_MEDIA_HOST.test(url.hostname) &&
+    url.port === '' &&
+    url.username === '' &&
+    url.password === ''
+  );
+}
 
 export const ROOM_RULES = {
   /** Counted in characters (code points) after trimming. */
@@ -184,24 +214,39 @@ export const createDirectChatSchema = z.object({
 // `content` length is checked by the handlers against the Message Character Limit of the
 // sender's role (error MESSAGE_TOO_LONG); the 64KB packet cap bounds it before that.
 
-const ATTACHMENT_URL_MAX_LENGTH = 2048;
-const ATTACHMENT_NAME_MAX_LENGTH = 255;
+export const gifUrlSchema = z
+  .string()
+  .max(GIF_URL_MAX_LENGTH, 'GIF URL is too long')
+  .refine(isAllowedGifUrl, { message: 'GIF must be an https URL from Giphy' });
+
+/** Fields a client used to declare itself; the server now derives them (SEC-03, SEC-14). */
+const serverOwnedField = z.never({ error: 'Not accepted: upload the file and send its attachmentId' }).optional();
 
 const messageFields = {
   content: z.string().optional(),
-  type: z.enum(MessageType).optional(),
-  attachmentUrl: z.string().max(ATTACHMENT_URL_MAX_LENGTH).nullish(),
-  attachmentName: z.string().max(ATTACHMENT_NAME_MAX_LENGTH).nullish(),
-  attachmentSize: z.number().int().nonnegative().nullish(),
+  attachmentId: idSchema.optional(),
+  gifUrl: gifUrlSchema.optional(),
+  type: serverOwnedField,
+  attachmentUrl: serverOwnedField,
+  attachmentName: serverOwnedField,
+  attachmentSize: serverOwnedField,
 };
 
-const hasContentOrAttachment = (payload: { content?: string; attachmentUrl?: string | null }) =>
-  Boolean(payload.content || payload.attachmentUrl);
-const CONTENT_OR_ATTACHMENT = { message: 'Message content or attachment is required', path: ['content'] };
+/** Exactly one form: text, text with an `attachmentId`, or a `gifUrl` on its own. */
+function checkMessageForm(
+  payload: { content?: string; attachmentId?: string; gifUrl?: string },
+  ctx: z.RefinementCtx
+): void {
+  if (payload.gifUrl !== undefined) {
+    if (payload.content || payload.attachmentId !== undefined) {
+      ctx.addIssue({ code: 'custom', message: 'A GIF is sent on its own, without text or attachment', path: ['gifUrl'] });
+    }
+  } else if (!payload.content && payload.attachmentId === undefined) {
+    ctx.addIssue({ code: 'custom', message: 'Message content or attachment is required', path: ['content'] });
+  }
+}
 
-export const directSendSchema = z
-  .object({ directChatId: idSchema, ...messageFields })
-  .refine(hasContentOrAttachment, CONTENT_OR_ATTACHMENT);
+export const directSendSchema = z.object({ directChatId: idSchema, ...messageFields }).superRefine(checkMessageForm);
 
 export const directTypingSchema = z.object({
   directChatId: idSchema,
@@ -217,9 +262,7 @@ export const roomJoinSchema = z.object({ roomId: idSchema });
 
 export const roomLeaveSchema = z.object({ roomId: idSchema });
 
-export const roomSendSchema = z
-  .object({ roomId: idSchema, ...messageFields })
-  .refine(hasContentOrAttachment, CONTENT_OR_ATTACHMENT);
+export const roomSendSchema = z.object({ roomId: idSchema, ...messageFields }).superRefine(checkMessageForm);
 
 export const roomTypingSchema = z.object({
   roomId: idSchema,

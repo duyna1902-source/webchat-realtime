@@ -30,6 +30,11 @@ enum MessageStatus {
   READ
 }
 
+enum AttachmentKind {
+  IMAGE
+  DOCUMENT
+}
+
 // ==========================================
 // MODELS
 // ==========================================
@@ -59,6 +64,8 @@ model User {
   roomMemberships          RoomMember[]
   sentRoomMessages         RoomMessage[]           @relation("SentRoomMessages")
 
+  // Attachments
+  attachments              Attachment[]
   // Login Sessions (ADR 0010)
   sessions                 Session[]
 
@@ -132,6 +139,7 @@ model DirectMessage {
 
   directChat DirectChat @relation(fields: [directChatId], references: [id], onDelete: Cascade)
   sender     User       @relation("SentDirectMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  attachment Attachment?
 
   @@index([directChatId, createdAt])
   @@index([senderId])
@@ -182,9 +190,36 @@ model RoomMessage {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  room   Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  sender User @relation("SentRoomMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  room       Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender     User        @relation("SentRoomMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  attachment Attachment?
 
   @@index([roomId, createdAt])
   @@index([senderId])
+}
+
+/// A file uploaded by a User (ADR 0009). The file lives in private storage under `storageKey`;
+/// clients only ever see short-lived signed URLs. Linked to exactly one Direct Message or Room
+/// Message once sent; both links stay null until then.
+model Attachment {
+  id              String         @id @default(uuid())
+  uploaderId      String
+  /// Random UUID naming the object in storage, never derived from the original file name.
+  storageKey      String         @unique
+  kind            AttachmentKind
+  /// Detected by the server from the file content.
+  mimeType        String
+  /// Bytes after processing (images are re-encoded without metadata).
+  size            Int
+  /// The uploaded file name, cut to at most 255 characters.
+  originalName    String         @db.VarChar(255)
+  createdAt       DateTime       @default(now())
+  directMessageId String?        @unique
+  roomMessageId   String?        @unique
+
+  uploader      User           @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  directMessage DirectMessage? @relation(fields: [directMessageId], references: [id], onDelete: Cascade)
+  roomMessage   RoomMessage?   @relation(fields: [roomMessageId], references: [id], onDelete: Cascade)
+
+  @@index([uploaderId])
 }

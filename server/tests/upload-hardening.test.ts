@@ -59,13 +59,13 @@ describe('Upload hardening: file type is detected from the content', () => {
   it('accepts a real PNG whatever the client declared, and stores it as image/png', async () => {
     const png = await sharp({ create: { width: 3, height: 2, channels: 3, background: '#4285f4' } }).png().toBuffer();
 
-    const res = await upload(png, 'diagram.bin', 'application/octet-stream').expect(200);
+    const res = await upload(png, 'diagram.bin', 'application/octet-stream').expect(201);
 
-    expect(res.body.mimeType).toBe('image/png');
-    expect(res.body.name).toBe('diagram.bin');
-    const stored = server.storage.readObject(res.body.url)!;
+    expect(res.body.attachment.mimeType).toBe('image/png');
+    expect(res.body.attachment.name).toBe('diagram.bin');
+    const stored = server.storage.readObject(res.body.attachment.url)!;
     expect(stored.contentType).toBe('image/png');
-    expect(res.body.size).toBe(stored.data.length);
+    expect(res.body.attachment.size).toBe(stored.data.length);
     expect(await sharp(stored.data).metadata()).toMatchObject({ format: 'png', width: 3, height: 2 });
   });
 
@@ -93,11 +93,11 @@ describe('Upload hardening: image metadata is removed', () => {
     expect(before.exif).toBeDefined();
     expect(before.orientation).toBe(6);
 
-    const res = await upload(jpeg, 'IMG_0001.JPG', 'image/jpeg').expect(200);
+    const res = await upload(jpeg, 'IMG_0001.JPG', 'image/jpeg').expect(201);
 
-    expect(res.body.mimeType).toBe('image/jpeg');
-    const stored = server.storage.readObject(res.body.url)!;
-    expect(res.body.size).toBe(stored.data.length);
+    expect(res.body.attachment.mimeType).toBe('image/jpeg');
+    const stored = server.storage.readObject(res.body.attachment.url)!;
+    expect(res.body.attachment.size).toBe(stored.data.length);
     expect(stored.data.includes(Buffer.from('SecretPhone'))).toBe(false);
     const after = await sharp(stored.data).metadata();
     expect(after.format).toBe('jpeg');
@@ -119,19 +119,19 @@ describe('Upload hardening: image metadata is removed', () => {
     const blue = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#0000ff' } }).png().toBuffer();
     const gif = await sharp([red, blue], { join: { animated: true } }).gif().toBuffer();
 
-    const res = await upload(gif, 'party.gif', 'application/octet-stream').expect(200);
+    const res = await upload(gif, 'party.gif', 'application/octet-stream').expect(201);
 
-    expect(res.body.mimeType).toBe('image/gif');
-    expect(res.body.size).toBe(gif.length);
-    expect(server.storage.read(res.body.url)!.equals(gif)).toBe(true);
+    expect(res.body.attachment.mimeType).toBe('image/gif');
+    expect(res.body.attachment.size).toBe(gif.length);
+    expect(server.storage.read(res.body.attachment.url)!.equals(gif)).toBe(true);
   });
 });
 
 describe('Upload hardening: documents', () => {
   it('accepts a PDF and stores it as application/pdf', async () => {
-    const res = await upload(Buffer.from('%PDF-1.7\n%âãÏÓ\n1 0 obj\n'), 'report.pdf', 'text/html').expect(200);
+    const res = await upload(Buffer.from('%PDF-1.7\n%âãÏÓ\n1 0 obj\n'), 'report.pdf', 'text/html').expect(201);
 
-    expect(res.body.mimeType).toBe('application/pdf');
+    expect(res.body.attachment.mimeType).toBe('application/pdf');
   });
 
   it.each([
@@ -139,9 +139,9 @@ describe('Upload hardening: documents', () => {
     ['budget.xlsx', buildXlsx, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
     ['slides.pptx', buildPptx, 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
   ])('accepts a valid %s as its OOXML type', async (filename, build, mimeType) => {
-    const res = await upload(build(), filename, 'application/octet-stream').expect(200);
+    const res = await upload(build(), filename, 'application/octet-stream').expect(201);
 
-    expect(res.body.mimeType).toBe(mimeType);
+    expect(res.body.attachment.mimeType).toBe(mimeType);
   });
 
   it('rejects a plain ZIP renamed to .docx with 415', async () => {
@@ -167,9 +167,9 @@ describe('Upload hardening: documents', () => {
     ['sheet.xls', 'Workbook', 'application/vnd.ms-excel'],
     ['deck.ppt', 'PowerPoint Document', 'application/vnd.ms-powerpoint'],
   ])('accepts a legacy %s as its Office type', async (filename, stream, mimeType) => {
-    const res = await upload(buildOleFile(stream), filename, 'application/octet-stream').expect(200);
+    const res = await upload(buildOleFile(stream), filename, 'application/octet-stream').expect(201);
 
-    expect(res.body.mimeType).toBe(mimeType);
+    expect(res.body.attachment.mimeType).toBe(mimeType);
   });
 
   it('rejects another kind of OLE file (e.g. an installer package) with 415', async () => {
@@ -182,10 +182,10 @@ describe('Upload hardening: documents', () => {
     ['README.md', 'text/markdown', '# Title\n\n<script>alert(1)</script> is shown as text\n'],
     ['data.json', 'application/json', '{"ok": true, "emoji": "Xin chào 👋"}'],
   ])('stores %s as plain UTF-8 text', async (filename, declared, content) => {
-    const res = await upload(Buffer.from(content), filename, declared).expect(200);
+    const res = await upload(Buffer.from(content), filename, declared).expect(201);
 
-    expect(res.body.mimeType).toBe('text/plain; charset=utf-8');
-    expect(server.storage.readObject(res.body.url)!.contentType).toBe('text/plain; charset=utf-8');
+    expect(res.body.attachment.mimeType).toBe('text/plain; charset=utf-8');
+    expect(server.storage.readObject(res.body.attachment.url)!.contentType).toBe('text/plain; charset=utf-8');
   });
 
   it.each([
@@ -229,9 +229,9 @@ describe('Upload hardening: local storage adapter (dev and test only)', () => {
     ['grades.csv', 'text/csv', 'name,score\nalice,10\n'],
     ['README.md', 'text/markdown', '# Notes\n\n<img src=x onerror=alert(1)>\n'],
   ])('serves %s as a plain-text download with nosniff', async (filename, declared, content) => {
-    const res = await uploadLocal(Buffer.from(content), filename, declared).expect(200);
+    const res = await uploadLocal(Buffer.from(content), filename, declared).expect(201);
 
-    const served = await request(local.app).get(res.body.url).expect(200);
+    const served = await request(local.app).get(res.body.attachment.url).expect(200);
     expect(served.headers['content-type']).toBe('text/plain; charset=utf-8');
     expect(served.headers['content-disposition']).toBe('attachment');
     expect(served.headers['x-content-type-options']).toBe('nosniff');
@@ -241,12 +241,12 @@ describe('Upload hardening: local storage adapter (dev and test only)', () => {
   it('names the stored object with a random key that does not contain the original file name', async () => {
     const png = await sharp({ create: { width: 1, height: 1, channels: 3, background: '#34a853' } }).png().toBuffer();
 
-    const res = await uploadLocal(png, 'my-secret-holiday.png', 'image/png').expect(200);
+    const res = await uploadLocal(png, 'my-secret-holiday.png', 'image/png').expect(201);
 
-    expect(res.body.url).not.toMatch(/holiday/);
-    expect(res.body.url).toMatch(/^\/uploads\/[0-9a-f-]{36}$/);
+    expect(res.body.attachment.url).not.toMatch(/holiday/);
+    expect(res.body.attachment.url).toMatch(/^\/uploads\/[0-9a-f-]{36}\?expires=\d+&signature=[\w-]+$/);
     expect(fs.readdirSync(dir).some((name) => name.includes('holiday'))).toBe(false);
-    const served = await request(local.app).get(res.body.url).expect(200);
+    const served = await request(local.app).get(res.body.attachment.url).expect(200);
     expect(served.headers['content-type']).toBe('image/png');
     expect(served.headers['content-disposition']).toBe('attachment');
   });

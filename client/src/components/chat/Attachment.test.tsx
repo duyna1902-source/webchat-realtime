@@ -16,6 +16,7 @@ import {
   RoomRole,
   MESSAGE_LIMITS,
 } from '@webchat/shared';
+import { attachmentFixture } from '../../test/attachmentFixtures';
 import { publicUser } from '../../test/fixtures';
 
 const mockUser = {
@@ -166,9 +167,7 @@ describe('File Attachments, Image Preview & Message Cards', () => {
       content: 'Look at this photo',
       type: MessageType.IMAGE,
       status: MessageStatus.SENT,
-      attachmentUrl: '/uploads/sample.jpg',
-      attachmentName: 'sample.jpg',
-      attachmentSize: 1024 * 250,
+      attachment: attachmentFixture({ url: '/uploads/sample.jpg', name: 'sample.jpg', size: 1024 * 250 }),
       createdAt: new Date().toISOString(),
     };
 
@@ -206,9 +205,7 @@ describe('File Attachments, Image Preview & Message Cards', () => {
       content: 'Annual Report Document',
       type: MessageType.DOCUMENT,
       status: MessageStatus.SENT,
-      attachmentUrl: '/uploads/annual-report.pdf',
-      attachmentName: 'annual-report.pdf',
-      attachmentSize: 1024 * 1024 * 3, // 3MB
+      attachment: attachmentFixture({ url: '/uploads/annual-report.pdf', name: 'annual-report.pdf', size: 1024 * 1024 * 3 }), // 3MB
       createdAt: new Date().toISOString(),
     };
 
@@ -237,9 +234,7 @@ describe('File Attachments, Image Preview & Message Cards', () => {
         content: 'Project Specification',
         type: MessageType.DOCUMENT,
         status: MessageStatus.SENT,
-        attachmentUrl: '/uploads/spec.pdf',
-        attachmentName: 'spec.pdf',
-        attachmentSize: 1024 * 1024 * 1.5,
+        attachment: attachmentFixture({ url: '/uploads/spec.pdf', name: 'spec.pdf', size: 1024 * 1024 * 1.5 }),
         createdAt: new Date().toISOString(),
       };
 
@@ -285,9 +280,7 @@ describe('File Attachments, Image Preview & Message Cards', () => {
         content: 'Notes file',
         type: MessageType.DOCUMENT,
         status: MessageStatus.SENT,
-        attachmentUrl: '/uploads/notes.txt',
-        attachmentName: 'notes.txt',
-        attachmentSize: 1024 * 5,
+        attachment: attachmentFixture({ url: '/uploads/notes.txt', name: 'notes.txt', size: 1024 * 5 }),
         createdAt: new Date().toISOString(),
       };
 
@@ -319,9 +312,7 @@ describe('File Attachments, Image Preview & Message Cards', () => {
         content: 'Release archive',
         type: MessageType.DOCUMENT,
         status: MessageStatus.SENT,
-        attachmentUrl: '/uploads/release-v1.zip',
-        attachmentName: 'release-v1.zip',
-        attachmentSize: 1024 * 1024 * 5,
+        attachment: attachmentFixture({ url: '/uploads/release-v1.zip', name: 'release-v1.zip', size: 1024 * 1024 * 5 }),
         createdAt: new Date().toISOString(),
       };
 
@@ -356,9 +347,7 @@ describe('File Attachments, Image Preview & Message Cards', () => {
         content: 'Agreement',
         type: MessageType.DOCUMENT,
         status: MessageStatus.SENT,
-        attachmentUrl: '/uploads/contract.pdf',
-        attachmentName: 'contract.pdf',
-        attachmentSize: 1024 * 200,
+        attachment: attachmentFixture({ url: '/uploads/contract.pdf', name: 'contract.pdf', size: 1024 * 200 }),
         createdAt: new Date().toISOString(),
       };
 
@@ -402,9 +391,7 @@ describe('File Attachments, Image Preview & Message Cards', () => {
         content: 'Quarterly report',
         type: MessageType.DOCUMENT,
         status: MessageStatus.SENT,
-        attachmentUrl: UNSAFE_URL,
-        attachmentName: 'report.pdf',
-        attachmentSize: 1024 * 100,
+        attachment: attachmentFixture({ url: UNSAFE_URL, name: 'report.pdf', size: 1024 * 100 }),
         createdAt: new Date().toISOString(),
         ...overrides,
       };
@@ -447,7 +434,11 @@ describe('File Attachments, Image Preview & Message Cards', () => {
 
     it('IMAGE with a javascript: attachmentUrl renders the unavailable state instead of an image or lightbox', () => {
       renderMessage(
-        buildMessage({ type: MessageType.IMAGE, attachmentName: 'cat.png', content: 'Look at my cat' })
+        buildMessage({
+          type: MessageType.IMAGE,
+          attachment: attachmentFixture({ url: UNSAFE_URL, name: 'cat.png' }),
+          content: 'Look at my cat',
+        })
       );
 
       expectNoJavascriptUrlInDom();
@@ -458,7 +449,7 @@ describe('File Attachments, Image Preview & Message Cards', () => {
 
     it('a valid https DOCUMENT still renders its Download link and opens the PDF preview iframe', async () => {
       const httpsUrl = 'https://storage.example.com/object/sign/attachments/report.pdf?token=abc';
-      renderMessage(buildMessage({ attachmentUrl: httpsUrl }));
+      renderMessage(buildMessage({ attachment: attachmentFixture({ url: httpsUrl, name: 'report.pdf' }) }));
 
       expect(screen.queryByText('Tệp đính kèm không còn khả dụng')).not.toBeInTheDocument();
       expect(screen.getByRole('link', { name: /download report\.pdf/i })).toHaveAttribute('href', httpsUrl);
@@ -471,7 +462,7 @@ describe('File Attachments, Image Preview & Message Cards', () => {
     it('a valid https IMAGE still renders and opens in the lightbox with its Download link', async () => {
       const httpsUrl = 'https://storage.example.com/object/sign/attachments/cat.png?token=abc';
       renderMessage(
-        buildMessage({ type: MessageType.IMAGE, attachmentUrl: httpsUrl, attachmentName: 'cat.png' })
+        buildMessage({ type: MessageType.IMAGE, attachment: attachmentFixture({ url: httpsUrl, name: 'cat.png' }) })
       );
 
       const thumbnail = screen.getByRole('img', { name: 'cat.png' });
@@ -488,7 +479,7 @@ describe('File Attachments, Image Preview & Message Cards', () => {
       (name) => {
         const fetchSpy = vi.spyOn(global, 'fetch');
         render(
-          <DocumentPreviewModal isOpen onClose={vi.fn()} documentUrl={UNSAFE_URL} documentName={name} />
+          <DocumentPreviewModal isOpen onClose={vi.fn()} attachment={attachmentFixture({ url: UNSAFE_URL, name })} />
         );
 
         expect(screen.getByTestId('document-preview-modal')).toBeInTheDocument();
@@ -502,7 +493,9 @@ describe('File Attachments, Image Preview & Message Cards', () => {
     );
 
     it('Image Lightbox opened with a javascript: URL renders no image source or download link', () => {
-      render(<ImageLightboxModal isOpen onClose={vi.fn()} imageUrl={UNSAFE_URL} imageName="cat.png" />);
+      render(
+        <ImageLightboxModal isOpen onClose={vi.fn()} attachment={attachmentFixture({ url: UNSAFE_URL, name: 'cat.png' })} />
+      );
 
       expect(screen.getByTestId('image-lightbox-modal')).toBeInTheDocument();
       expect(screen.queryByRole('link')).not.toBeInTheDocument();

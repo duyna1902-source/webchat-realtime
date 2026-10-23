@@ -3,7 +3,7 @@ import {
   DirectReceiveMessagePayload,
   PaginatedMessagesDto,
   SOCKET_EVENTS,
-  MessageType,
+  SendMessageFields,
   MessageStatus,
   DirectSendMessagePayload,
   DirectReadPayload,
@@ -14,12 +14,8 @@ import { useSocket } from '../context/SocketContext';
 import type { SendMessageAck } from '../utils/rateLimit';
 import { apiFetch } from '../utils/apiFetch';
 
-export interface SendDirectMessageOptions {
-  type?: MessageType;
-  attachmentUrl?: string | null;
-  attachmentName?: string | null;
-  attachmentSize?: number | null;
-}
+/** What goes with the text: an uploaded `attachmentId`, or a Giphy `gifUrl` sent on its own. */
+export type SendDirectMessageOptions = Pick<SendMessageFields, 'attachmentId' | 'gifUrl'>;
 
 export function useDirectMessages(activeChatId: string | null) {
   const { currentUser } = useAuth();
@@ -219,33 +215,22 @@ export function useDirectMessages(activeChatId: string | null) {
 
   const sendMessage = useCallback(
     /** Resolves with the server's ack, e.g. `RATE_LIMITED`; undefined when nothing was sent. */
-    (content: string, optionsOrType?: MessageType | SendDirectMessageOptions): Promise<SendMessageAck> | undefined => {
+    (content: string, options: SendDirectMessageOptions = {}): Promise<SendMessageAck> | undefined => {
       if (!socket || !activeChatId) return;
 
-      let msgType = MessageType.TEXT;
-      let attachmentUrl: string | null = null;
-      let attachmentName: string | null = null;
-      let attachmentSize: number | null = null;
-
-      if (typeof optionsOrType === 'string') {
-        msgType = optionsOrType;
-      } else if (optionsOrType) {
-        msgType = optionsOrType.type ?? MessageType.TEXT;
-        attachmentUrl = optionsOrType.attachmentUrl ?? null;
-        attachmentName = optionsOrType.attachmentName ?? null;
-        attachmentSize = optionsOrType.attachmentSize ?? null;
+      const { attachmentId, gifUrl } = options;
+      const text = content.trim();
+      // Only what the client may send; the server derives the type and the file details.
+      let payload: DirectSendMessagePayload;
+      if (gifUrl) {
+        payload = { directChatId: activeChatId, gifUrl };
+      } else if (attachmentId) {
+        payload = { directChatId: activeChatId, content: text, attachmentId };
+      } else if (text) {
+        payload = { directChatId: activeChatId, content: text };
+      } else {
+        return;
       }
-
-      if (!content.trim() && !attachmentUrl) return;
-
-      const payload: DirectSendMessagePayload = {
-        directChatId: activeChatId,
-        content: content.trim(),
-        type: msgType,
-        attachmentUrl,
-        attachmentName,
-        attachmentSize,
-      };
 
       return new Promise<SendMessageAck>((resolve) => socket.emit(SOCKET_EVENTS.DIRECT_SEND, payload, resolve));
     },

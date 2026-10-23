@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import http from 'http';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import request from 'supertest';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { createTestServer, loginAs, SessionHeaders } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders, TestServer } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
+import { InMemoryStorageAdapter } from '../src/lib/storage.js';
 import { SOCKET_EVENTS, MessageType, normalizeDirectChatPair, MESSAGE_LIMITS } from '@webchat/shared';
 
 function waitForEvent<T = any>(socket: ClientSocketType, event: string, timeout = 3000): Promise<T> {
@@ -18,34 +19,56 @@ function waitForEvent<T = any>(socket: ClientSocketType, event: string, timeout 
   });
 }
 
+function emitWithAck<T = any>(client: ClientSocketType, event: string, payload: unknown): Promise<T> {
+  return client.timeout(3000).emitWithAck(event, payload) as Promise<T>;
+}
+
+const PNG_1X1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64'
+);
+
 describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
-  let httpServer: http.Server;
-  let serverPort: number;
+  let server: TestServer<InMemoryStorageAdapter>;
   let clientAlice: ClientSocketType;
   let clientBob: ClientSocketType;
-  let userAlice: any;
-  let userBob: any;
+  let sessionAlice: SessionHeaders;
+  let sessionBob: SessionHeaders;
   let directChat: any;
   let room: any;
 
   beforeAll(async () => {
-    ({ httpServer, port: serverPort } = await createTestServer({ listen: true }));
+    server = await createTestServer({ listen: true });
   });
 
   afterAll(async () => {
     if (clientAlice?.connected) clientAlice.disconnect();
     if (clientBob?.connected) clientBob.disconnect();
-    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    await server.close();
   });
+
+  /** Uploads a file and returns its Attachment id. */
+  async function uploadAs(session: SessionHeaders, filename: string, data: Buffer): Promise<string> {
+    const res = await request(server.app)
+      .post('/api/upload')
+      .set(session)
+      .attach('file', data, { filename, contentType: 'application/octet-stream' })
+      .expect(201);
+    return res.body.attachment.id;
+  }
+
+  const uploadImage = (session: SessionHeaders, filename = 'screenshot.png') => uploadAs(session, filename, PNG_1X1);
+  const uploadDocument = (session: SessionHeaders, filename = 'spec.pdf') =>
+    uploadAs(session, filename, Buffer.from('%PDF-1.4 spec'));
 
   beforeEach(async () => {
     const prisma = getPrisma();
 
     // Create users
-    userAlice = await prisma.user.create({
+    const userAlice = await prisma.user.create({
       data: { username: 'alice_attach', email: 'alice_attach@test.com', passwordHash: 'hash' },
     });
-    userBob = await prisma.user.create({
+    const userBob = await prisma.user.create({
       data: { username: 'bob_attach', email: 'bob_attach@test.com', passwordHash: 'hash' },
     });
 
@@ -75,29 +98,19 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
       },
     });
 
-    const sessionAlice = await loginAs(httpServer, userAlice);
-    const sessionBob = await loginAs(httpServer, userBob);
+    sessionAlice = await loginAs(server.app, userAlice);
+    sessionBob = await loginAs(server.app, userBob);
 
-    clientAlice = ClientSocket(`http://localhost:${serverPort}`, {
+    clientAlice = ClientSocket(`http://localhost:${server.port}`, {
       extraHeaders: sessionAlice,
       transports: ['websocket'],
     });
-    clientBob = ClientSocket(`http://localhost:${serverPort}`, {
+    clientBob = ClientSocket(`http://localhost:${server.port}`, {
       extraHeaders: sessionBob,
       transports: ['websocket'],
     });
 
-    await Promise.all([
-      waitForEvent(clientAlice, 'connect'),
-      waitForEvent(clientBob, 'connect'),
-    ]);
-
-    // Join room
-    clientAlice.emit(SOCKET_EVENTS.ROOM_JOIN, { roomId: room.id });
-    clientBob.emit(SOCKET_EVENTS.ROOM_JOIN, { roomId: room.id });
-
-    // Wait 100ms for rooms to join
-    await new Promise((r) => setTimeout(r, 100));
+    await Promise.all([waitForEvent(clientAlice, 'connect'), waitForEvent(clientBob, 'connect')]);
   });
 
   afterEach(() => {
@@ -105,340 +118,129 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
     if (clientBob?.connected) clientBob.disconnect();
   });
 
-  it('delivers direct image attachment message and persists metadata to DB', async () => {
+  it('delivers a direct image attachment message with the server-owned metadata', async () => {
+    const attachmentId = await uploadImage(sessionAlice);
     const bobReceivePromise = waitForEvent(clientBob, SOCKET_EVENTS.DIRECT_RECEIVE);
 
     clientAlice.emit(SOCKET_EVENTS.DIRECT_SEND, {
       directChatId: directChat.id,
       content: 'Check out this screenshot!',
-      type: MessageType.IMAGE,
-      attachmentUrl: '/uploads/screenshot.png',
-      attachmentName: 'screenshot.png',
-      attachmentSize: 1024 * 500, // 500 KB
+      attachmentId,
     });
 
     const received = await bobReceivePromise;
-
     expect(received).toMatchObject({
       directChatId: directChat.id,
-      senderId: userAlice.id,
       type: MessageType.IMAGE,
       content: 'Check out this screenshot!',
-      attachmentUrl: '/uploads/screenshot.png',
-      attachmentName: 'screenshot.png',
-      attachmentSize: 512000,
+      attachment: { id: attachmentId, kind: 'IMAGE', mimeType: 'image/png', name: 'screenshot.png' },
     });
-
-    const prisma = getPrisma();
-    const dbMsg = await prisma.directMessage.findUnique({
-      where: { id: received.id },
-    });
-    expect(dbMsg).not.toBeNull();
-    expect(dbMsg?.type).toBe(MessageType.IMAGE);
-    expect(dbMsg?.attachmentUrl).toBe('/uploads/screenshot.png');
-    expect(dbMsg?.attachmentName).toBe('screenshot.png');
-    expect(dbMsg?.attachmentSize).toBe(512000);
+    expect(server.storage.read(received.attachment.url)).toBeDefined();
   });
 
-  it('delivers direct document attachment message and persists metadata to DB', async () => {
+  it('delivers a direct document attachment message', async () => {
+    const attachmentId = await uploadDocument(sessionAlice);
     const bobReceivePromise = waitForEvent(clientBob, SOCKET_EVENTS.DIRECT_RECEIVE);
 
     clientAlice.emit(SOCKET_EVENTS.DIRECT_SEND, {
       directChatId: directChat.id,
       content: 'Here is the project specification',
-      type: MessageType.DOCUMENT,
-      attachmentUrl: '/uploads/spec.pdf',
-      attachmentName: 'spec.pdf',
-      attachmentSize: 2048000,
+      attachmentId,
     });
 
     const received = await bobReceivePromise;
-
     expect(received).toMatchObject({
-      directChatId: directChat.id,
-      senderId: userAlice.id,
       type: MessageType.DOCUMENT,
-      attachmentUrl: '/uploads/spec.pdf',
-      attachmentName: 'spec.pdf',
-      attachmentSize: 2048000,
+      attachment: { id: attachmentId, kind: 'DOCUMENT', mimeType: 'application/pdf', name: 'spec.pdf', size: 13 },
     });
-
-    const prisma = getPrisma();
-    const dbMsg = await prisma.directMessage.findUnique({
-      where: { id: received.id },
-    });
-    expect(dbMsg).not.toBeNull();
-    expect(dbMsg?.type).toBe(MessageType.DOCUMENT);
-    expect(dbMsg?.attachmentUrl).toBe('/uploads/spec.pdf');
-    expect(dbMsg?.attachmentName).toBe('spec.pdf');
-    expect(dbMsg?.attachmentSize).toBe(2048000);
   });
 
-  it('broadcasts room image attachment message and persists to RoomMessage', async () => {
-    const bobReceivePromise = waitForEvent(clientBob, SOCKET_EVENTS.ROOM_RECEIVE);
+  it('broadcasts room image and document attachment messages', async () => {
+    const imageId = await uploadImage(sessionAlice, 'architecture.png');
+    const documentId = await uploadDocument(sessionAlice, 'guidelines.pdf');
 
-    clientAlice.emit(SOCKET_EVENTS.ROOM_SEND, {
+    const imagePromise = waitForEvent(clientBob, SOCKET_EVENTS.ROOM_RECEIVE);
+    clientAlice.emit(SOCKET_EVENTS.ROOM_SEND, { roomId: room.id, content: 'Room diagram attached', attachmentId: imageId });
+    expect(await imagePromise).toMatchObject({
       roomId: room.id,
-      content: 'Room diagram attached',
-      type: MessageType.IMAGE,
-      attachmentUrl: '/uploads/architecture.jpg',
-      attachmentName: 'architecture.jpg',
-      attachmentSize: 1200000,
-    });
-
-    const received = await bobReceivePromise;
-
-    expect(received).toMatchObject({
-      roomId: room.id,
-      senderId: userAlice.id,
       type: MessageType.IMAGE,
       content: 'Room diagram attached',
-      attachmentUrl: '/uploads/architecture.jpg',
-      attachmentName: 'architecture.jpg',
-      attachmentSize: 1200000,
+      attachment: { id: imageId, name: 'architecture.png' },
     });
 
-    const prisma = getPrisma();
-    const dbMsg = await prisma.roomMessage.findUnique({
-      where: { id: received.id },
-    });
-    expect(dbMsg).not.toBeNull();
-    expect(dbMsg?.type).toBe(MessageType.IMAGE);
-    expect(dbMsg?.attachmentUrl).toBe('/uploads/architecture.jpg');
-    expect(dbMsg?.attachmentName).toBe('architecture.jpg');
-    expect(dbMsg?.attachmentSize).toBe(1200000);
-  });
-
-  it('broadcasts room document attachment message and persists to RoomMessage', async () => {
-    const bobReceivePromise = waitForEvent(clientBob, SOCKET_EVENTS.ROOM_RECEIVE);
-
-    clientAlice.emit(SOCKET_EVENTS.ROOM_SEND, {
-      roomId: room.id,
-      content: 'Room guidelines document',
+    const documentPromise = waitForEvent(clientBob, SOCKET_EVENTS.ROOM_RECEIVE);
+    clientAlice.emit(SOCKET_EVENTS.ROOM_SEND, { roomId: room.id, content: 'Room guidelines', attachmentId: documentId });
+    expect(await documentPromise).toMatchObject({
       type: MessageType.DOCUMENT,
-      attachmentUrl: '/uploads/guidelines.docx',
-      attachmentName: 'guidelines.docx',
-      attachmentSize: 340000,
+      attachment: { id: documentId, name: 'guidelines.pdf' },
     });
-
-    const received = await bobReceivePromise;
-
-    expect(received).toMatchObject({
-      roomId: room.id,
-      senderId: userAlice.id,
-      type: MessageType.DOCUMENT,
-      content: 'Room guidelines document',
-      attachmentUrl: '/uploads/guidelines.docx',
-      attachmentName: 'guidelines.docx',
-      attachmentSize: 340000,
-    });
-
-    const prisma = getPrisma();
-    const dbMsg = await prisma.roomMessage.findUnique({
-      where: { id: received.id },
-    });
-    expect(dbMsg).not.toBeNull();
-    expect(dbMsg?.type).toBe(MessageType.DOCUMENT);
-    expect(dbMsg?.attachmentUrl).toBe('/uploads/guidelines.docx');
-    expect(dbMsg?.attachmentName).toBe('guidelines.docx');
   });
 
   describe('Attachment Captions Character Limit & Counter Integration (Ticket 05)', () => {
-    it('rejects direct attachment message if caption exceeds DIRECT character limit (4000) with error callback', async () => {
-      let ackResponse: any = null;
+    const tooLong = { success: false, error: 'MESSAGE_TOO_LONG', requestId: expect.any(String) };
+
+    it('rejects a direct attachment message whose caption exceeds the DIRECT limit (4000)', async () => {
       let bobReceived = false;
       clientBob.once(SOCKET_EVENTS.DIRECT_RECEIVE, () => {
         bobReceived = true;
       });
+      const attachmentId = await uploadImage(sessionAlice);
 
-      const longCaption = 'A'.repeat(MESSAGE_LIMITS.DIRECT + 1);
-
-      await new Promise<void>((resolve) => {
-        clientAlice.emit(
-          SOCKET_EVENTS.DIRECT_SEND,
-          {
-            directChatId: directChat.id,
-            content: longCaption,
-            type: MessageType.IMAGE,
-            attachmentUrl: '/uploads/oversized-caption.png',
-            attachmentName: 'oversized-caption.png',
-            attachmentSize: 1024 * 100,
-          },
-          (res: any) => {
-            ackResponse = res;
-            resolve();
-          }
-        );
+      const ack = await emitWithAck(clientAlice, SOCKET_EVENTS.DIRECT_SEND, {
+        directChatId: directChat.id,
+        content: 'A'.repeat(MESSAGE_LIMITS.DIRECT + 1),
+        attachmentId,
       });
 
-      expect(ackResponse).toEqual({
-        success: false,
-        error: 'MESSAGE_TOO_LONG',
-        requestId: expect.any(String),
-      });
-
-      // Allow 100ms to ensure no delayed delivery or persistence
+      expect(ack).toEqual(tooLong);
       await new Promise((r) => setTimeout(r, 100));
       expect(bobReceived).toBe(false);
-
-      const prisma = getPrisma();
-      const dbMsg = await prisma.directMessage.findFirst({
-        where: {
-          directChatId: directChat.id,
-          attachmentUrl: '/uploads/oversized-caption.png',
-        },
-      });
-      expect(dbMsg).toBeNull();
     });
 
-    it('rejects room attachment message if MEMBER caption exceeds ROOM_MEMBER limit (2000) with error callback', async () => {
-      let ackResponse: any = null;
-      let aliceReceived = false;
-      clientAlice.once(SOCKET_EVENTS.ROOM_RECEIVE, () => {
-        aliceReceived = true;
+    it('rejects a room attachment message whose MEMBER caption exceeds ROOM_MEMBER (2000), and keeps the Attachment sendable', async () => {
+      const attachmentId = await uploadDocument(sessionBob);
+
+      const ack = await emitWithAck(clientBob, SOCKET_EVENTS.ROOM_SEND, {
+        roomId: room.id,
+        content: 'B'.repeat(MESSAGE_LIMITS.ROOM_MEMBER + 1),
+        attachmentId,
       });
+      expect(ack).toEqual(tooLong);
 
-      const longCaption = 'B'.repeat(MESSAGE_LIMITS.ROOM_MEMBER + 1);
-
-      await new Promise<void>((resolve) => {
-        clientBob.emit(
-          SOCKET_EVENTS.ROOM_SEND,
-          {
-            roomId: room.id,
-            content: longCaption,
-            type: MessageType.IMAGE,
-            attachmentUrl: '/uploads/bob-oversized.png',
-            attachmentName: 'bob-oversized.png',
-            attachmentSize: 1024 * 50,
-          },
-          (res: any) => {
-            ackResponse = res;
-            resolve();
-          }
-        );
-      });
-
-      expect(ackResponse).toEqual({
-        success: false,
-        error: 'MESSAGE_TOO_LONG',
-        requestId: expect.any(String),
-      });
-
-      await new Promise((r) => setTimeout(r, 100));
-      expect(aliceReceived).toBe(false);
-
-      const prisma = getPrisma();
-      const dbMsg = await prisma.roomMessage.findFirst({
-        where: {
-          roomId: room.id,
-          attachmentUrl: '/uploads/bob-oversized.png',
-        },
-      });
-      expect(dbMsg).toBeNull();
+      const retry = await emitWithAck(clientBob, SOCKET_EVENTS.ROOM_SEND, { roomId: room.id, content: 'short', attachmentId });
+      expect(retry.success).toBe(true);
     });
 
-    it('rejects room attachment message if leader caption exceeds ROOM_LEADER limit (4000) with error callback', async () => {
-      let ackResponse: any = null;
-      let bobReceived = false;
-      clientBob.once(SOCKET_EVENTS.ROOM_RECEIVE, () => {
-        bobReceived = true;
+    it('rejects a room attachment message whose leader caption exceeds ROOM_LEADER (4000)', async () => {
+      const attachmentId = await uploadDocument(sessionAlice);
+
+      const ack = await emitWithAck(clientAlice, SOCKET_EVENTS.ROOM_SEND, {
+        roomId: room.id,
+        content: 'L'.repeat(MESSAGE_LIMITS.ROOM_LEADER + 1),
+        attachmentId,
       });
 
-      const longCaption = 'L'.repeat(MESSAGE_LIMITS.ROOM_LEADER + 1);
-
-      await new Promise<void>((resolve) => {
-        clientAlice.emit(
-          SOCKET_EVENTS.ROOM_SEND,
-          {
-            roomId: room.id,
-            content: longCaption,
-            type: MessageType.DOCUMENT,
-            attachmentUrl: '/uploads/leader-oversized.pdf',
-            attachmentName: 'leader-oversized.pdf',
-            attachmentSize: 1024 * 200,
-          },
-          (res: any) => {
-            ackResponse = res;
-            resolve();
-          }
-        );
-      });
-
-      expect(ackResponse).toEqual({
-        success: false,
-        error: 'MESSAGE_TOO_LONG',
-        requestId: expect.any(String),
-      });
-
-      await new Promise((r) => setTimeout(r, 100));
-      expect(bobReceived).toBe(false);
-
-      const prisma = getPrisma();
-      const dbMsg = await prisma.roomMessage.findFirst({
-        where: {
-          roomId: room.id,
-          attachmentUrl: '/uploads/leader-oversized.pdf',
-        },
-      });
-      expect(dbMsg).toBeNull();
+      expect(ack).toEqual(tooLong);
     });
 
-    it('accepts room attachment message when caption is within quota (2000 for member, 4000 for leader)', async () => {
-      // 1. Bob (member) sends attachment with caption at exact limit (2000)
+    it('accepts captions at the limit (2000 for member, 4000 for leader)', async () => {
       const memberCaption = 'M'.repeat(MESSAGE_LIMITS.ROOM_MEMBER);
-      const aliceReceiveMemberPromise = waitForEvent(clientAlice, SOCKET_EVENTS.ROOM_RECEIVE);
-
-      let memberAck: any = null;
-      await new Promise<void>((resolve) => {
-        clientBob.emit(
-          SOCKET_EVENTS.ROOM_SEND,
-          {
-            roomId: room.id,
-            content: memberCaption,
-            type: MessageType.DOCUMENT,
-            attachmentUrl: '/uploads/member-exact.pdf',
-            attachmentName: 'member-exact.pdf',
-            attachmentSize: 1024 * 10,
-          },
-          (res: any) => {
-            memberAck = res;
-            resolve();
-          }
-        );
+      const memberAck = await emitWithAck(clientBob, SOCKET_EVENTS.ROOM_SEND, {
+        roomId: room.id,
+        content: memberCaption,
+        attachmentId: await uploadDocument(sessionBob, 'member-exact.pdf'),
       });
+      expect(memberAck.success).toBe(true);
+      expect(memberAck.message).toMatchObject({ content: memberCaption, attachment: { name: 'member-exact.pdf' } });
 
-      expect(memberAck?.success).toBe(true);
-      const memberReceived = await aliceReceiveMemberPromise;
-      expect(memberReceived.content).toBe(memberCaption);
-      expect(memberReceived.attachmentUrl).toBe('/uploads/member-exact.pdf');
-
-      // 2. Alice (owner/leader) sends attachment with caption at leader limit (4000)
       const leaderCaption = 'L'.repeat(MESSAGE_LIMITS.ROOM_LEADER);
-      const bobReceiveLeaderPromise = waitForEvent(clientBob, SOCKET_EVENTS.ROOM_RECEIVE);
-
-      let leaderAck: any = null;
-      await new Promise<void>((resolve) => {
-        clientAlice.emit(
-          SOCKET_EVENTS.ROOM_SEND,
-          {
-            roomId: room.id,
-            content: leaderCaption,
-            type: MessageType.IMAGE,
-            attachmentUrl: '/uploads/leader-exact.png',
-            attachmentName: 'leader-exact.png',
-            attachmentSize: 1024 * 20,
-          },
-          (res: any) => {
-            leaderAck = res;
-            resolve();
-          }
-        );
+      const leaderAck = await emitWithAck(clientAlice, SOCKET_EVENTS.ROOM_SEND, {
+        roomId: room.id,
+        content: leaderCaption,
+        attachmentId: await uploadImage(sessionAlice, 'leader-exact.png'),
       });
-
-      expect(leaderAck?.success).toBe(true);
-      const leaderReceived = await bobReceiveLeaderPromise;
-      expect(leaderReceived.content).toBe(leaderCaption);
-      expect(leaderReceived.attachmentUrl).toBe('/uploads/leader-exact.png');
+      expect(leaderAck.success).toBe(true);
+      expect(leaderAck.message).toMatchObject({ content: leaderCaption, attachment: { name: 'leader-exact.png' } });
     });
   });
 });

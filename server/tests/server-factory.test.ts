@@ -69,9 +69,9 @@ describe('Server factory', () => {
       .post('/api/upload')
       .set(session)
       .attach('file', Buffer.from('%PDF-1.4 in memory'), { filename: 'doc.pdf', contentType: 'application/pdf' })
-      .expect(200);
+      .expect(201);
 
-    expect(storage.read(res.body.url)?.toString()).toBe('%PDF-1.4 in memory');
+    expect(storage.read(res.body.attachment.url)?.toString()).toBe('%PDF-1.4 in memory');
   });
 
   it('serves the client build from the configured directory', async () => {

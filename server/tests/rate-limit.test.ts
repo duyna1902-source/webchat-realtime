@@ -154,8 +154,8 @@ describe('Rate limiting: per-User REST endpoints (SEC-07)', () => {
         .set(alice)
         .attach('file', Buffer.from('hello'), { filename: 'note.txt', contentType: 'text/plain' });
 
-    await upload().expect(200);
-    await upload().expect(200);
+    await upload().expect(201);
+    await upload().expect(201);
     expectRateLimited(await upload());
   });
 

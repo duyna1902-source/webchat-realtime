@@ -22,7 +22,14 @@ import {
   directReadSchema,
 } from '@webchat/shared';
 import { parseInput } from '../lib/validation.js';
-import { toPublicUserDto } from '../controllers/user.controller.js';
+import {
+  AttachmentSigner,
+  findSendableAttachment,
+  linkAttachment,
+  messageTypeFor,
+  signAttachments,
+} from '../lib/attachments.js';
+import { toDirectReceiveMessagePayload } from '../controllers/direct-chat.controller.js';
 
 export async function handleDirectMessagesDeliveryOnConnect(io: Server, userId: string, log: Logger): Promise<void> {
   try {
@@ -72,7 +79,13 @@ export async function handleDirectMessagesDeliveryOnConnect(io: Server, userId: 
   }
 }
 
-export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSocket, log: Logger, limits: SocketRateLimits): void {
+export function registerDirectChatHandlers(
+  io: Server,
+  socket: AuthenticatedSocket,
+  log: Logger,
+  limits: SocketRateLimits,
+  signer: AttachmentSigner
+): void {
   const userId = socket.data.user.userId;
 
   // Automatically join user room for targeted 1-1 messaging
@@ -82,10 +95,7 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
     SOCKET_EVENTS.DIRECT_SEND,
     socketHandler<DirectSendMessagePayload>(log, SOCKET_EVENTS.DIRECT_SEND, async (payload) => {
       limits.consumeMessageSend();
-      const { directChatId, content, type, attachmentUrl, attachmentName, attachmentSize } = parseInput(
-        directSendSchema,
-        payload
-      );
+      const { directChatId, content, attachmentId, gifUrl } = parseInput(directSendSchema, payload);
 
       if (content && content.length > MESSAGE_LIMITS.DIRECT) {
         throw new AppError(400, ERROR_CODES.MESSAGE_TOO_LONG, `Message exceeds character limit of ${MESSAGE_LIMITS.DIRECT}`);
@@ -116,21 +126,26 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
       const isRecipientOnline = recipientId ? presenceManager.isUserOnline(recipientId) : false;
       const initialStatus = isRecipientOnline ? MessageStatus.DELIVERED : MessageStatus.SENT;
 
-      // Create DirectMessage in DB
-      const message = await prisma.directMessage.create({
-        data: {
-          directChatId,
-          senderId: userId,
-          content: content || '',
-          type: type || MessageType.TEXT,
-          status: initialStatus,
-          attachmentUrl: attachmentUrl || null,
-          attachmentName: attachmentName || null,
-          attachmentSize: attachmentSize || null,
-        },
-        include: {
-          sender: true,
-        },
+      // Create the DirectMessage; its type and file metadata come from the server, never the client.
+      // A GIF travels in `content`, as before.
+      const message = await prisma.$transaction(async (tx) => {
+        const attachment = attachmentId ? await findSendableAttachment(tx, attachmentId, userId) : null;
+        const created = await tx.directMessage.create({
+          data: {
+            directChatId,
+            senderId: userId,
+            content: gifUrl ?? content ?? '',
+            type: gifUrl ? MessageType.EMOJI_GIF : attachment ? messageTypeFor(attachment.kind) : MessageType.TEXT,
+            status: initialStatus,
+          },
+        });
+        if (attachment) {
+          await linkAttachment(tx, attachment.id, userId, { directMessageId: created.id });
+        }
+        return tx.directMessage.findUniqueOrThrow({
+          where: { id: created.id },
+          include: { sender: true, attachment: true },
+        });
       });
 
       // Update direct chat timestamp
@@ -139,19 +154,10 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
         data: { updatedAt: new Date() },
       });
 
-      const receivePayload: DirectReceiveMessagePayload = {
-        id: message.id,
-        directChatId: message.directChatId,
-        senderId: message.senderId,
-        sender: toPublicUserDto(message.sender),
-        content: message.content,
-        type: message.type as MessageType,
-        status: message.status as MessageStatus,
-        attachmentUrl: message.attachmentUrl,
-        attachmentName: message.attachmentName,
-        attachmentSize: message.attachmentSize,
-        createdAt: message.createdAt.toISOString(),
-      };
+      const receivePayload: DirectReceiveMessagePayload = toDirectReceiveMessagePayload(
+        message,
+        await signAttachments(signer, [message.attachment])
+      );
 
       // Deliver message to each participant's room
       chat.participants.forEach((p) => {

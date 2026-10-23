@@ -45,7 +45,7 @@ export async function createServer({ config, storage, logger: injectedLogger }: 
   const app = createApp(config, logger, storage);
   const httpServer = http.createServer(app);
   // Socket.IO must attach after Express so it can intercept `/socket.io` requests first.
-  const io = setupSocketServer(httpServer, { config, logger, sessions });
+  const io = setupSocketServer(httpServer, { config, logger, sessions, storage });
   attachServerContext(app.locals, { config, storage, io, sessions, rateLimiters: createRestRateLimiters(config.rateLimits) });
 
   return { httpServer, app, io, logger, sessions };

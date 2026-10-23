@@ -15,11 +15,13 @@ import {
 
 let app: Express;
 let uploadsDir: string;
+/** Clock of the local adapter, so a test can move past a signed URL's expiry. */
+let now = Date.now();
 
 beforeAll(async () => {
   // Local disk storage in a temp dir, so uploaded files can be fetched back through /uploads.
   uploadsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'webchat-upload-test-'));
-  ({ app } = await createTestServer({ storage: new LocalStorageAdapter(uploadsDir) }));
+  ({ app } = await createTestServer({ storage: new LocalStorageAdapter({ dir: uploadsDir, now: () => now }) }));
 });
 
 afterAll(() => {
@@ -34,6 +36,7 @@ describe('File Upload REST API (POST /api/upload)', () => {
   let authSession: SessionHeaders;
   let testUser: any;
 
+  // Per test: the database is reset before each one, and an Attachment needs its uploader.
   beforeEach(async () => {
     const prisma = getPrisma();
     testUser = await prisma.user.create({
@@ -75,17 +78,49 @@ describe('File Upload REST API (POST /api/upload)', () => {
         filename: 'avatar.png',
         contentType: 'image/png',
       })
-      .expect(200);
+      .expect(201);
 
-    expect(res.body).toHaveProperty('url');
-    expect(res.body).toHaveProperty('size');
-    expect(res.body).toHaveProperty('mimeType', 'image/png');
-    expect(res.body.name).toBe('avatar.png');
+    const { attachment } = res.body;
+    expect(attachment).toHaveProperty('url');
+    expect(attachment).toHaveProperty('size');
+    expect(attachment).toHaveProperty('mimeType', 'image/png');
+    expect(attachment.name).toBe('avatar.png');
 
-    // The file can be retrieved via the returned URL, with the size the server reported.
-    const getRes = await request(app).get(res.body.url).buffer(true).expect(200);
+    // The file can be retrieved via the signed URL, with the size the server reported.
+    const getRes = await request(app).get(attachment.url).buffer(true).expect(200);
     expect(getRes.headers['content-type']).toBe('image/png');
-    expect(Number(getRes.headers['content-length'])).toBe(res.body.size);
+    expect(Number(getRes.headers['content-length'])).toBe(attachment.size);
+  });
+
+  describe('local storage signed URLs (HMAC with expiry)', () => {
+    async function uploadPdf(): Promise<string> {
+      const res = await request(app)
+        .post('/api/upload')
+        .set(authSession)
+        .attach('file', Buffer.from('%PDF-1.4 signed'), { filename: 'signed.pdf', contentType: 'application/pdf' })
+        .expect(201);
+      return res.body.attachment.url;
+    }
+
+    it('serves the file only with a valid signature', async () => {
+      const url = await uploadPdf();
+      const unsigned = url.split('?')[0];
+      const tampered = url.replace(/signature=[^&]+/, 'signature=AAAA');
+      const otherExpiry = url.replace(/expires=(\d+)/, (_m, ms) => `expires=${Number(ms) + 1000}`);
+
+      await request(app).get(url).expect(200);
+      for (const forged of [unsigned, tampered, otherExpiry]) {
+        await request(app).get(forged).expect(404);
+      }
+    });
+
+    it('stops serving the file once the signed URL expired', async () => {
+      const url = await uploadPdf();
+
+      now += 3601 * 1000;
+
+      await request(app).get(url).expect(404);
+    });
   });
 
   it('successfully uploads a valid document file (PDF)', async () => {
@@ -98,12 +133,12 @@ describe('File Upload REST API (POST /api/upload)', () => {
         filename: 'document.pdf',
         contentType: 'application/pdf',
       })
-      .expect(200);
+      .expect(201);
 
-    expect(res.body).toHaveProperty('url');
-    expect(res.body.mimeType).toBe('application/pdf');
-    expect(res.body.size).toBe(pdfBuffer.length);
-    expect(res.body.name).toBe('document.pdf');
+    expect(res.body.attachment).toHaveProperty('url');
+    expect(res.body.attachment.mimeType).toBe('application/pdf');
+    expect(res.body.attachment.size).toBe(pdfBuffer.length);
+    expect(res.body.attachment.name).toBe('document.pdf');
   });
 
   it('rejects files exceeding 10MB limit with 413', async () => {
@@ -138,10 +173,15 @@ describe('File Upload REST API (POST /api/upload)', () => {
   });
 
   describe('Supabase storage adapter behind the server factory', () => {
-    it('sends the upload to Supabase with only the secret key in the apikey header', async () => {
-      const requests: { url: string; headers: Headers }[] = [];
+    it('uploads to the private bucket with only the secret key in the apikey header, then signs a URL', async () => {
+      const requests: { url: string; headers: Headers; body: unknown }[] = [];
       const fakeFetch: typeof fetch = async (input, init) => {
-        requests.push({ url: String(input), headers: new Headers(init?.headers) });
+        const url = String(input);
+        requests.push({ url, headers: new Headers(init?.headers), body: init?.body });
+        if (url.includes('/object/sign/')) {
+          const key = url.split('/').pop();
+          return Response.json({ signedURL: `/object/sign/attachments/${key}?token=signed-token` });
+        }
         return new Response('{}', { status: 200 });
       };
       const supabase = await createTestServer({
@@ -158,15 +198,25 @@ describe('File Upload REST API (POST /api/upload)', () => {
           .post('/api/upload')
           .set(authSession)
           .attach('file', await pngImage(), { filename: 'photo.png', contentType: 'application/octet-stream' })
-          .expect(200);
+          .expect(201);
 
-        expect(res.body.url).toMatch(/^https:\/\/project\.supabase\.co\/storage\/v1\/object\/public\/attachments\//);
-        expect(requests).toHaveLength(1);
-        expect(requests[0].url).toMatch(/^https:\/\/project\.supabase\.co\/storage\/v1\/object\/attachments\/[0-9a-f-]{36}$/);
-        expect(requests[0].headers.get('apikey')).toBe('sb_secret_test_only');
-        expect(requests[0].headers.has('authorization')).toBe(false);
+        expect(requests).toHaveLength(2);
+        const [put, sign] = requests;
+        expect(put.url).toMatch(/^https:\/\/project\.supabase\.co\/storage\/v1\/object\/attachments\/[0-9a-f-]{36}$/);
+        expect(put.headers.get('apikey')).toBe('sb_secret_test_only');
+        expect(put.headers.has('authorization')).toBe(false);
         // Stored with the detected type, not the one the client declared.
-        expect(requests[0].headers.get('content-type')).toBe('image/png');
+        expect(put.headers.get('content-type')).toBe('image/png');
+
+        const key = put.url.split('/').pop();
+        expect(sign.url).toBe(`https://project.supabase.co/storage/v1/object/sign/attachments/${key}`);
+        expect(sign.headers.get('apikey')).toBe('sb_secret_test_only');
+        expect(sign.headers.has('authorization')).toBe(false);
+        expect(JSON.parse(String(sign.body))).toEqual({ expiresIn: 3600 });
+        // Never a public object URL: only the signed one.
+        expect(res.body.attachment.url).toBe(
+          `https://project.supabase.co/storage/v1/object/sign/attachments/${key}?token=signed-token`
+        );
       } finally {
         await supabase.close();
       }
@@ -196,6 +246,77 @@ describe('File Upload REST API (POST /api/upload)', () => {
       });
 
       await expect(adapter.put(Buffer.from('%PDF-1.4'), { contentType: 'application/pdf' })).rejects.toThrow();
+    });
+
+    describe('SupabaseStorageAdapter signing, delete and list', () => {
+      function adapterWith(handler: (url: string, init: RequestInit) => Response) {
+        const calls: { url: string; method?: string; body: any; headers: Headers }[] = [];
+        const adapter = new SupabaseStorageAdapter({
+          url: 'https://fake.supabase.co/',
+          secretKey: 'sb_secret_x',
+          bucket: 'attachments',
+          now: () => Date.UTC(2026, 0, 1),
+          fetch: async (input, init = {}) => {
+            calls.push({
+              url: String(input),
+              method: init.method,
+              body: init.body ? JSON.parse(String(init.body)) : undefined,
+              headers: new Headers(init.headers),
+            });
+            return handler(String(input), init);
+          },
+        });
+        return { adapter, calls };
+      }
+
+      it('signs many keys in one call, leaving out the ones Supabase could not sign', async () => {
+        const { adapter, calls } = adapterWith(() =>
+          Response.json([
+            { path: 'k1', signedURL: '/object/sign/attachments/k1?token=t1', error: null },
+            { path: 'k2', signedURL: null, error: 'Either the object does not exist or you do not have access to it' },
+          ])
+        );
+
+        const signed = await adapter.createSignedUrls(['k1', 'k2', 'k1'], 120);
+
+        expect(calls).toEqual([
+          expect.objectContaining({
+            url: 'https://fake.supabase.co/storage/v1/object/sign/attachments',
+            method: 'POST',
+            body: { expiresIn: 120, paths: ['k1', 'k2'] },
+          }),
+        ]);
+        expect([...signed.keys()]).toEqual(['k1']);
+        expect(signed.get('k1')).toEqual({
+          url: 'https://fake.supabase.co/storage/v1/object/sign/attachments/k1?token=t1',
+          expiresAt: new Date(Date.UTC(2026, 0, 1) + 120_000),
+        });
+      });
+
+      it('deletes an object and lists every object key page by page', async () => {
+        const firstPage = Array.from({ length: 1000 }, (_, i) => ({ name: `key-${i}`, id: `id-${i}` }));
+        const { adapter, calls } = adapterWith((url, init) => {
+          if (init.method === 'DELETE') return Response.json([]);
+          const { offset } = JSON.parse(String(init.body));
+          return Response.json(offset === 0 ? firstPage : [{ name: 'last', id: 'id-last' }, { name: 'folder', id: null }]);
+        });
+
+        await adapter.delete('k1');
+        const keys = await adapter.list();
+
+        expect(calls[0]).toMatchObject({
+          url: 'https://fake.supabase.co/storage/v1/object/attachments',
+          method: 'DELETE',
+          body: { prefixes: ['k1'] },
+        });
+        expect(calls.slice(1).map((c) => [c.url, c.body.offset])).toEqual([
+          ['https://fake.supabase.co/storage/v1/object/list/attachments', 0],
+          ['https://fake.supabase.co/storage/v1/object/list/attachments', 1000],
+        ]);
+        expect(calls.every((c) => c.headers.get('apikey') === 'sb_secret_x' && !c.headers.has('authorization'))).toBe(true);
+        expect(keys).toHaveLength(1001);
+        expect(keys.at(-1)).toBe('last');
+      });
     });
   });
 });
