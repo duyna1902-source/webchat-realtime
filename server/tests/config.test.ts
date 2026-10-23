@@ -68,6 +68,7 @@ describe('loadConfig', () => {
     expect(config.timing.sessionIdleTtlMs).toBe(7 * 24 * 60 * 60 * 1000);
     expect(config.timing.sessionAbsoluteTtlMs).toBe(30 * 24 * 60 * 60 * 1000);
     expect(config.timing.sessionTouchIntervalMs).toBe(5 * 60 * 1000);
+    expect(config.timing.sessionRecheckIntervalMs).toBe(60 * 1000);
     expect(config.rateLimits.loginFailures).toEqual({ max: 10, windowMs: 15 * 60 * 1000 });
     expect(config.rateLimits.register).toEqual({ max: 5, windowMs: 60 * 60 * 1000 });
     expect(config.rateLimits.upload).toEqual({ max: 20, windowMs: 10 * 60 * 1000 });

@@ -23,6 +23,9 @@ export const SOCKET_EVENTS = {
 
   // Presence
   PRESENCE_UPDATE: 'presence:update',
+
+  // Session: sent just before the server cuts off a socket whose Session ended
+  SESSION_ENDED: 'session:ended',
 } as const;
 
 // ==========================================
@@ -134,4 +137,13 @@ export interface PresenceUpdatePayload {
   userId: string;
   isOnline: boolean;
   lastSeenAt: string; // ISO String
+}
+
+// ==========================================
+// SESSION PAYLOADS
+// ==========================================
+
+/** Why the server ended a socket's Session: it was revoked (logout, logout everywhere, operator) or reached its absolute expiry. */
+export interface SessionEndedPayload {
+  reason: 'revoked' | 'expired';
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Lock, Mail, User, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
+import { Lock, Mail, User, AlertCircle, Info, Loader2, ArrowRight } from 'lucide-react';
 import { loginSchema, registerSchema, parseWithSchema, FieldError } from '@webchat/shared';
 
 type FieldErrors = Record<string, string>;
@@ -37,7 +37,8 @@ const invalidProps = (id: string, error?: string) =>
   error ? { 'aria-invalid': true as const, 'aria-describedby': `${id}-error` } : {};
 
 export const AuthScreen: React.FC = () => {
-  const { login, register } = useAuth();
+  // `sessionNotice`: why the user was signed out (Session revoked or expired, or signed out everywhere).
+  const { login, register, sessionNotice } = useAuth();
   const [isRegister, setIsRegister] = useState<boolean>(false);
   const [emailOrUsername, setEmailOrUsername] = useState<string>('');
   const [username, setUsername] = useState<string>('');
@@ -207,6 +208,16 @@ export const AuthScreen: React.FC = () => {
                     >
                       <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate">{error}</span>
+                    </div>
+                  )}
+                  {!error && sessionNotice && !isRegister && (
+                    <div
+                      role="status"
+                      title={sessionNotice}
+                      className="p-2 rounded-xl bg-google-blue-subtle border border-google-blue/20 flex items-center gap-1.5 text-google-blue text-xs shrink-0"
+                    >
+                      <Info className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">{sessionNotice}</span>
                     </div>
                   )}
 
