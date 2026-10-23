@@ -1,4 +1,5 @@
 import { MessageType, MessageStatus, RoomRole } from './enums.js';
+import type { PublicUserDto } from './dtos.js';
 
 // ==========================================
 // SOCKET EVENT NAMES
@@ -41,10 +42,7 @@ export interface DirectReceiveMessagePayload {
   id: string;
   directChatId: string;
   senderId: string;
-  sender: {
-    id: string;
-    username: string;
-  };
+  sender: PublicUserDto;
   content: string;
   type: MessageType;
   status: MessageStatus;
@@ -97,10 +95,7 @@ export interface RoomReceiveMessagePayload {
   id: string;
   roomId: string;
   senderId: string;
-  sender: {
-    id: string;
-    username: string;
-  };
+  sender: PublicUserDto;
   content: string;
   type: MessageType;
   attachmentUrl?: string | null;

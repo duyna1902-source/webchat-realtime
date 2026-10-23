@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { UserDto, AuthResponseDto, RegisterRequestDto, LoginRequestDto } from '@webchat/shared';
+import { SelfUserDto, AuthResponseDto, RegisterRequestDto, LoginRequestDto } from '@webchat/shared';
 import { apiFetch, setUnauthorizedHandler } from '../utils/apiFetch';
 
 interface AuthContextType {
-  currentUser: UserDto | null;
+  currentUser: SelfUserDto | null;
   /** True until the startup `GET /api/auth/me` has answered (it can take a while on a cold start). */
   isLoading: boolean;
   login: (data: LoginRequestDto) => Promise<void>;
@@ -17,7 +17,7 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 // The Session lives only in the HttpOnly `__Host-session` cookie (ADR 0010): nothing about the
 // login is stored in the browser, and who is signed in is always asked of the server.
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<UserDto | null>(null);
+  const [currentUser, setCurrentUser] = useState<SelfUserDto | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Any 401 from the API means the Session is gone: back to the sign-in screen.

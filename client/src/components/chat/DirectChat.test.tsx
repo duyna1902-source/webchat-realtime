@@ -5,6 +5,7 @@ import { ChatArea } from './ChatArea';
 import { AuthContext } from '../../context/AuthContext';
 import { SocketContext } from '../../context/SocketContext';
 import { DirectChatListItemDto, DirectReceiveMessagePayload, MessageType, MessageStatus, MESSAGE_LIMITS } from '@webchat/shared';
+import { publicUser } from '../../test/fixtures';
 
 const mockUser = {
   id: 'current-user-id',
@@ -33,7 +34,7 @@ const mockChat: DirectChatListItemDto = {
     id: 'msg-1',
     directChatId: 'chat-1',
     senderId: 'partner-user-id',
-    sender: { id: 'partner-user-id', username: 'bobpartner' },
+    sender: publicUser('partner-user-id', 'bobpartner'),
     content: 'Hey there!',
     type: MessageType.TEXT,
     status: MessageStatus.SENT,
@@ -100,7 +101,7 @@ describe('Direct Chat Client Components', () => {
         id: 'msg-1',
         directChatId: 'chat-1',
         senderId: 'partner-user-id',
-        sender: { id: 'partner-user-id', username: 'bobpartner' },
+        sender: publicUser('partner-user-id', 'bobpartner'),
         content: 'Hello from Bob',
         type: MessageType.TEXT,
         status: MessageStatus.SENT,
@@ -113,7 +114,7 @@ describe('Direct Chat Client Components', () => {
         id: 'msg-2',
         directChatId: 'chat-1',
         senderId: 'current-user-id',
-        sender: { id: 'current-user-id', username: 'currentuser' },
+        sender: publicUser('current-user-id', 'currentuser'),
         content: 'Hi Bob, how are you?',
         type: MessageType.TEXT,
         status: MessageStatus.SENT,
@@ -407,7 +408,7 @@ describe('Direct Chat Client Components', () => {
         id: 'msg-img',
         directChatId: 'chat-img',
         senderId: 'partner-user-id',
-        sender: { id: 'partner-user-id', username: 'bobpartner' },
+        sender: publicUser('partner-user-id', 'bobpartner'),
         content: '',
         type: MessageType.IMAGE,
         status: MessageStatus.DELIVERED,
@@ -425,7 +426,7 @@ describe('Direct Chat Client Components', () => {
         id: 'msg-doc',
         directChatId: 'chat-doc',
         senderId: 'partner-user-id',
-        sender: { id: 'partner-user-id', username: 'bobpartner' },
+        sender: publicUser('partner-user-id', 'bobpartner'),
         content: '',
         type: MessageType.DOCUMENT,
         status: MessageStatus.DELIVERED,
@@ -443,7 +444,7 @@ describe('Direct Chat Client Components', () => {
         id: 'msg-gif',
         directChatId: 'chat-gif',
         senderId: 'partner-user-id',
-        sender: { id: 'partner-user-id', username: 'bobpartner' },
+        sender: publicUser('partner-user-id', 'bobpartner'),
         content: 'https://media.giphy.com/media/test.gif',
         type: MessageType.EMOJI_GIF,
         status: MessageStatus.DELIVERED,

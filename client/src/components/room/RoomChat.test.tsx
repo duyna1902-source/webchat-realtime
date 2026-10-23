@@ -15,6 +15,7 @@ import {
   SOCKET_EVENTS,
   MESSAGE_LIMITS,
 } from '@webchat/shared';
+import { publicUser } from '../../test/fixtures';
 
 const mockUser = {
   id: 'user-owner-id',
@@ -58,7 +59,7 @@ const mockRoom: RoomListItemDto = {
     id: 'rmsg-1',
     roomId: 'room-1',
     senderId: 'user-admin-id',
-    sender: { id: 'user-admin-id', username: 'bob_admin' },
+    sender: publicUser('user-admin-id', 'bob_admin'),
     content: 'Standup in 5 mins',
     type: MessageType.TEXT,
     attachmentUrl: null,
@@ -168,7 +169,7 @@ describe('Room Chat Client Components', () => {
         id: 'rmsg-1',
         roomId: 'room-1',
         senderId: 'user-admin-id',
-        sender: { id: 'user-admin-id', username: 'bob_admin' },
+        sender: publicUser('user-admin-id', 'bob_admin'),
         content: 'Good morning everyone!',
         type: MessageType.TEXT,
         attachmentUrl: null,
@@ -282,7 +283,7 @@ describe('Room Chat Client Components', () => {
       id: 'rmsg-img-1',
       roomId: 'room-1',
       senderId: 'user-admin-id',
-      sender: { id: 'user-admin-id', username: 'bob_admin' },
+      sender: publicUser('user-admin-id', 'bob_admin'),
       content: 'Here is the sprint roadmap image',
       type: MessageType.IMAGE,
       attachmentUrl: '/uploads/roadmap.png',
@@ -295,7 +296,7 @@ describe('Room Chat Client Components', () => {
       id: 'rmsg-doc-1',
       roomId: 'room-1',
       senderId: 'user-owner-id',
-      sender: { id: 'user-owner-id', username: 'alice_owner' },
+      sender: publicUser('user-owner-id', 'alice_owner'),
       content: 'Here is the sprint retro notes',
       type: MessageType.DOCUMENT,
       attachmentUrl: '/uploads/retro.docx',

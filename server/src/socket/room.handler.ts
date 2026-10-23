@@ -24,6 +24,7 @@ import {
   roomTypingSchema,
 } from '@webchat/shared';
 import { parseInput } from '../lib/validation.js';
+import { toPublicUserDto } from '../controllers/user.controller.js';
 
 export async function autoJoinUserRooms(io: Server, socket: AuthenticatedSocket, log: Logger): Promise<void> {
   const userId = socket.data?.user?.userId;
@@ -165,10 +166,7 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, lo
         id: message.id,
         roomId: message.roomId,
         senderId: message.senderId,
-        sender: {
-          id: message.sender.id,
-          username: message.sender.username,
-        },
+        sender: toPublicUserDto(message.sender),
         content: message.content,
         type: message.type as MessageType,
         attachmentUrl: message.attachmentUrl,

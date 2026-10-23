@@ -1,17 +1,23 @@
 import { Response } from 'express';
 import { getPrisma } from '../lib/prisma.js';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
-import { UserDto } from '@webchat/shared';
+import { PublicUserDto, USER_SEARCH_MAX_RESULTS, userSearchQuerySchema } from '@webchat/shared';
+import { parseInput } from '../lib/validation.js';
 
-export function toUserDto(user: any): UserDto {
+function toIsoString(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+/**
+ * The only shape in which another User leaves the server: user lists, Room Members,
+ * Direct Chat partners and message senders, over REST and socket alike (SEC-13).
+ */
+export function toPublicUserDto(user: any): PublicUserDto {
   return {
     id: user.id,
     username: user.username,
-    email: user.email,
     isOnline: user.isOnline,
-    lastSeenAt: user.lastSeenAt instanceof Date ? user.lastSeenAt.toISOString() : new Date(user.lastSeenAt).toISOString(),
-    createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : new Date(user.createdAt).toISOString(),
-    updatedAt: user.updatedAt instanceof Date ? user.updatedAt.toISOString() : new Date(user.updatedAt).toISOString(),
+    lastSeenAt: toIsoString(user.lastSeenAt),
   };
 }
 
@@ -21,26 +27,16 @@ export async function getUsers(req: AuthenticatedRequest, res: Response): Promis
     return;
   }
 
-  const currentUserId = req.user.userId;
-  const search = ((req.query.q as string) || (req.query.search as string) || '').trim();
+  const { q } = parseInput(userSearchQuerySchema, req.query);
 
-  const prisma = getPrisma();
-
-  const whereClause: any = {
-    id: { not: currentUserId },
-  };
-
-  if (search) {
-    whereClause.OR = [
-      { username: { contains: search, mode: 'insensitive' } },
-      { email: { contains: search, mode: 'insensitive' } },
-    ];
-  }
-
-  const users = await prisma.user.findMany({
-    where: whereClause,
+  const users = await getPrisma().user.findMany({
+    where: {
+      id: { not: req.user.userId },
+      username: { contains: q, mode: 'insensitive' },
+    },
     orderBy: { username: 'asc' },
+    take: USER_SEARCH_MAX_RESULTS,
   });
 
-  res.status(200).json(users.map(toUserDto));
+  res.status(200).json(users.map(toPublicUserDto));
 }

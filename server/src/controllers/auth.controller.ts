@@ -4,11 +4,12 @@ import { getPrisma } from '../lib/prisma.js';
 import { getServerContext } from '../context.js';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
 import { clearSessionCookie, readSessionToken, setSessionCookie } from '../lib/session-cookie.js';
-import { AuthResponseDto, UserDto, ERROR_CODES, loginSchema, registerSchema, normalizeUsername } from '@webchat/shared';
+import { AuthResponseDto, SelfUserDto, ERROR_CODES, loginSchema, registerSchema, normalizeUsername } from '@webchat/shared';
 import { AppError } from '../lib/errors.js';
 import { parseInput } from '../lib/validation.js';
 
-function toUserDto(user: any): UserDto {
+/** The signed-in User's own account; the only DTO that carries an email (SEC-13). */
+function toSelfUserDto(user: any): SelfUserDto {
   return {
     id: user.id,
     username: user.username,
@@ -84,7 +85,7 @@ export async function register(req: Request, res: Response): Promise<void> {
 
   await startSession(req, res, newUser.id);
 
-  const body: AuthResponseDto = { user: toUserDto(newUser) };
+  const body: AuthResponseDto = { user: toSelfUserDto(newUser) };
   res.status(201).json(body);
 }
 
@@ -105,13 +106,13 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   await startSession(req, res, user.id);
 
-  const body: AuthResponseDto = { user: toUserDto(user) };
+  const body: AuthResponseDto = { user: toSelfUserDto(user) };
   res.status(200).json(body);
 }
 
 export async function me(req: AuthenticatedRequest, res: Response): Promise<void> {
   // `authMiddleware` has resolved the Session and its User.
-  const body: AuthResponseDto = { user: toUserDto(req.sessionUser) };
+  const body: AuthResponseDto = { user: toSelfUserDto(req.sessionUser) };
   res.status(200).json(body);
 }
 
