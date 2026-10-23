@@ -108,8 +108,7 @@ const mockRoomDetail: RoomDetailDto = {
 
 function renderWithProviders(ui: React.ReactElement, socketConnected = true, user = mockUser) {
   const authValue: any = {
-    currentUser: user,
-    token: 'token-xyz',
+    currentUser: user,
     isLoading: false,
     login: vi.fn(),
     register: vi.fn(),
@@ -351,8 +350,7 @@ describe('Room Chat Client Components', () => {
     });
 
     const authValue: any = {
-      currentUser: mockUser,
-      token: 'token-xyz',
+      currentUser: mockUser,
       isLoading: false,
     };
 
@@ -408,7 +406,7 @@ describe('Room Chat Client Components', () => {
     const onBack = vi.fn();
 
     render(
-      <AuthContext.Provider value={{ currentUser: mockUser, token: 'tok' } as any}>
+      <AuthContext.Provider value={{ currentUser: mockUser } as any}>
         <SocketContext.Provider value={{ socket: null, isConnected: true } as any}>
           <RoomChatArea
             activeRoom={mockRoom}

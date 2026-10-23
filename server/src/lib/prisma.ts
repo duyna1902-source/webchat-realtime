@@ -60,6 +60,7 @@ export async function resetDatabase(): Promise<void> {
     await pgliteInstance.exec(`
       TRUNCATE TABLE 
         "Attachment", 
+        "Session", 
         "RoomMessage", 
         "RoomMember", 
         "Room", 
@@ -73,6 +74,7 @@ export async function resetDatabase(): Promise<void> {
     await prismaInstance.$executeRawUnsafe(`
       TRUNCATE TABLE 
         "Attachment", 
+        "Session", 
         "RoomMessage", 
         "RoomMember", 
         "Room", 

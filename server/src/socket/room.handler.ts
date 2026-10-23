@@ -3,6 +3,7 @@ import { AuthenticatedSocket } from './index.js';
 import { getPrisma } from '../lib/prisma.js';
 import { AppError } from '../lib/errors.js';
 import { socketHandler } from '../lib/async-handler.js';
+import type { SocketRateLimits } from '../lib/rate-limit.js';
 import type { Logger } from '../lib/logger.js';
 import {
   SOCKET_EVENTS,
@@ -91,6 +92,7 @@ export function registerRoomHandlers(
   io: Server,
   socket: AuthenticatedSocket,
   log: Logger,
+  limits: SocketRateLimits,
   signer: AttachmentSigner
 ): void {
   const userId = socket.data.user.userId;
@@ -134,6 +136,7 @@ export function registerRoomHandlers(
   socket.on(
     SOCKET_EVENTS.ROOM_SEND,
     socketHandler<RoomSendMessagePayload>(log, SOCKET_EVENTS.ROOM_SEND, async (payload) => {
+      limits.consumeMessageSend();
       const { roomId, content, attachmentId, gifUrl } = parseInput(roomSendSchema, payload);
 
       const prisma = getPrisma();
@@ -238,13 +241,15 @@ export function registerRoomHandlers(
     SOCKET_EVENTS.ROOM_TYPING,
     socketHandler<RoomTypingPayload>(log, SOCKET_EVENTS.ROOM_TYPING, async (payload) => {
       const { roomId, isTyping } = parseInput(roomTypingSchema, payload);
+      // Over the limit: dropped silently (SEC-07).
+      if (!limits.allowTyping(`room:${roomId}`, isTyping)) return;
 
       // Validate user is a member of the room
       await requireMember(roomId);
 
       const typingPayload: RoomTypingPayload = {
         roomId,
-        userId: (socket.data.user as any).id || socket.data.user.userId,
+        userId: socket.data.user.userId,
         username: socket.data.user.username,
         isTyping,
       };

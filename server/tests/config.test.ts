@@ -4,20 +4,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { loadConfig, ConfigError } from '../src/config.js';
 
-const SECRET_32 = 'a-development-secret-that-is-32-bytes-or-more';
-
 const devEnv = {
   NODE_ENV: 'development',
   DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/webchat',
   APP_ORIGIN: 'http://localhost:5173',
-  JWT_SECRET: SECRET_32,
 };
 
 const productionEnv = {
   NODE_ENV: 'production',
   DATABASE_URL: 'postgresql://user:pass@db.example.com:5432/webchat',
   APP_ORIGIN: 'https://webchat-realtime.onrender.com',
-  JWT_SECRET: SECRET_32,
   STORAGE_PROVIDER: 'supabase',
   SUPABASE_URL: 'https://project.supabase.co',
   SUPABASE_SECRET_KEY: 'sb_secret_example',
@@ -54,7 +50,6 @@ describe('loadConfig', () => {
     expect(config.port).toBe(4100);
     expect(config.appOrigin).toBe('http://localhost:5173');
     expect(config.databaseUrl).toBe(devEnv.DATABASE_URL);
-    expect(config.jwtSecret).toBe(SECRET_32);
     expect(config.giphyApiKey).toBe('giphy-key');
     expect(config.logLevel).toBe('debug');
     expect(config.storage).toEqual({ provider: 'local' });
@@ -72,6 +67,7 @@ describe('loadConfig', () => {
     expect(config.timing.signedUrlTtlSeconds).toBe(3600);
     expect(config.timing.sessionIdleTtlMs).toBe(7 * 24 * 60 * 60 * 1000);
     expect(config.timing.sessionAbsoluteTtlMs).toBe(30 * 24 * 60 * 60 * 1000);
+    expect(config.timing.sessionTouchIntervalMs).toBe(5 * 60 * 1000);
     expect(config.rateLimits.loginFailures).toEqual({ max: 10, windowMs: 15 * 60 * 1000 });
     expect(config.rateLimits.register).toEqual({ max: 5, windowMs: 60 * 60 * 1000 });
     expect(config.rateLimits.upload).toEqual({ max: 20, windowMs: 10 * 60 * 1000 });
@@ -85,27 +81,17 @@ describe('loadConfig', () => {
   it('reports every invalid variable at once', () => {
     const err = configErrorOf(() => loadConfig({ NODE_ENV: 'development', PORT: 'not-a-port' }, { clientDistPath: missingClientDist }));
 
-    expect(err.issues.map((issue) => issue.variable).sort()).toEqual(['APP_ORIGIN', 'DATABASE_URL', 'JWT_SECRET', 'PORT']);
-    for (const variable of ['APP_ORIGIN', 'DATABASE_URL', 'JWT_SECRET', 'PORT']) {
+    expect(err.issues.map((issue) => issue.variable).sort()).toEqual(['APP_ORIGIN', 'DATABASE_URL', 'PORT']);
+    for (const variable of ['APP_ORIGIN', 'DATABASE_URL', 'PORT']) {
       expect(err.message).toContain(variable);
     }
   });
 
-  it.each(['development', 'test', 'production'])('B1: has no built-in JWT_SECRET fallback in %s', (nodeEnv) => {
-    const { JWT_SECRET: _omitted, ...env } = { ...productionEnv, NODE_ENV: nodeEnv };
-    const err = configErrorOf(() => loadConfig(env, { clientDistPath: clientDist }));
+  it.each(['development', 'test', 'production'])('needs no JWT_SECRET in %s: Sessions replaced JWT (ADR 0010)', (nodeEnv) => {
+    const config = loadConfig({ ...productionEnv, NODE_ENV: nodeEnv }, { clientDistPath: clientDist });
 
-    expect(err.issues.map((issue) => issue.variable)).toEqual(['JWT_SECRET']);
-  });
-
-  it.each(['development', 'test', 'production'])('rejects a JWT_SECRET shorter than 32 bytes in %s without echoing it', (nodeEnv) => {
-    const shortSecret = 'short-secret-31-bytes-long-xxxx';
-    expect(Buffer.byteLength(shortSecret)).toBe(31);
-
-    const err = configErrorOf(() => loadConfig({ ...productionEnv, NODE_ENV: nodeEnv, JWT_SECRET: shortSecret }, { clientDistPath: clientDist }));
-
-    expect(err.issues.map((issue) => issue.variable)).toEqual(['JWT_SECRET']);
-    expect(err.message).not.toContain(shortSecret);
+    expect(config).not.toHaveProperty('jwtSecret');
+    expect(JSON.stringify(config)).not.toMatch(/jwt/i);
   });
 
   it.each(['development', 'test', 'production'])('requires APP_ORIGIN and DATABASE_URL in %s', (nodeEnv) => {

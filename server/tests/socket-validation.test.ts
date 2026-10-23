@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
 import { SOCKET_EVENTS } from '@webchat/shared';
-import { createTestServer, generateToken, TestServer } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders, TestServer } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 
 // Seam 1: every socket payload is parsed with its shared schema before it reaches Prisma.
 
-function connect(port: number, token: string): Promise<ClientSocketType> {
+function connect(port: number, session: SessionHeaders): Promise<ClientSocketType> {
   return new Promise((resolve, reject) => {
-    const client = ClientSocket(`http://localhost:${port}`, { auth: { token }, transports: ['websocket'] });
+    const client = ClientSocket(`http://localhost:${port}`, { extraHeaders: session, transports: ['websocket'] });
     client.once('connect', () => resolve(client));
     client.once('connect_error', reject);
   });
@@ -52,7 +52,7 @@ describe('Socket payload validation (SEC-05)', () => {
     });
     roomId = room.id;
     directChatId = chat.id;
-    client = await connect(server.port, generateToken({ userId: user.id, username: user.username }));
+    client = await connect(server.port, await loginAs(server.app, user));
   });
 
   afterEach(() => {

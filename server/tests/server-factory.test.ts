@@ -5,9 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { io as ClientSocket } from 'socket.io-client';
 import { getPrisma } from '../src/lib/prisma.js';
-import { signToken } from '../src/lib/jwt.js';
 import { InMemoryStorageAdapter } from '../src/lib/storage.js';
-import { createTestServer, TestServer } from './helpers/server.js';
+import { createTestServer, loginAs, sessionCookieOf, TestServer, TEST_APP_ORIGIN, TEST_PASSWORD } from './helpers/server.js';
 
 describe('Server factory', () => {
   let server: TestServer | null = null;
@@ -27,7 +26,7 @@ describe('Server factory', () => {
     expect(health.status).toBe(200);
 
     const client = ClientSocket(`http://localhost:${server.port}`, {
-      auth: { token: signToken({ userId: user.id, username: user.username }, server.config.jwtSecret) },
+      extraHeaders: await loginAs(server.app, user),
       transports: ['websocket'],
     });
     try {
@@ -41,23 +40,21 @@ describe('Server factory', () => {
     }
   });
 
-  it('authenticates with the JWT secret from the injected config only', async () => {
-    const injectedSecret = 'injected-secret-for-this-server-only-32b';
-    server = await createTestServer({ config: { jwtSecret: injectedSecret } });
+  it('takes the Session lifetime and the app origin from the injected config only', async () => {
+    const appOrigin = 'https://injected.example';
+    server = await createTestServer({ config: { appOrigin, timing: { sessionAbsoluteTtlMs: 60_000 } } });
     const user = await getPrisma().user.create({
-      data: { username: 'secret_user', email: 'secret@test.com', passwordHash: 'hash' },
+      data: { username: 'config_user', email: 'config@test.com', passwordHash: 'hash' },
     });
-    const payload = { userId: user.id, username: user.username };
+    await loginAs(server.app, user).catch(() => undefined); // sets TEST_PASSWORD; fails on the default Origin
 
-    await request(server.app)
-      .get('/api/auth/me')
-      .set('Authorization', `Bearer ${signToken(payload, injectedSecret)}`)
-      .expect(200);
+    const login = (origin: string) =>
+      request(server!.app).post('/api/auth/login').set('Origin', origin).send({ emailOrUsername: 'config_user', password: TEST_PASSWORD });
 
-    await request(server.app)
-      .get('/api/auth/me')
-      .set('Authorization', `Bearer ${signToken(payload, 'webchat-realtime-default-secret-key-32-chars')}`)
-      .expect(401);
+    await login(TEST_APP_ORIGIN).expect(403);
+    const res = await login(appOrigin).expect(200);
+    expect(res.headers['set-cookie'][0]).toMatch(/Max-Age=60;/);
+    expect(sessionCookieOf(res)).toMatch(/^__Host-session=/);
   });
 
   it('stores uploads through the injected storage adapter', async () => {
@@ -66,11 +63,11 @@ describe('Server factory', () => {
     const user = await getPrisma().user.create({
       data: { username: 'upload_user', email: 'upload@test.com', passwordHash: 'hash' },
     });
-    const token = signToken({ userId: user.id, username: user.username }, server.config.jwtSecret);
+    const session = await loginAs(server.app, user);
 
     const res = await request(server.app)
       .post('/api/upload')
-      .set('Authorization', `Bearer ${token}`)
+      .set(session)
       .attach('file', Buffer.from('%PDF-1.4 in memory'), { filename: 'doc.pdf', contentType: 'application/pdf' })
       .expect(201);
 

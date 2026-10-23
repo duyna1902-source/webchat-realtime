@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from
 import request from 'supertest';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
 import { SOCKET_EVENTS, MessageType, normalizeDirectChatPair } from '@webchat/shared';
-import { createTestServer, generateToken, TestServer } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders, TestServer } from './helpers/server.js';
 import { InMemoryStorageAdapter } from '../src/lib/storage.js';
 import { getPrisma } from '../src/lib/prisma.js';
 
@@ -29,20 +29,20 @@ afterAll(async () => {
 interface TestUser {
   id: string;
   username: string;
-  token: string;
+  session: SessionHeaders;
 }
 
 async function createUser(username: string): Promise<TestUser> {
   const user = await getPrisma().user.create({
     data: { username, email: `${username}@test.com`, passwordHash: 'hash' },
   });
-  return { id: user.id, username, token: generateToken({ userId: user.id, username }) };
+  return { id: user.id, username, session: await loginAs(server.app, user) };
 }
 
 function upload(user: TestUser, data: Buffer = Buffer.from('%PDF-1.4 quarterly report'), filename = 'report.pdf') {
   return request(server.app)
     .post('/api/upload')
-    .set('Authorization', `Bearer ${user.token}`)
+    .set(user.session)
     .attach('file', data, { filename, contentType: 'application/octet-stream' });
 }
 
@@ -73,7 +73,7 @@ describe('Upload creates an Attachment record', () => {
 
 function connect(user: TestUser): Promise<ClientSocketType> {
   return new Promise((resolve, reject) => {
-    const client = ClientSocket(`http://localhost:${server.port}`, { auth: { token: user.token }, transports: ['websocket'] });
+    const client = ClientSocket(`http://localhost:${server.port}`, { extraHeaders: user.session, transports: ['websocket'] });
     client.once('connect', () => resolve(client));
     client.once('connect_error', reject);
   });
@@ -221,7 +221,7 @@ describe('Sending a message with an Attachment', () => {
     expect(ack.fields).toEqual([{ field: 'attachmentName', message: expect.any(String) }]);
     const history = await request(server.app)
       .get(`/api/rooms/${roomId}/messages`)
-      .set('Authorization', `Bearer ${bob.token}`)
+      .set(bob.session)
       .expect(200);
     expect(history.body.messages).toEqual([]);
     expect(bobReceived).toBe(false);
@@ -272,7 +272,7 @@ describe('Sending a message with an Attachment', () => {
     expect(again).toEqual(errorAck('ATTACHMENT_INVALID'));
     const history = await request(server.app)
       .get(`/api/rooms/${roomId}/messages`)
-      .set('Authorization', `Bearer ${alice.token}`)
+      .set(alice.session)
       .expect(200);
     expect(history.body.messages).toEqual([]);
   });
@@ -298,11 +298,11 @@ describe('Sending a message with an Attachment', () => {
 
     const history = await request(server.app)
       .get(`/api/direct-chats/${directChatId}/messages`)
-      .set('Authorization', `Bearer ${bob.token}`)
+      .set(bob.session)
       .expect(200);
     const catchUp = await request(server.app)
       .get(`/api/direct-chats/${directChatId}/messages?after=${before.message.id}`)
-      .set('Authorization', `Bearer ${bob.token}`)
+      .set(bob.session)
       .expect(200);
 
     const fromHistory = history.body.messages.find((m: any) => m.attachment);
@@ -325,7 +325,7 @@ describe('Sending a message with an Attachment', () => {
   describe('GET /api/attachments/:id/url (refresh)', () => {
     function refresh(user: TestUser | null, attachmentId: string) {
       const req = request(server.app).get(`/api/attachments/${attachmentId}/url`);
-      return user ? req.set('Authorization', `Bearer ${user.token}`) : req;
+      return user ? req.set(user.session) : req;
     }
 
     async function sendToRoom(): Promise<string> {
@@ -388,7 +388,7 @@ describe('Sending a message with an Attachment', () => {
 
       await request(server.app)
         .delete(`/api/rooms/${roomId}/members/${bob.id}`)
-        .set('Authorization', `Bearer ${alice.token}`)
+        .set(alice.session)
         .expect(200);
 
       await refresh(bob, attachmentId).expect(404);

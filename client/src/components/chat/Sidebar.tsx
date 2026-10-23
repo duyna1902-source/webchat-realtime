@@ -3,6 +3,7 @@ import { DirectChatListItemDto, RoomListItemDto, UserDto, RoomRole, MessageStatu
 import { useAuth } from '../../context/AuthContext';
 import { CreateRoomModal } from '../room/CreateRoomModal';
 import { getAvatarColorClass } from '../../utils/avatarColor';
+import { readApiErrorMessage } from '../../utils/rateLimit';
 
 export function formatSidebarPreview(
   lastMsg: { senderId: string; type?: string | MessageType; content: string; attachmentName?: string | null } | null,
@@ -33,6 +34,7 @@ import {
   Shield,
   User as UserIcon,
 } from 'lucide-react';
+import { apiFetch } from '../../utils/apiFetch';
 
 interface SidebarProps {
   chats: DirectChatListItemDto[];
@@ -66,7 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onTabChange,
   className = '',
 }) => {
-  const { token, currentUser } = useAuth();
+  const { currentUser } = useAuth();
 
   const [internalTab, setInternalTab] = useState<'direct' | 'room'>('direct');
   const activeTab = externalActiveTab ?? internalTab;
@@ -82,26 +84,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserDto[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [showUserSearchModal, setShowUserSearchModal] = useState(false);
   const [isStartingChat, setIsStartingChat] = useState(false);
   const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
 
   // Search users via /api/users for direct chats
   useEffect(() => {
-    if (!token || !searchQuery.trim() || activeTab !== 'direct') {
+    if (!currentUser || !searchQuery.trim() || activeTab !== 'direct') {
       setSearchResults([]);
+      setSearchError(null);
       return;
     }
 
     const timer = setTimeout(async () => {
       try {
         setIsSearchingUsers(true);
-        const res = await fetch(`/api/users?q=${encodeURIComponent(searchQuery.trim())}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        setSearchError(null);
+        const res = await apiFetch(`/api/users?q=${encodeURIComponent(searchQuery.trim())}`);
         if (res.ok) {
           const data: UserDto[] = await res.json();
           setSearchResults(data);
+        } else {
+          setSearchResults([]);
+          setSearchError(await readApiErrorMessage(res, 'User search failed'));
         }
       } catch (err) {
         console.error('Error searching users:', err);
@@ -111,7 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, token, activeTab]);
+  }, [searchQuery, currentUser, activeTab]);
 
   const handleSelectUser = async (targetUserId: string) => {
     try {
@@ -272,6 +278,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               ))}
             </div>
+          ) : searchError ? (
+            <p role="alert" className="text-xs text-google-red py-2 text-center">
+              {searchError}
+            </p>
           ) : searchQuery ? (
             <p className="text-xs text-gray-500 py-2 text-center">No users found matching "{searchQuery}"</p>
           ) : (

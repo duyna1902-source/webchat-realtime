@@ -26,8 +26,11 @@ export interface LoginRequestDto {
   password: string;
 }
 
+/**
+ * Body of register, login and `GET /api/auth/me`. The Session itself travels only in the
+ * HttpOnly `__Host-session` cookie, never in a body (ADR 0010).
+ */
 export interface AuthResponseDto {
-  token: string;
   user: UserDto;
 }
 

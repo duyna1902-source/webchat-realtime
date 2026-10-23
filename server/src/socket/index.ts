@@ -1,30 +1,47 @@
 import http from 'http';
 import { Server, Socket } from 'socket.io';
-import { verifyToken, JwtPayload } from '../lib/jwt.js';
 import type { AppConfig } from '../config.js';
 import type { Logger } from '../lib/logger.js';
 import type { StorageAdapter } from '../lib/storage.js';
 import type { AttachmentSigner } from '../lib/attachments.js';
+import type { SessionStore } from '../lib/session-store.js';
+import { readSessionToken } from '../lib/session-cookie.js';
+import { createSocketRateLimiter } from '../lib/rate-limit.js';
 import { SOCKET_EVENTS } from '@webchat/shared';
 import { registerDirectChatHandlers, handleDirectMessagesDeliveryOnConnect } from './direct.handler.js';
 import { registerRoomHandlers, autoJoinUserRooms, findRevokedRoomChannels } from './room.handler.js';
 import { handleUserConnect, handleUserDisconnect } from './presence.handler.js';
 
+/** The User a socket acts as, set by the handshake from its Session. */
+export interface SocketUser {
+  userId: string;
+  username: string;
+}
+
 export interface AuthenticatedSocket extends Socket {
   data: {
-    user: JwtPayload;
+    user: SocketUser;
+    sessionId: string;
   };
+}
+
+export interface SocketServerDeps {
+  config: AppConfig;
+  logger: Logger;
+  sessions: SessionStore;
+  /** Signs the Attachments of the messages sockets send out. */
+  storage: StorageAdapter;
+}
+
+/** Internal room holding every socket of one Session, so they can be cut off together. */
+export function sessionChannel(sessionId: string): string {
+  return `session:${sessionId}`;
 }
 
 /** 64KB: comfortably above the largest valid event (a 4000-character message). */
 export const SOCKET_MAX_HTTP_BUFFER_SIZE = 64 * 1024;
 
-export function setupSocketServer(
-  httpServer: http.Server,
-  config: AppConfig,
-  logger: Logger,
-  storage: StorageAdapter
-): Server {
+export function setupSocketServer(httpServer: http.Server, { config, logger, sessions, storage }: SocketServerDeps): Server {
   const signer: AttachmentSigner = { storage, ttlSeconds: config.timing.signedUrlTtlSeconds };
   // No `cors` option: the client is served from the same origin (ADR 0010).
   const io = new Server(httpServer, {
@@ -33,36 +50,40 @@ export function setupSocketServer(
     maxHttpBufferSize: SOCKET_MAX_HTTP_BUFFER_SIZE,
     connectionStateRecovery: {
       maxDisconnectionDuration: config.timing.connectionStateRecoveryMs,
-      skipMiddlewares: true,
+      // A recovered socket goes through the handshake checks again (Origin and Session).
+      skipMiddlewares: false,
     },
   });
   reconcileRoomMembershipOnRecovery(io);
+  const rateLimiter = createSocketRateLimiter(config.rateLimits);
 
-  // JWT Authentication Middleware for Socket.io
-  io.use((socket, next) => {
-    const token =
-      socket.handshake.auth?.token ||
-      (socket.handshake.headers?.authorization?.startsWith('Bearer ')
-        ? socket.handshake.headers.authorization.split(' ')[1]
-        : null);
-
-    if (!token) {
-      return next(new Error('Authentication error: Token required'));
+  // Handshake: same-origin only (no Cross-Site WebSocket Hijacking), then the Session cookie.
+  io.use(async (socket, next) => {
+    if (socket.handshake.headers.origin !== config.appOrigin) {
+      return next(new Error('Forbidden origin'));
     }
 
+    let resolved;
     try {
-      const decoded = verifyToken(token, config.jwtSecret);
-      (decoded as any).id = decoded.userId;
-      socket.data.user = decoded;
-      next();
+      resolved = await sessions.resolve(readSessionToken(socket.handshake.headers.cookie));
     } catch (err) {
-      return next(new Error('Authentication error: Invalid or expired token'));
+      logger.error({ err, socketId: socket.id }, 'Socket handshake failed');
+      return next(new Error('Authentication failed'));
     }
+    if (!resolved) {
+      return next(new Error('Authentication required'));
+    }
+
+    socket.data.user = { userId: resolved.user.id, username: resolved.user.username };
+    socket.data.sessionId = resolved.session.id;
+    next();
   });
 
   io.on('connection', async (socket) => {
     const authSocket = socket as AuthenticatedSocket;
     const log = logger.child({ userId: authSocket.data.user.userId, socketId: socket.id, ip: socket.handshake.address });
+    socket.join(sessionChannel(authSocket.data.sessionId));
+    const limits = rateLimiter.forSocket(authSocket.data.user.userId, log);
 
     // Registered first so presence is cleaned up even if the setup below fails.
     socket.on('disconnect', () => {
@@ -79,9 +100,9 @@ export function setupSocketServer(
       }
 
       // Register direct chat events
-      registerDirectChatHandlers(io, authSocket, log, signer);
+      registerDirectChatHandlers(io, authSocket, log, limits, signer);
       // Register room chat events
-      registerRoomHandlers(io, authSocket, log, signer);
+      registerRoomHandlers(io, authSocket, log, limits, signer);
       // Automatically subscribe to user's rooms in the background
       await autoJoinUserRooms(io, authSocket, log);
     } catch (err) {

@@ -12,6 +12,8 @@ import {
 } from '@webchat/shared';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import type { SendMessageAck } from '../utils/rateLimit';
+import { apiFetch } from '../utils/apiFetch';
 
 export interface SendRoomMessageOptions {
   type?: MessageType;
@@ -21,7 +23,7 @@ export interface SendRoomMessageOptions {
 }
 
 export function useRoomMessages(activeRoomId: string | null) {
-  const { token, currentUser } = useAuth();
+  const { currentUser } = useAuth();
   const { socket } = useSocket();
   const [messages, setMessages] = useState<RoomReceiveMessagePayload[]>([]);
   const [roomDetails, setRoomDetails] = useState<RoomDetailDto | null>(null);
@@ -37,16 +39,14 @@ export function useRoomMessages(activeRoomId: string | null) {
 
   // Fetch room details and member roster
   const fetchRoomDetails = useCallback(async () => {
-    if (!token || !activeRoomId) {
+    if (!currentUser || !activeRoomId) {
       setRoomDetails(null);
       return;
     }
 
     try {
       setIsLoadingDetails(true);
-      const res = await fetch(`/api/rooms/${activeRoomId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiFetch(`/api/rooms/${activeRoomId}`);
       if (res.ok) {
         const data: RoomDetailDto = await res.json();
         setRoomDetails(data);
@@ -56,12 +56,12 @@ export function useRoomMessages(activeRoomId: string | null) {
     } finally {
       setIsLoadingDetails(false);
     }
-  }, [token, activeRoomId]);
+  }, [currentUser, activeRoomId]);
 
   // Fetch initial message history
   useEffect(() => {
     lastReadEmittedIdRef.current = null;
-    if (!token || !activeRoomId) {
+    if (!currentUser || !activeRoomId) {
       setMessages([]);
       setRoomDetails(null);
       setHasMore(false);
@@ -74,11 +74,7 @@ export function useRoomMessages(activeRoomId: string | null) {
 
     fetchRoomDetails();
 
-    fetch(`/api/rooms/${activeRoomId}/messages?limit=50`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
+    apiFetch(`/api/rooms/${activeRoomId}/messages?limit=50`)
       .then((res) => {
         if (!res.ok) {
           throw new Error('Failed to load room messages');
@@ -102,11 +98,11 @@ export function useRoomMessages(activeRoomId: string | null) {
     return () => {
       isMounted = false;
     };
-  }, [token, activeRoomId, fetchRoomDetails]);
+  }, [currentUser, activeRoomId, fetchRoomDetails]);
 
   // Load older messages for cursor pagination (?before=<oldestId>)
   const loadOlderMessages = useCallback(async () => {
-    if (!token || !activeRoomId || isLoadingOlder || !hasMore || messages.length === 0) {
+    if (!currentUser || !activeRoomId || isLoadingOlder || !hasMore || messages.length === 0) {
       return;
     }
 
@@ -114,11 +110,7 @@ export function useRoomMessages(activeRoomId: string | null) {
     setIsLoadingOlder(true);
 
     try {
-      const res = await fetch(`/api/rooms/${activeRoomId}/messages?limit=50&before=${oldestId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await apiFetch(`/api/rooms/${activeRoomId}/messages?limit=50&before=${oldestId}`);
 
       if (res.ok) {
         const data: PaginatedMessagesDto<RoomReceiveMessagePayload> = await res.json();
@@ -136,11 +128,11 @@ export function useRoomMessages(activeRoomId: string | null) {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [token, activeRoomId, isLoadingOlder, hasMore, messages]);
+  }, [currentUser, activeRoomId, isLoadingOlder, hasMore, messages]);
 
   // Catch-up Sync: fetches room messages strictly newer than latest local message, or initial batch if empty
   const syncCatchup = useCallback(async () => {
-    if (!token || !activeRoomId) return;
+    if (!currentUser || !activeRoomId) return;
     const currentMsgs = messagesRef.current;
     const url =
       currentMsgs.length > 0
@@ -148,11 +140,7 @@ export function useRoomMessages(activeRoomId: string | null) {
         : `/api/rooms/${activeRoomId}/messages?limit=50`;
 
     try {
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await apiFetch(url);
 
       if (res.ok) {
         const data: PaginatedMessagesDto<RoomReceiveMessagePayload> = await res.json();
@@ -173,7 +161,7 @@ export function useRoomMessages(activeRoomId: string | null) {
     } catch (err) {
       console.error('Failed to catch-up sync room messages:', err);
     }
-  }, [token, activeRoomId]);
+  }, [currentUser, activeRoomId]);
 
   // Auto read receipt: when active room has messages, emit room:read
   useEffect(() => {
@@ -252,7 +240,8 @@ export function useRoomMessages(activeRoomId: string | null) {
   }, [socket, activeRoomId, fetchRoomDetails, syncCatchup]);
 
   const sendMessage = useCallback(
-    (content: string, optionsOrType?: MessageType | SendRoomMessageOptions) => {
+    /** Resolves with the server's ack, e.g. `RATE_LIMITED`; undefined when nothing was sent. */
+    (content: string, optionsOrType?: MessageType | SendRoomMessageOptions): Promise<SendMessageAck> | undefined => {
       if (!socket || !activeRoomId) return;
 
       let msgType = MessageType.TEXT;
@@ -280,19 +269,18 @@ export function useRoomMessages(activeRoomId: string | null) {
         attachmentSize,
       };
 
-      socket.emit(SOCKET_EVENTS.ROOM_SEND, payload);
+      return new Promise<SendMessageAck>((resolve) => socket.emit(SOCKET_EVENTS.ROOM_SEND, payload, resolve));
     },
     [socket, activeRoomId]
   );
 
   const addMember = async (userId: string): Promise<void> => {
-    if (!token || !activeRoomId) throw new Error('Not authenticated or no active room');
+    if (!currentUser || !activeRoomId) throw new Error('Not authenticated or no active room');
 
-    const res = await fetch(`/api/rooms/${activeRoomId}/members`, {
+    const res = await apiFetch(`/api/rooms/${activeRoomId}/members`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ userId }),
     });
@@ -306,13 +294,10 @@ export function useRoomMessages(activeRoomId: string | null) {
   };
 
   const removeMember = async (userId: string): Promise<void> => {
-    if (!token || !activeRoomId) throw new Error('Not authenticated or no active room');
+    if (!currentUser || !activeRoomId) throw new Error('Not authenticated or no active room');
 
-    const res = await fetch(`/api/rooms/${activeRoomId}/members/${userId}`, {
+    const res = await apiFetch(`/api/rooms/${activeRoomId}/members/${userId}`, {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
     });
 
     if (!res.ok) {
@@ -324,13 +309,12 @@ export function useRoomMessages(activeRoomId: string | null) {
   };
 
   const changeRole = async (userId: string, role: RoomRole.ADMIN | RoomRole.MEMBER): Promise<void> => {
-    if (!token || !activeRoomId) throw new Error('Not authenticated or no active room');
+    if (!currentUser || !activeRoomId) throw new Error('Not authenticated or no active room');
 
-    const res = await fetch(`/api/rooms/${activeRoomId}/members/${userId}/role`, {
+    const res = await apiFetch(`/api/rooms/${activeRoomId}/members/${userId}/role`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ role }),
     });
@@ -344,13 +328,10 @@ export function useRoomMessages(activeRoomId: string | null) {
   };
 
   const leaveRoom = async (): Promise<void> => {
-    if (!token || !activeRoomId) throw new Error('Not authenticated or no active room');
+    if (!currentUser || !activeRoomId) throw new Error('Not authenticated or no active room');
 
-    const res = await fetch(`/api/rooms/${activeRoomId}/leave`, {
+    const res = await apiFetch(`/api/rooms/${activeRoomId}/leave`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
     });
 
     if (!res.ok) {
@@ -360,13 +341,10 @@ export function useRoomMessages(activeRoomId: string | null) {
   };
 
   const deleteRoom = async (): Promise<void> => {
-    if (!token || !activeRoomId) throw new Error('Not authenticated or no active room');
+    if (!currentUser || !activeRoomId) throw new Error('Not authenticated or no active room');
 
-    const res = await fetch(`/api/rooms/${activeRoomId}`, {
+    const res = await apiFetch(`/api/rooms/${activeRoomId}`, {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
     });
 
     if (!res.ok) {

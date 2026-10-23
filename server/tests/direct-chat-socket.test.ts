@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import http from 'http';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { createTestServer, generateToken } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { SOCKET_EVENTS, normalizeDirectChatPair, MESSAGE_LIMITS } from '@webchat/shared';
 
@@ -72,20 +72,20 @@ describe('Direct Chat Socket.io Real-Time Integration', () => {
       },
     });
 
-    const tokenAlice = generateToken({ userId: userAlice.id, username: userAlice.username });
-    const tokenBob = generateToken({ userId: userBob.id, username: userBob.username });
-    const tokenCharlie = generateToken({ userId: userCharlie.id, username: userCharlie.username });
+    const sessionAlice = await loginAs(httpServer, userAlice);
+    const sessionBob = await loginAs(httpServer, userBob);
+    const sessionCharlie = await loginAs(httpServer, userCharlie);
 
     clientAlice = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenAlice },
+      extraHeaders: sessionAlice,
       transports: ['websocket'],
     });
     clientBob = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenBob },
+      extraHeaders: sessionBob,
       transports: ['websocket'],
     });
     clientCharlie = ClientSocket(`http://localhost:${serverPort}`, {
-      auth: { token: tokenCharlie },
+      extraHeaders: sessionCharlie,
       transports: ['websocket'],
     });
 

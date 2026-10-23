@@ -3,7 +3,7 @@ import request from 'supertest';
 import http from 'http';
 import type { Express } from 'express';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { createTestServer, generateToken } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { SOCKET_EVENTS, normalizeDirectChatPair, MessageType, RoomRole } from '@webchat/shared';
 
@@ -28,8 +28,8 @@ describe('GIF Search API & EMOJI_GIF Real-Time Messaging Integration', () => {
   let clientBob: ClientSocketType;
   let userAlice: any;
   let userBob: any;
-  let tokenAlice: string;
-  let tokenBob: string;
+  let sessionAlice: SessionHeaders;
+  let sessionBob: SessionHeaders;
 
   beforeAll(async () => {
     ({ app, httpServer, port: serverPort } = await createTestServer({ listen: true }));
@@ -64,20 +64,20 @@ describe('GIF Search API & EMOJI_GIF Real-Time Messaging Integration', () => {
       },
     });
 
-    tokenAlice = generateToken({ userId: userAlice.id, username: userAlice.username });
-    tokenBob = generateToken({ userId: userBob.id, username: userBob.username });
+    sessionAlice = await loginAs(app, userAlice);
+    sessionBob = await loginAs(app, userBob);
   });
 
   describe('GIF REST API Endpoints', () => {
     it('rejects GET /api/gifs/trending without authentication', async () => {
       const res = await request(app).get('/api/gifs/trending').expect(401);
-      expect(res.body.message).toMatch(/authorization required/i);
+      expect(res.body.message).toMatch(/authentication required/i);
     });
 
     it('returns trending GIFs with valid structure when authenticated', async () => {
       const res = await request(app)
         .get('/api/gifs/trending')
-        .set('Authorization', `Bearer ${tokenAlice}`)
+        .set(sessionAlice)
         .expect(200);
 
       expect(Array.isArray(res.body)).toBe(true);
@@ -96,13 +96,13 @@ describe('GIF Search API & EMOJI_GIF Real-Time Messaging Integration', () => {
 
     it('rejects GET /api/gifs/search without authentication', async () => {
       const res = await request(app).get('/api/gifs/search?q=happy').expect(401);
-      expect(res.body.message).toMatch(/authorization required/i);
+      expect(res.body.message).toMatch(/authentication required/i);
     });
 
     it('searches GIFs by query keyword when authenticated', async () => {
       const res = await request(app)
         .get('/api/gifs/search?q=dance')
-        .set('Authorization', `Bearer ${tokenAlice}`)
+        .set(sessionAlice)
         .expect(200);
 
       expect(Array.isArray(res.body)).toBe(true);
@@ -118,7 +118,7 @@ describe('GIF Search API & EMOJI_GIF Real-Time Messaging Integration', () => {
     it('returns trending GIFs when search query is empty or whitespace', async () => {
       const res = await request(app)
         .get('/api/gifs/search?q=   ')
-        .set('Authorization', `Bearer ${tokenAlice}`)
+        .set(sessionAlice)
         .expect(200);
 
       expect(Array.isArray(res.body)).toBe(true);
@@ -141,11 +141,11 @@ describe('GIF Search API & EMOJI_GIF Real-Time Messaging Integration', () => {
       });
 
       clientAlice = ClientSocket(`http://localhost:${serverPort}`, {
-        auth: { token: tokenAlice },
+        extraHeaders: sessionAlice,
         transports: ['websocket'],
       });
       clientBob = ClientSocket(`http://localhost:${serverPort}`, {
-        auth: { token: tokenBob },
+        extraHeaders: sessionBob,
         transports: ['websocket'],
       });
 
@@ -198,11 +198,11 @@ describe('GIF Search API & EMOJI_GIF Real-Time Messaging Integration', () => {
       });
 
       clientAlice = ClientSocket(`http://localhost:${serverPort}`, {
-        auth: { token: tokenAlice },
+        extraHeaders: sessionAlice,
         transports: ['websocket'],
       });
       clientBob = ClientSocket(`http://localhost:${serverPort}`, {
-        auth: { token: tokenBob },
+        extraHeaders: sessionBob,
         transports: ['websocket'],
       });
 

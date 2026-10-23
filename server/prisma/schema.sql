@@ -35,6 +35,20 @@ CREATE TABLE "User" (
 );
 
 -- CreateTable
+CREATE TABLE "Session" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastActiveAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "ip" TEXT,
+    "userAgent" TEXT,
+
+    CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "DirectChat" (
     "id" TEXT NOT NULL,
     "user1Id" TEXT NOT NULL,
@@ -144,6 +158,12 @@ CREATE INDEX "User_username_idx" ON "User"("username");
 CREATE INDEX "User_isOnline_idx" ON "User"("isOnline");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Session_tokenHash_key" ON "Session"("tokenHash");
+
+-- CreateIndex
+CREATE INDEX "Session_userId_idx" ON "Session"("userId");
+
+-- CreateIndex
 CREATE INDEX "DirectChat_user1Id_idx" ON "DirectChat"("user1Id");
 
 -- CreateIndex
@@ -199,6 +219,9 @@ CREATE UNIQUE INDEX "Attachment_roomMessageId_key" ON "Attachment"("roomMessageI
 
 -- CreateIndex
 CREATE INDEX "Attachment_uploaderId_idx" ON "Attachment"("uploaderId");
+
+-- AddForeignKey
+ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "DirectChat" ADD CONSTRAINT "DirectChat_user1Id_fkey" FOREIGN KEY ("user1Id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

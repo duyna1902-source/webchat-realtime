@@ -3,7 +3,7 @@ import request from 'supertest';
 import type { Express } from 'express';
 import type { Server as SocketServer } from 'socket.io';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { createTestServer, generateToken, TestServer } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders, TestServer } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { SOCKET_EVENTS, RoomRole, MessageType, RoomReceiveMessagePayload } from '@webchat/shared';
 
@@ -101,14 +101,15 @@ describe('Realtime Room Membership (SEC-06)', () => {
     roomId = room.id;
   });
 
-  function tokenFor(user: any): string {
-    return generateToken({ userId: user.id, username: user.username });
+  /** Logs the user in again: a fresh Session, like a second tab. */
+  function sessionFor(user: any): Promise<SessionHeaders> {
+    return loginAs(app, user);
   }
 
   /** Connects a user and makes sure the socket is subscribed to the test room. */
   async function connectMember(user: any): Promise<ClientSocketType> {
     const client = ClientSocket(url, {
-      auth: { token: tokenFor(user) },
+      extraHeaders: await sessionFor(user),
       transports: ['websocket'],
       // Tests drive reconnection by hand, so a kick can land while the user is offline.
       reconnection: false,
@@ -152,7 +153,7 @@ describe('Realtime Room Membership (SEC-06)', () => {
 
     const leaveRes = await request(app)
       .post(`/api/rooms/${roomId}/leave`)
-      .set('Authorization', `Bearer ${tokenFor(carol)}`);
+      .set(await sessionFor(carol));
     expect(leaveRes.status).toBe(200);
 
     const carolReceived = record<RoomReceiveMessagePayload>(carolClient, SOCKET_EVENTS.ROOM_RECEIVE);
@@ -176,7 +177,7 @@ describe('Realtime Room Membership (SEC-06)', () => {
 
     const kickRes = await request(app)
       .delete(`/api/rooms/${roomId}/members/${carol.id}`)
-      .set('Authorization', `Bearer ${tokenFor(alice)}`);
+      .set(await sessionFor(alice));
     expect(kickRes.status).toBe(200);
 
     await reconnect(carolClient);
@@ -203,7 +204,7 @@ describe('Realtime Room Membership (SEC-06)', () => {
 
     const kickRes = await request(app)
       .delete(`/api/rooms/${roomId}/members/${carol.id}`)
-      .set('Authorization', `Bearer ${tokenFor(alice)}`);
+      .set(await sessionFor(alice));
     expect(kickRes.status).toBe(200);
     await sendRoomMessage(aliceClient, 'secret sent while carol was offline');
 
@@ -230,7 +231,7 @@ describe('Realtime Room Membership (SEC-06)', () => {
 
     const leaveRes = await request(app)
       .post(`/api/rooms/${roomId}/leave`)
-      .set('Authorization', `Bearer ${tokenFor(carol)}`);
+      .set(await sessionFor(carol));
     expect(leaveRes.status).toBe(200);
 
     const carolTyping = record(carolClient, SOCKET_EVENTS.ROOM_TYPING);

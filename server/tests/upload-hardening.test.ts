@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from 'supertest';
 import sharp from 'sharp';
-import { createTestServer, generateToken, TestServer } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders, TestServer } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -10,7 +10,7 @@ import { InMemoryStorageAdapter, LocalStorageAdapter } from '../src/lib/storage.
 import { buildDocx, buildOleFile, buildPptx, buildXlsx, buildZip } from './helpers/office-fixtures.js';
 
 let server: TestServer<InMemoryStorageAdapter>;
-let authToken: string;
+let authSession: SessionHeaders;
 
 beforeAll(async () => {
   server = await createTestServer();
@@ -24,13 +24,13 @@ beforeEach(async () => {
   const user = await getPrisma().user.create({
     data: { username: 'uploader', email: 'uploader@example.com', passwordHash: 'hash123' },
   });
-  authToken = generateToken({ userId: user.id, username: user.username });
+  authSession = await loginAs(server.app, user);
 });
 
 function upload(data: Buffer, filename: string, contentType: string) {
   return request(server.app)
     .post('/api/upload')
-    .set('Authorization', `Bearer ${authToken}`)
+    .set(authSession)
     .attach('file', data, { filename, contentType });
 }
 
@@ -221,7 +221,7 @@ describe('Upload hardening: local storage adapter (dev and test only)', () => {
   function uploadLocal(data: Buffer, filename: string, contentType: string) {
     return request(local.app)
       .post('/api/upload')
-      .set('Authorization', `Bearer ${authToken}`)
+      .set(authSession)
       .attach('file', data, { filename, contentType });
   }
 

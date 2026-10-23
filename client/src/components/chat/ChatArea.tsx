@@ -27,6 +27,7 @@ import { SendDirectMessageOptions } from '../../hooks/useDirectMessages';
 import { MobileBackButton } from '../common/MobileBackButton';
 import { getAvatarColorClass } from '../../utils/avatarColor';
 import { truncateUnicodeSafe } from '../../utils/unicode';
+import { rateLimitNoticeFromAck, SendMessageAck } from '../../utils/rateLimit';
 import { describeUploadError } from '../../utils/uploadErrors';
 import {
   Send,
@@ -38,6 +39,7 @@ import {
   AlertCircle,
   X,
 } from 'lucide-react';
+import { apiFetch } from '../../utils/apiFetch';
 
 interface ChatAreaProps {
   activeChat: DirectChatListItemDto | null;
@@ -46,7 +48,8 @@ interface ChatAreaProps {
   hasMore?: boolean;
   isLoadingOlder?: boolean;
   onLoadOlderMessages?: () => Promise<void> | void;
-  onSendMessage: (content: string, optionsOrType?: MessageType | SendDirectMessageOptions) => void;
+  /** May resolve with the server's ack; a `RATE_LIMITED` ack keeps the draft and shows the wait time. */
+  onSendMessage: (content: string, optionsOrType?: MessageType | SendDirectMessageOptions) => Promise<SendMessageAck> | void;
   onBack?: () => void;
 }
 
@@ -60,7 +63,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onSendMessage,
   onBack,
 }) => {
-  const { currentUser, token } = useAuth();
+  const { currentUser } = useAuth();
   const { isConnected } = useSocket();
   const [inputText, setInputText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -196,11 +199,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch('/api/upload', {
+    const res = await apiFetch('/api/upload', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
       body: formData,
     });
 
@@ -266,12 +266,18 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         const isImage = selectedFile.type.startsWith('image/');
         const type = isImage ? MessageType.IMAGE : MessageType.DOCUMENT;
 
-        onSendMessage(inputText.trim(), {
+        const ack = await onSendMessage(inputText.trim(), {
           type,
           attachmentUrl: uploaded.url,
           attachmentName: uploaded.name,
           attachmentSize: uploaded.size,
         });
+        const rateLimitNotice = rateLimitNoticeFromAck(ack);
+        if (rateLimitNotice) {
+          // Not sent: keep the caption and the attachment so the User can retry.
+          showErrorMessage(rateLimitNotice);
+          return;
+        }
 
         handleCancelAttachment();
         setInputText('');
@@ -281,8 +287,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         setIsUploading(false);
       }
     } else {
-      onSendMessage(inputText);
+      const draft = inputText;
+      const pendingAck = onSendMessage(draft);
       setInputText('');
+      const rateLimitNotice = rateLimitNoticeFromAck(await pendingAck);
+      if (rateLimitNotice) {
+        // Not sent: give the draft back, unless the User has already typed something new.
+        setInputText((current) => (current === '' ? draft : current));
+        showErrorMessage(rateLimitNotice);
+      }
     }
   };
 
@@ -326,9 +339,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     });
   };
 
-  const handleSelectGif = (gifUrl: string) => {
-    onSendMessage(gifUrl, MessageType.EMOJI_GIF);
+  const handleSelectGif = async (gifUrl: string) => {
+    const pendingAck = onSendMessage(gifUrl, MessageType.EMOJI_GIF);
     setShowGifModal(false);
+    const rateLimitNotice = rateLimitNoticeFromAck(await pendingAck);
+    if (rateLimitNotice) showErrorMessage(rateLimitNotice);
   };
 
   const formatMessageTime = (dateStr: string) => {

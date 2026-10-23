@@ -56,8 +56,7 @@ const mockRoom: RoomListItemDto = {
 
 function renderWithProviders(ui: React.ReactElement) {
   const authValue: any = {
-    currentUser: mockUser,
-    token: 'test-token',
+    currentUser: mockUser,
     isLoading: false,
     login: vi.fn(),
     register: vi.fn(),

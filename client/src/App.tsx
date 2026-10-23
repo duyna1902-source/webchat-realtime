@@ -14,7 +14,9 @@ const MainLayout: React.FC = () => {
       <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 text-google-blue animate-spin" />
-          <p className="text-sm text-google-grey700 font-medium">Verifying session...</p>
+          <p className="text-sm text-google-grey700 font-medium">Connecting to the server...</p>
+          {/* The first request after Render free tier sleeps can take 30-50 seconds (ADR 0010). */}
+          <p className="text-xs text-google-grey700">This can take up to a minute if the server is waking up.</p>
         </div>
       </div>
     );

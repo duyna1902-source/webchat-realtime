@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
-import { createTestServer } from './helpers/server.js';
+import { createTestServer, sessionCookieOf, sessionHeaders, SessionHeaders, TEST_APP_ORIGIN } from './helpers/server.js';
 
 // Seam 1: account rules and input validation (SEC-08, SEC-05 types). Each test replays an attack
 // step from the security audit (.scratch/security-audit/spec.md) and expects it to be refused.
@@ -9,11 +9,16 @@ import { createTestServer } from './helpers/server.js';
 let app: Express;
 
 beforeAll(async () => {
-  ({ app } = await createTestServer());
+  // One server for the whole file registers, logs in and creates rooms far past the limits
+  // from one IP; the limits themselves are covered in rate-limit.test.ts.
+  const lenient = { max: 1000, windowMs: 60_000 };
+  ({ app } = await createTestServer({
+    config: { rateLimits: { register: lenient, loginFailures: lenient, roomCreate: lenient } },
+  }));
 });
 
-const register = (body: unknown) => request(app).post('/api/auth/register').send(body as object);
-const login = (body: unknown) => request(app).post('/api/auth/login').send(body as object);
+const register = (body: unknown) => request(app).post('/api/auth/register').set('Origin', TEST_APP_ORIGIN).send(body as object);
+const login = (body: unknown) => request(app).post('/api/auth/login').set('Origin', TEST_APP_ORIGIN).send(body as object);
 
 describe('Registration rules (SEC-08)', () => {
   const valid = { username: 'alice', email: 'alice@example.com', password: 'password123' };
@@ -52,8 +57,8 @@ describe('Registration rules (SEC-08)', () => {
     const res = await register({ ...valid, avatarUrl: 'javascript:alert(1)' }).expect(201);
     expect(res.body.user).not.toHaveProperty('avatarUrl');
 
-    const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${res.body.token}`).expect(200);
-    expect(me.body).not.toHaveProperty('avatarUrl');
+    const me = await request(app).get('/api/auth/me').set('Cookie', sessionCookieOf(res)).expect(200);
+    expect(me.body.user).not.toHaveProperty('avatarUrl');
     expect(JSON.stringify(me.body)).not.toContain('javascript:');
   });
 
@@ -131,15 +136,15 @@ describe('Login (SEC-08)', () => {
 });
 
 describe('Room name and description (SEC-08)', () => {
-  let token: string;
+  let session: SessionHeaders;
 
   beforeEach(async () => {
     const res = await register({ username: 'owner', email: 'owner@example.com', password: 'password123' }).expect(201);
-    token = res.body.token;
+    session = sessionHeaders(sessionCookieOf(res));
   });
 
   const createRoom = (body: unknown) =>
-    request(app).post('/api/rooms').set('Authorization', `Bearer ${token}`).send(body as object);
+    request(app).post('/api/rooms').set(session).send(body as object);
 
   const expectRejected = async (body: unknown, field: string) => {
     const res = await createRoom(body);
@@ -179,7 +184,7 @@ describe('Room name and description (SEC-08)', () => {
 
   it('member, role and direct-chat bodies accept only string ids and known roles', async () => {
     const room = await createRoom({ name: 'team' }).expect(201);
-    const auth = { Authorization: `Bearer ${token}` };
+    const auth = session;
 
     const member = await request(app).post(`/api/rooms/${room.body.id}/members`).set(auth).send({ userId: { not: '' } });
     expect(member.status).toBe(400);

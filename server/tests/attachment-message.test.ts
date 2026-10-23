@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { createTestServer, generateToken, TestServer } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders, TestServer } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { InMemoryStorageAdapter } from '../src/lib/storage.js';
 import { SOCKET_EVENTS, MessageType, normalizeDirectChatPair, MESSAGE_LIMITS } from '@webchat/shared';
@@ -32,8 +32,8 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
   let server: TestServer<InMemoryStorageAdapter>;
   let clientAlice: ClientSocketType;
   let clientBob: ClientSocketType;
-  let tokenAlice: string;
-  let tokenBob: string;
+  let sessionAlice: SessionHeaders;
+  let sessionBob: SessionHeaders;
   let directChat: any;
   let room: any;
 
@@ -48,17 +48,18 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
   });
 
   /** Uploads a file and returns its Attachment id. */
-  async function uploadAs(token: string, filename: string, data: Buffer): Promise<string> {
+  async function uploadAs(session: SessionHeaders, filename: string, data: Buffer): Promise<string> {
     const res = await request(server.app)
       .post('/api/upload')
-      .set('Authorization', `Bearer ${token}`)
+      .set(session)
       .attach('file', data, { filename, contentType: 'application/octet-stream' })
       .expect(201);
     return res.body.attachment.id;
   }
 
-  const uploadImage = (token: string, filename = 'screenshot.png') => uploadAs(token, filename, PNG_1X1);
-  const uploadDocument = (token: string, filename = 'spec.pdf') => uploadAs(token, filename, Buffer.from('%PDF-1.4 spec'));
+  const uploadImage = (session: SessionHeaders, filename = 'screenshot.png') => uploadAs(session, filename, PNG_1X1);
+  const uploadDocument = (session: SessionHeaders, filename = 'spec.pdf') =>
+    uploadAs(session, filename, Buffer.from('%PDF-1.4 spec'));
 
   beforeEach(async () => {
     const prisma = getPrisma();
@@ -97,15 +98,15 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
       },
     });
 
-    tokenAlice = generateToken({ userId: userAlice.id, username: userAlice.username });
-    tokenBob = generateToken({ userId: userBob.id, username: userBob.username });
+    sessionAlice = await loginAs(server.app, userAlice);
+    sessionBob = await loginAs(server.app, userBob);
 
     clientAlice = ClientSocket(`http://localhost:${server.port}`, {
-      auth: { token: tokenAlice },
+      extraHeaders: sessionAlice,
       transports: ['websocket'],
     });
     clientBob = ClientSocket(`http://localhost:${server.port}`, {
-      auth: { token: tokenBob },
+      extraHeaders: sessionBob,
       transports: ['websocket'],
     });
 
@@ -118,7 +119,7 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
   });
 
   it('delivers a direct image attachment message with the server-owned metadata', async () => {
-    const attachmentId = await uploadImage(tokenAlice);
+    const attachmentId = await uploadImage(sessionAlice);
     const bobReceivePromise = waitForEvent(clientBob, SOCKET_EVENTS.DIRECT_RECEIVE);
 
     clientAlice.emit(SOCKET_EVENTS.DIRECT_SEND, {
@@ -138,7 +139,7 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
   });
 
   it('delivers a direct document attachment message', async () => {
-    const attachmentId = await uploadDocument(tokenAlice);
+    const attachmentId = await uploadDocument(sessionAlice);
     const bobReceivePromise = waitForEvent(clientBob, SOCKET_EVENTS.DIRECT_RECEIVE);
 
     clientAlice.emit(SOCKET_EVENTS.DIRECT_SEND, {
@@ -155,8 +156,8 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
   });
 
   it('broadcasts room image and document attachment messages', async () => {
-    const imageId = await uploadImage(tokenAlice, 'architecture.png');
-    const documentId = await uploadDocument(tokenAlice, 'guidelines.pdf');
+    const imageId = await uploadImage(sessionAlice, 'architecture.png');
+    const documentId = await uploadDocument(sessionAlice, 'guidelines.pdf');
 
     const imagePromise = waitForEvent(clientBob, SOCKET_EVENTS.ROOM_RECEIVE);
     clientAlice.emit(SOCKET_EVENTS.ROOM_SEND, { roomId: room.id, content: 'Room diagram attached', attachmentId: imageId });
@@ -183,7 +184,7 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
       clientBob.once(SOCKET_EVENTS.DIRECT_RECEIVE, () => {
         bobReceived = true;
       });
-      const attachmentId = await uploadImage(tokenAlice);
+      const attachmentId = await uploadImage(sessionAlice);
 
       const ack = await emitWithAck(clientAlice, SOCKET_EVENTS.DIRECT_SEND, {
         directChatId: directChat.id,
@@ -197,7 +198,7 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
     });
 
     it('rejects a room attachment message whose MEMBER caption exceeds ROOM_MEMBER (2000), and keeps the Attachment sendable', async () => {
-      const attachmentId = await uploadDocument(tokenBob);
+      const attachmentId = await uploadDocument(sessionBob);
 
       const ack = await emitWithAck(clientBob, SOCKET_EVENTS.ROOM_SEND, {
         roomId: room.id,
@@ -211,7 +212,7 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
     });
 
     it('rejects a room attachment message whose leader caption exceeds ROOM_LEADER (4000)', async () => {
-      const attachmentId = await uploadDocument(tokenAlice);
+      const attachmentId = await uploadDocument(sessionAlice);
 
       const ack = await emitWithAck(clientAlice, SOCKET_EVENTS.ROOM_SEND, {
         roomId: room.id,
@@ -227,7 +228,7 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
       const memberAck = await emitWithAck(clientBob, SOCKET_EVENTS.ROOM_SEND, {
         roomId: room.id,
         content: memberCaption,
-        attachmentId: await uploadDocument(tokenBob, 'member-exact.pdf'),
+        attachmentId: await uploadDocument(sessionBob, 'member-exact.pdf'),
       });
       expect(memberAck.success).toBe(true);
       expect(memberAck.message).toMatchObject({ content: memberCaption, attachment: { name: 'member-exact.pdf' } });
@@ -236,7 +237,7 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
       const leaderAck = await emitWithAck(clientAlice, SOCKET_EVENTS.ROOM_SEND, {
         roomId: room.id,
         content: leaderCaption,
-        attachmentId: await uploadImage(tokenAlice, 'leader-exact.png'),
+        attachmentId: await uploadImage(sessionAlice, 'leader-exact.png'),
       });
       expect(leaderAck.success).toBe(true);
       expect(leaderAck.message).toMatchObject({ content: leaderCaption, attachment: { name: 'leader-exact.png' } });

@@ -13,7 +13,9 @@ interface SocketContextType {
 export const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { token } = useAuth();
+  const { currentUser } = useAuth();
+  // The socket follows the signed-in User; the Session cookie authenticates its handshake.
+  const userId = currentUser?.id ?? null;
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
@@ -21,7 +23,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token) {
+    if (!userId) {
       if (socket) {
         socket.disconnect();
         setSocket(null);
@@ -36,9 +38,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsReconnecting(false);
     setConnectionError(null);
 
-    // No URL: the socket always connects to the page's own origin (single-host, ADR 0010).
+    // No URL: the socket always connects to the page's own origin (single-host, ADR 0010), and
+    // no `auth` payload: the browser sends the HttpOnly Session cookie with the handshake.
     const newSocket = io({
-      auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 20,
@@ -88,7 +90,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       newSocket.disconnect();
     };
-  }, [token]);
+  }, [userId]);
 
   return (
     <SocketContext.Provider value={{ socket, isConnected, isConnecting, isReconnecting, connectionError }}>
