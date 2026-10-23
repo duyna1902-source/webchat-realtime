@@ -8,6 +8,7 @@ import { useRoomMessages } from '../../hooks/useRoomMessages';
 import { Sidebar, formatSidebarPreview } from '../chat/Sidebar';
 import { ChatArea } from '../chat/ChatArea';
 import { RoomChatArea } from '../room/RoomChatArea';
+import { AccountInfoModal } from './AccountInfoModal';
 import { LogOut, MonitorX, Bell, BellOff } from 'lucide-react';
 import {
   SOCKET_EVENTS,
@@ -28,11 +29,9 @@ export const Dashboard: React.FC = () => {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
 
-  // Profile popup state
-  const [popUp, setPopUp] = useState<boolean>(false); 
-  interface popUpProps {
-  setPopUp: React.Dispatch<React.SetStateAction<boolean>>;
-  }
+  // Account info popup state
+  const [isAccountInfoOpen, setIsAccountInfoOpen] = useState<boolean>(false);
+  const closeAccountInfo = useCallback(() => setIsAccountInfoOpen(false), []);
 
   // Notification state
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
@@ -216,31 +215,6 @@ export const Dashboard: React.FC = () => {
 
   const isChatActive = Boolean(activeChatId || activeRoomId);
 
-  // Popup function
-  const Modal:React.FC<popUpProps> = ({setPopUp}) => {
-    return (
-      <div
-        className='w-screen h-screen bg-black bg-opacity-30 fixed top-0 right-0 flex justify-center items-center'
-        onClick={() => setPopUp(false)}
-      >
-        <div className='bg-white p-8 rounded-md shadow-md justify-center items-center justify-items-center'>
-          <h5 className='font-semibold text-google-blue text-lg my-5'>Account Info</h5>
-          <div
-            className={`w-20 h-20 rounded-full ${getAvatarColorClass(currentUser.username)} text-[35px] font-bold flex items-center justify-center shadow-xs shrink-0`}
-            title={`${currentUser.username} (Online)`}
-            aria-label={`${currentUser.username} (Online)`}
-            data-testid="header-user-avatar"
-          >
-            {currentUser.username.slice(0, 2).toUpperCase()}
-          </div>
-          <h1 className='font-bold text-2xl my-5'>{currentUser.username}</h1>
-          <p className='text-google-grey900'>Email: <i>{currentUser.email}</i></p>
-          <p className='text-google-grey900'>Account created at: <i>{currentUser.createdAt}</i></p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="h-[100dvh] flex flex-col bg-gray-100 overflow-hidden">
       {/* Top Navigation Bar (Slim 42px h-11, Single Line GDG-HUST Lockup) */}
@@ -315,18 +289,19 @@ export const Dashboard: React.FC = () => {
             </span>
           </div>
 
-          {/* Current User 24px Avatar Circle */}
-          <div
-            onClick={() => setPopUp(true)}
-            className={`w-6 h-6 rounded-full ${getAvatarColorClass(currentUser.username)} text-[10px] font-bold flex items-center justify-center shadow-xs shrink-0`}
+          {/* Current User 24px Avatar Circle: opens the account info popup */}
+          <button
+            type="button"
+            onClick={() => setIsAccountInfoOpen(true)}
+            className={`w-6 h-6 rounded-full ${getAvatarColorClass(currentUser.username)} text-[10px] font-bold flex items-center justify-center shadow-xs shrink-0 cursor-pointer`}
             title={`${currentUser.username} (Online)`}
-            aria-label={`${currentUser.username} (Online)`}
+            aria-label={`Account info: ${currentUser.username} (Online)`}
             data-testid="header-user-avatar"
           >
             {currentUser.username.slice(0, 2).toUpperCase()}
-          </div>
-          {popUp && <Modal setPopUp={setPopUp} />}
-          
+          </button>
+          <AccountInfoModal user={currentUser} isOpen={isAccountInfoOpen} onClose={closeAccountInfo} />
+
           {/* User Sign Out Button: Clean icon button on mobile with Google Red hover */}
           <button
             onClick={logout}
