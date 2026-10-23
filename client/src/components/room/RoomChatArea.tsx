@@ -6,6 +6,7 @@ import {
   RoomRole,
   MessageType,
   MESSAGE_LIMITS,
+  UPLOAD_ACCEPT,
 } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
@@ -22,6 +23,7 @@ import { MobileBackButton } from '../common/MobileBackButton';
 import { getAvatarColorClass } from '../../utils/avatarColor';
 import { truncateUnicodeSafe } from '../../utils/unicode';
 import { rateLimitNoticeFromAck, SendMessageAck } from '../../utils/rateLimit';
+import { describeUploadError } from '../../utils/uploadErrors';
 import {
   Hash,
   Users,
@@ -220,8 +222,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
     });
 
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.message || 'File upload failed');
+      throw new Error(await describeUploadError(res));
     }
 
     return res.json();
@@ -645,6 +646,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
               ref={fileInputRef}
               type="file"
               data-testid="room-file-upload-input"
+              accept={UPLOAD_ACCEPT}
               className="hidden"
               onChange={handleFileSelect}
             />
