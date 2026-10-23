@@ -278,10 +278,9 @@ erDiagram
     User {
         string id PK "UUID"
         string username UK "Tên đăng nhập duy nhất"
-        string usernameNormalized "Username chữ thường (unique sau bước contract)"
+        string usernameNormalized UK "Username chữ thường, unique (DB kiểm tra = lower(username))"
         string email UK "Địa chỉ email duy nhất, chữ thường"
         string passwordHash "Bcrypt hash"
-        string avatarUrl "Không còn dùng, xóa ở bước contract"
         boolean isOnline "Trạng thái trực tuyến"
         DateTime lastSeenAt "Thời điểm hoạt động cuối"
         DateTime createdAt
@@ -337,15 +336,14 @@ erDiagram
         MessageType type "TEXT | IMAGE | DOCUMENT | EMOJI_GIF"
         MessageStatus status "SENT | DELIVERED | READ"
         boolean attachmentUnavailable "Attachment cũ đã bị gỡ"
-        string attachmentUrl "Legacy, xóa ở bước contract"
         DateTime createdAt
         DateTime updatedAt
     }
 
     Room {
         string id PK "UUID"
-        string name "Tên phòng chat"
-        string description "Mô tả phòng"
+        string name "Tên phòng chat, 1–64 ký tự (CHECK)"
+        string description "Mô tả phòng, tối đa 500 ký tự (CHECK)"
         string ownerId FK "Chủ sở hữu phòng"
         DateTime createdAt
         DateTime updatedAt
@@ -368,7 +366,6 @@ erDiagram
         string content "Nội dung tin nhắn"
         MessageType type "TEXT | IMAGE | DOCUMENT | EMOJI_GIF"
         boolean attachmentUnavailable "Attachment cũ đã bị gỡ"
-        string attachmentUrl "Legacy, xóa ở bước contract"
         DateTime createdAt
         DateTime updatedAt
     }
