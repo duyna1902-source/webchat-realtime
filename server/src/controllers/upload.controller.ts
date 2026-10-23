@@ -3,7 +3,9 @@ import { ATTACHMENT_RULES, UploadResponseDto, truncateCharacters } from '@webcha
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
 import { getServerContext } from '../context.js';
 import { getPrisma } from '../lib/prisma.js';
-import { prepareUpload } from '../lib/upload-file.js';
+import { prepareUpload, PreparedUpload } from '../lib/upload-file.js';
+import { AppError } from '../lib/errors.js';
+import { logSecurityEvent } from '../lib/security-events.js';
 import { toAttachmentDto } from '../lib/attachments.js';
 
 export async function uploadFile(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -15,7 +17,20 @@ export async function uploadFile(req: AuthenticatedRequest, res: Response): Prom
   const { storage, config } = getServerContext(req);
 
   // Type, size and stored bytes all come from the server, never from what the client declared.
-  const prepared = await prepareUpload(req.file.buffer);
+  let prepared: PreparedUpload;
+  try {
+    prepared = await prepareUpload(req.file.buffer);
+  } catch (err) {
+    // An expected refusal (the content is not an allowed file type); anything else is a 500.
+    if (err instanceof AppError) {
+      logSecurityEvent(req.log, 'upload.rejected', {
+        reason: 'unsupported_type',
+        declaredType: req.file.mimetype.slice(0, 100),
+        size: req.file.size,
+      });
+    }
+    throw err;
+  }
   const { storageKey } = await storage.put(prepared.data, { contentType: prepared.mimeType });
 
   const attachment = await getPrisma().attachment.create({
@@ -31,6 +46,12 @@ export async function uploadFile(req: AuthenticatedRequest, res: Response): Prom
 
   // Signed for the uploader's own preview; recipients get theirs with the message.
   const signed = await storage.createSignedUrl(storageKey, config.timing.signedUrlTtlSeconds);
+  logSecurityEvent(req.log, 'upload.accepted', {
+    attachmentId: attachment.id,
+    kind: attachment.kind,
+    mimeType: attachment.mimeType,
+    size: attachment.size,
+  });
   const body: UploadResponseDto = { attachment: toAttachmentDto(attachment, signed) };
   res.status(201).json(body);
 }

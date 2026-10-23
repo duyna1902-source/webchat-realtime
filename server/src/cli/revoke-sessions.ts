@@ -3,6 +3,7 @@ import 'dotenv/config';
 import { loadConfig, ConfigError } from '../config.js';
 import { initPrisma } from '../lib/prisma.js';
 import { createSessionStore } from '../lib/session-store.js';
+import { createLogger } from '../lib/logger.js';
 import { runRevokeSessionsCommand } from '../lib/revoke-sessions-command.js';
 
 // Incident response: `npm run sessions:revoke --workspace=server -- --user <username|id>` or `-- --all`.
@@ -15,6 +16,8 @@ async function main() {
     idleTtlMs: config.timing.sessionIdleTtlMs,
     absoluteTtlMs: config.timing.sessionAbsoluteTtlMs,
     touchIntervalMs: config.timing.sessionTouchIntervalMs,
+    // The revocation is logged as a `session.revoked` event, like one made by the server.
+    logger: createLogger({ level: config.logLevel }),
   });
   try {
     await runRevokeSessionsCommand(process.argv.slice(2), { prisma, sessions });

@@ -7,6 +7,7 @@ import type { AttachmentSigner } from '../lib/attachments.js';
 import type { SessionRevocation, SessionStore } from '../lib/session-store.js';
 import { readSessionToken } from '../lib/session-cookie.js';
 import { createSocketRateLimiter } from '../lib/rate-limit.js';
+import { logSecurityEvent } from '../lib/security-events.js';
 import { SOCKET_EVENTS, SessionEndedPayload } from '@webchat/shared';
 import { registerDirectChatHandlers, handleDirectMessagesDeliveryOnConnect } from './direct.handler.js';
 import { registerRoomHandlers, autoJoinUserRooms, findRevokedRoomChannels } from './room.handler.js';
@@ -45,6 +46,22 @@ export function userChannel(userId: string): string {
   return `user:${userId}`;
 }
 
+/** The handshake `Origin` is client-controlled; only this much of it goes into a log line. */
+const MAX_LOGGED_ORIGIN_LENGTH = 200;
+
+/**
+ * The client's IP, read the way Express reads `req.ip` with `trust proxy` set to 1 (Render's single
+ * proxy): the last `X-Forwarded-For` hop, else the address of the connection itself.
+ */
+function handshakeClientIp(socket: Socket): string {
+  const forwarded = socket.handshake.headers['x-forwarded-for'];
+  const hops = (Array.isArray(forwarded) ? forwarded.join(',') : forwarded ?? '')
+    .split(',')
+    .map((hop) => hop.trim())
+    .filter(Boolean);
+  return hops.length > 0 ? hops[hops.length - 1] : socket.handshake.address;
+}
+
 /** 64KB: comfortably above the largest valid event (a 4000-character message). */
 export const SOCKET_MAX_HTTP_BUFFER_SIZE = 64 * 1024;
 
@@ -67,7 +84,14 @@ export function setupSocketServer(httpServer: http.Server, { config, logger, ses
 
   // Handshake: same-origin only (no Cross-Site WebSocket Hijacking), then the Session cookie.
   io.use(async (socket, next) => {
-    if (socket.handshake.headers.origin !== config.appOrigin) {
+    const ip = handshakeClientIp(socket);
+    const origin = socket.handshake.headers.origin;
+    if (origin !== config.appOrigin) {
+      logSecurityEvent(logger, 'socket.handshake.rejected', {
+        reason: 'forbidden_origin',
+        origin: origin?.slice(0, MAX_LOGGED_ORIGIN_LENGTH) ?? null,
+        ip,
+      });
       return next(new Error('Forbidden origin'));
     }
 
@@ -76,9 +100,11 @@ export function setupSocketServer(httpServer: http.Server, { config, logger, ses
       resolved = await sessions.resolve(readSessionToken(socket.handshake.headers.cookie));
     } catch (err) {
       logger.error({ err, socketId: socket.id }, 'Socket handshake failed');
+      logSecurityEvent(logger, 'socket.handshake.rejected', { reason: 'error', ip });
       return next(new Error('Authentication failed'));
     }
     if (!resolved) {
+      logSecurityEvent(logger, 'socket.handshake.rejected', { reason: 'no_session', ip });
       return next(new Error('Authentication required'));
     }
 
@@ -90,7 +116,7 @@ export function setupSocketServer(httpServer: http.Server, { config, logger, ses
 
   io.on('connection', async (socket) => {
     const authSocket = socket as AuthenticatedSocket;
-    const log = logger.child({ userId: authSocket.data.user.userId, socketId: socket.id, ip: socket.handshake.address });
+    const log = logger.child({ userId: authSocket.data.user.userId, socketId: socket.id, ip: handshakeClientIp(socket) });
     // Joined before anything async, so a revocation from now on reaches this socket.
     socket.join([sessionChannel(authSocket.data.sessionId), userChannel(authSocket.data.user.userId)]);
     const cancelExpiry = runAt(authSocket.data.sessionExpiresAt, () => endSession(socket, 'expired'));

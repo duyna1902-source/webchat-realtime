@@ -2,6 +2,7 @@ import multer from 'multer';
 import { Request, Response, NextFunction } from 'express';
 import { ERROR_CODES } from '@webchat/shared';
 import { AppError } from '../lib/errors.js';
+import { logSecurityEvent } from '../lib/security-events.js';
 
 /** Largest file accepted by `POST /api/upload`. */
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB
@@ -20,6 +21,9 @@ export function uploadSingleFile(req: Request, res: Response, next: NextFunction
   upload.single('file')(req, res, (err: any) => {
     if (err) {
       if (err instanceof multer.MulterError) {
+        logSecurityEvent(req.log, 'upload.rejected', {
+          reason: err.code === 'LIMIT_FILE_SIZE' ? 'too_large' : 'invalid_request',
+        });
         next(
           err.code === 'LIMIT_FILE_SIZE'
             ? new AppError(413, ERROR_CODES.PAYLOAD_TOO_LARGE, 'File size exceeds 10MB limit')
@@ -33,6 +37,7 @@ export function uploadSingleFile(req: Request, res: Response, next: NextFunction
     }
 
     if (!req.file) {
+      logSecurityEvent(req.log, 'upload.rejected', { reason: 'no_file' });
       res.status(400).json({ message: 'No file uploaded' });
       return;
     }
