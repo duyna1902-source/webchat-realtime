@@ -18,6 +18,8 @@ export const ERROR_CODES = {
   FORBIDDEN: 'FORBIDDEN',
   RATE_LIMITED: 'RATE_LIMITED',
   UNSUPPORTED_FILE_TYPE: 'UNSUPPORTED_FILE_TYPE',
+  /** An uploaded image has more pixels than the server will decode (a decompression bomb guard). */
+  IMAGE_TOO_LARGE: 'IMAGE_TOO_LARGE',
   /** The `attachmentId` of a message does not exist, is someone else's, or is already sent. */
   ATTACHMENT_INVALID: 'ATTACHMENT_INVALID',
 } as const;

@@ -53,6 +53,14 @@ export interface TimingConfig {
   sessionRecheckIntervalMs: number;
 }
 
+export interface UploadsConfig {
+  /**
+   * Largest image (width x height) an upload may declare. Decoding takes about 4 bytes per pixel,
+   * so a small file declaring a huge image could exhaust memory (a decompression bomb).
+   */
+  maxImagePixels: number;
+}
+
 export interface AppConfig {
   nodeEnv: NodeEnv;
   port: number;
@@ -67,6 +75,7 @@ export interface AppConfig {
   storage: StorageConfig;
   rateLimits: RateLimitsConfig;
   timing: TimingConfig;
+  uploads: UploadsConfig;
 }
 
 const MINUTE = 60 * 1000;
@@ -92,6 +101,12 @@ export const DEFAULT_TIMING: TimingConfig = {
   sessionAbsoluteTtlMs: 30 * DAY,
   sessionTouchIntervalMs: 5 * MINUTE,
   sessionRecheckIntervalMs: MINUTE,
+};
+
+export const DEFAULT_UPLOADS: UploadsConfig = {
+  // 40 MP (e.g. 8000x5000, above any phone camera) decodes to about 160 MB: safe on a 512 MB
+  // instance, unlike sharp's own default of about 268 MP (over 1 GB).
+  maxImagePixels: 40_000_000,
 };
 
 export interface ConfigIssue {
@@ -243,5 +258,6 @@ export function loadConfig(env: Env, options: LoadConfigOptions = {}): AppConfig
     storage,
     rateLimits: structuredClone(DEFAULT_RATE_LIMITS),
     timing: { ...DEFAULT_TIMING },
+    uploads: { ...DEFAULT_UPLOADS },
   };
 }
