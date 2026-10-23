@@ -520,6 +520,18 @@ describe('Ultra-Compact Dashboard Header and Maximal Chat Workspace (Ticket 03)'
     expect(avatar).toHaveTextContent('AL');
   });
 
+  it('opens the account info popup from the header avatar', async () => {
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('GDG-HUST')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /account info/i }));
+    expect(screen.getByRole('dialog', { name: /account info/i })).toHaveTextContent('alice@example.com');
+  });
+
   it('renders logout button with Google Red hover styling and clean icon on mobile', async () => {
     renderDashboard();
 
