@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DirectChatListItemDto, RoomListItemDto, UserDto, RoomRole, MessageStatus, MessageType } from '@webchat/shared';
+import { DirectChatListItemDto, RoomListItemDto, PublicUserDto, RoomRole, MessageStatus, MessageType } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { CreateRoomModal } from '../room/CreateRoomModal';
 import { getAvatarColorClass } from '../../utils/avatarColor';
@@ -80,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<UserDto[]>([]);
+  const [searchResults, setSearchResults] = useState<PublicUserDto[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [showUserSearchModal, setShowUserSearchModal] = useState(false);
   const [isStartingChat, setIsStartingChat] = useState(false);
@@ -99,10 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         const res = await fetch(`/api/users?q=${encodeURIComponent(searchQuery.trim())}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (res.ok) {
-          const data: UserDto[] = await res.json();
-          setSearchResults(data);
-        }
+        setSearchResults(res.ok ? ((await res.json()) as PublicUserDto[]) : []);
       } catch (err) {
         console.error('Error searching users:', err);
       } finally {
@@ -267,7 +264,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                   <div className="truncate flex-1">
                     <p className="text-sm font-semibold text-gray-800">{user.username}</p>
-                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
                   </div>
                 </button>
               ))}
@@ -275,7 +271,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ) : searchQuery ? (
             <p className="text-xs text-gray-500 py-2 text-center">No users found matching "{searchQuery}"</p>
           ) : (
-            <p className="text-xs text-gray-500 py-2 text-center">Type a username or email to search</p>
+            <p className="text-xs text-gray-500 py-2 text-center">Type a username to search</p>
           )}
         </div>
       )}

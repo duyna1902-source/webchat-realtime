@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserDto, AuthResponseDto, RegisterRequestDto, LoginRequestDto } from '@webchat/shared';
+import { SelfUserDto, AuthResponseDto, RegisterRequestDto, LoginRequestDto } from '@webchat/shared';
 
 interface AuthContextType {
-  currentUser: UserDto | null;
+  currentUser: SelfUserDto | null;
   token: string | null;
   isLoading: boolean;
   login: (data: LoginRequestDto) => Promise<void>;
@@ -16,7 +16,7 @@ const TOKEN_KEY = 'webchat_token';
 const USER_KEY = 'webchat_user';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<UserDto | null>(() => {
+  const [currentUser, setCurrentUser] = useState<SelfUserDto | null>(() => {
     const saved = localStorage.getItem(USER_KEY);
     if (!saved) return null;
     try {
@@ -45,7 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         if (res.ok) {
-          const user: UserDto = await res.json();
+          const user: SelfUserDto = await res.json();
           setCurrentUser(user);
           localStorage.setItem(USER_KEY, JSON.stringify(user));
         } else {

@@ -16,7 +16,7 @@ import {
   changeRoomMemberRoleSchema,
 } from '@webchat/shared';
 import { parseInput } from '../lib/validation.js';
-import { toUserDto } from './user.controller.js';
+import { toPublicUserDto } from './user.controller.js';
 import { getServerContext } from '../context.js';
 import { syncUserSocketsRoomMembership } from '../socket/room.handler.js';
 import { parsePaginationParams, fetchPaginatedMessages } from '../lib/pagination.js';
@@ -26,10 +26,7 @@ export function toRoomReceiveMessagePayload(msg: any): RoomReceiveMessagePayload
     id: msg.id,
     roomId: msg.roomId,
     senderId: msg.senderId,
-    sender: {
-      id: msg.sender.id,
-      username: msg.sender.username,
-    },
+    sender: toPublicUserDto(msg.sender),
     content: msg.content,
     type: msg.type,
     attachmentUrl: msg.attachmentUrl ?? null,
@@ -47,7 +44,7 @@ export function toRoomMemberDto(member: any): RoomMemberDto {
     role: member.role,
     lastReadMessageId: member.lastReadMessageId ?? null,
     joinedAt: member.joinedAt instanceof Date ? member.joinedAt.toISOString() : new Date(member.joinedAt).toISOString(),
-    user: toUserDto(member.user),
+    user: toPublicUserDto(member.user),
   };
 }
 

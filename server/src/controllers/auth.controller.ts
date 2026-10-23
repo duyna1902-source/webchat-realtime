@@ -4,11 +4,12 @@ import { getPrisma } from '../lib/prisma.js';
 import { signToken } from '../lib/jwt.js';
 import { getServerContext } from '../context.js';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
-import { UserDto, ERROR_CODES, loginSchema, registerSchema, normalizeUsername } from '@webchat/shared';
+import { SelfUserDto, ERROR_CODES, loginSchema, registerSchema, normalizeUsername } from '@webchat/shared';
 import { AppError } from '../lib/errors.js';
 import { parseInput } from '../lib/validation.js';
 
-function toUserDto(user: any): UserDto {
+/** The signed-in User's own account; the only DTO that carries an email (SEC-13). */
+function toSelfUserDto(user: any): SelfUserDto {
   return {
     id: user.id,
     username: user.username,
@@ -85,7 +86,7 @@ export async function register(req: Request, res: Response): Promise<void> {
 
   res.status(201).json({
     token,
-    user: toUserDto(newUser),
+    user: toSelfUserDto(newUser),
   });
 }
 
@@ -114,7 +115,7 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   res.status(200).json({
     token,
-    user: toUserDto(user),
+    user: toSelfUserDto(user),
   });
 }
 
@@ -134,5 +135,5 @@ export async function me(req: AuthenticatedRequest, res: Response): Promise<void
     return;
   }
 
-  res.status(200).json(toUserDto(user));
+  res.status(200).json(toSelfUserDto(user));
 }

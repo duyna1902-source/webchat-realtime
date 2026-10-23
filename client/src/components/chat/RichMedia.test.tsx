@@ -15,6 +15,7 @@ import {
   MessageType,
   MessageStatus,
 } from '@webchat/shared';
+import { publicUser } from '../../test/fixtures';
 
 const mockUser = {
   id: 'user-alice',
@@ -281,7 +282,7 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
           id: 'msg-text',
           directChatId: 'chat-123',
           senderId: 'user-bob',
-          sender: { id: 'user-bob', username: 'bob' },
+          sender: publicUser('user-bob', 'bob'),
           content: 'Look at this funny GIF!',
           type: MessageType.TEXT,
           status: MessageStatus.SENT,
@@ -294,7 +295,7 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
           id: 'msg-gif',
           directChatId: 'chat-123',
           senderId: 'user-alice',
-          sender: { id: 'user-alice', username: 'alice' },
+          sender: publicUser('user-alice', 'alice'),
           content: 'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif',
           type: MessageType.EMOJI_GIF,
           status: MessageStatus.SENT,
@@ -336,7 +337,7 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
               id: 'msg-gif-ok',
               directChatId: 'chat-123',
               senderId: 'user-bob',
-              sender: { id: 'user-bob', username: 'bob' },
+              sender: publicUser('user-bob', 'bob'),
               content: gifUrl,
               type: MessageType.EMOJI_GIF,
               status: MessageStatus.SENT,
@@ -367,7 +368,7 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
               id: 'msg-gif-evil',
               directChatId: 'chat-123',
               senderId: 'user-bob',
-              sender: { id: 'user-bob', username: 'bob' },
+              sender: publicUser('user-bob', 'bob'),
               content: 'javascript:alert(1)',
               type: MessageType.EMOJI_GIF,
               status: MessageStatus.SENT,
@@ -414,7 +415,7 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
           id: 'room-msg-gif',
           roomId: 'room-123',
           senderId: 'user-bob',
-          sender: { id: 'user-bob', username: 'bob' },
+          sender: publicUser('user-bob', 'bob'),
           content: 'https://media.giphy.com/media/jpbnoe3UIa8TU8LM13/giphy.gif',
           type: MessageType.EMOJI_GIF,
           attachmentUrl: null,

@@ -53,23 +53,20 @@ describe('Direct Chat REST APIs', () => {
       await request(app).get('/api/users').expect(401);
     });
 
-    it('returns list of users excluding requesting user', async () => {
+    it('returns matching users excluding requesting user', async () => {
       const res = await request(app)
-        .get('/api/users')
+        .get('/api/users?q=a')
         .set('Authorization', `Bearer ${token1}`)
         .expect(200);
 
       expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body).toHaveLength(2);
       const userIds = res.body.map((u: any) => u.id);
-      expect(userIds).toContain(user2.id);
-      expect(userIds).toContain(user3.id);
-      expect(userIds).not.toContain(user1.id);
+      expect(userIds).toEqual([user3.id]);
       // Ensure passwordHash is not exposed
       expect(res.body[0]).not.toHaveProperty('passwordHash');
     });
 
-    it('filters users by search query parameter (?q= or ?search=)', async () => {
+    it('filters users by the q search parameter', async () => {
       const resQ = await request(app)
         .get('/api/users?q=bob')
         .set('Authorization', `Bearer ${token1}`)
@@ -77,14 +74,6 @@ describe('Direct Chat REST APIs', () => {
 
       expect(resQ.body).toHaveLength(1);
       expect(resQ.body[0].username).toBe('bob');
-
-      const resSearch = await request(app)
-        .get('/api/users?search=charlie')
-        .set('Authorization', `Bearer ${token1}`)
-        .expect(200);
-
-      expect(resSearch.body).toHaveLength(1);
-      expect(resSearch.body[0].username).toBe('charlie');
     });
   });
 
