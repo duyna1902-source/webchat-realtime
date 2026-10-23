@@ -127,6 +127,52 @@ describe('Upload hardening: image metadata is removed', () => {
   });
 });
 
+describe('Upload hardening: decompression bombs', () => {
+  // A small file can declare a huge image that takes gigabytes to decode. The limit comes from the
+  // configuration; this server allows 100x100 pixels so the test images stay tiny.
+  let small: TestServer<InMemoryStorageAdapter>;
+  let smallSession: SessionHeaders;
+
+  beforeAll(async () => {
+    small = await createTestServer({ config: { uploads: { maxImagePixels: 100 * 100 } } });
+  });
+
+  afterAll(async () => {
+    await small.close();
+  });
+
+  beforeEach(async () => {
+    const user = await getPrisma().user.findUniqueOrThrow({ where: { username: 'uploader' } });
+    smallSession = await loginAs(small.app, user);
+  });
+
+  function uploadToSmall(data: Buffer, filename: string) {
+    return request(small.app).post('/api/upload').set(smallSession).attach('file', data, { filename, contentType: 'image/png' });
+  }
+
+  it.each([
+    ['PNG', () => sharp({ create: { width: 200, height: 100, channels: 3, background: '#fff' } }).png().toBuffer()],
+    ['JPEG', () => sharp({ create: { width: 101, height: 100, channels: 3, background: '#fff' } }).jpeg().toBuffer()],
+    ['GIF', () => sharp({ create: { width: 150, height: 150, channels: 3, background: '#fff' } }).gif().toBuffer()],
+  ])('a %s over the pixel limit is rejected with 413 IMAGE_TOO_LARGE and nothing is stored', async (_format, build) => {
+    const res = await uploadToSmall(await build(), 'huge.png').expect(413);
+
+    expect(res.body.code).toBe('IMAGE_TOO_LARGE');
+    expect(res.body.requestId).toEqual(expect.any(String));
+    expect(await getPrisma().attachment.count()).toBe(0);
+  });
+
+  it('an image exactly at the limit is accepted', async () => {
+    const png = await sharp({ create: { width: 100, height: 100, channels: 3, background: '#fff' } }).png().toBuffer();
+
+    await uploadToSmall(png, 'ok.png').expect(201);
+  });
+
+  it('the default limit is sized for a 512 MB instance (40 megapixels)', () => {
+    expect(server.config.uploads.maxImagePixels).toBe(40_000_000);
+  });
+});
+
 describe('Upload hardening: documents', () => {
   it('accepts a PDF and stores it as application/pdf', async () => {
     const res = await upload(Buffer.from('%PDF-1.7\n%âãÏÓ\n1 0 obj\n'), 'report.pdf', 'text/html').expect(201);
