@@ -4,14 +4,15 @@ import { getPrisma } from '../lib/prisma.js';
 import { signToken } from '../lib/jwt.js';
 import { getServerContext } from '../context.js';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
-import { UserDto } from '@webchat/shared';
+import { UserDto, ERROR_CODES, loginSchema, registerSchema, normalizeUsername } from '@webchat/shared';
+import { AppError } from '../lib/errors.js';
+import { parseInput } from '../lib/validation.js';
 
 function toUserDto(user: any): UserDto {
   return {
     id: user.id,
     username: user.username,
     email: user.email,
-    avatarUrl: user.avatarUrl,
     isOnline: user.isOnline,
     lastSeenAt: user.lastSeenAt.toISOString(),
     createdAt: user.createdAt.toISOString(),
@@ -19,32 +20,48 @@ function toUserDto(user: any): UserDto {
   };
 }
 
-export async function register(req: Request, res: Response): Promise<void> {
-  const { username, email, password, avatarUrl } = req.body;
-
-  if (!username || !email || !password) {
-    res.status(400).json({ message: 'All fields are required' });
-    return;
+/**
+ * Exact match only: an email (stored lowercase) or a username compared case-insensitively
+ * through its normalized key. Rows created before the key existed match on the exact username.
+ */
+async function findUserByLogin(emailOrUsername: string) {
+  const prisma = getPrisma();
+  if (emailOrUsername.includes('@')) {
+    return prisma.user.findUnique({ where: { email: emailOrUsername.toLowerCase() } });
   }
+  return prisma.user.findFirst({
+    where: {
+      OR: [{ usernameNormalized: normalizeUsername(emailOrUsername) }, { username: emailOrUsername }],
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+}
+
+export async function register(req: Request, res: Response): Promise<void> {
+  const { username, email, password } = parseInput(registerSchema, req.body);
+  const usernameNormalized = normalizeUsername(username);
 
   const prisma = getPrisma();
 
-  // Check unique username
-  const existingUsername = await prisma.user.findUnique({
-    where: { username },
-  });
+  // Case-insensitive, also against rows the data upgrade has not given a normalized key yet.
+  // Until the contract migration adds the unique constraint, this check is the only guard.
+  const [existingUsername] = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "User"
+     WHERE "usernameNormalized" = ${usernameNormalized} OR lower("username") = ${usernameNormalized}
+     LIMIT 1`;
   if (existingUsername) {
-    res.status(400).json({ message: 'Username already taken' });
-    return;
+    throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'Username already taken', [
+      { field: 'username', message: 'Username already taken' },
+    ]);
   }
 
-  // Check unique email
   const existingEmail = await prisma.user.findUnique({
     where: { email },
   });
   if (existingEmail) {
-    res.status(400).json({ message: 'Email already registered' });
-    return;
+    throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'Email already registered', [
+      { field: 'email', message: 'Email already registered' },
+    ]);
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -52,9 +69,9 @@ export async function register(req: Request, res: Response): Promise<void> {
   const newUser = await prisma.user.create({
     data: {
       username,
+      usernameNormalized,
       email,
       passwordHash,
-      avatarUrl: avatarUrl || null,
     },
   });
 
@@ -73,24 +90,8 @@ export async function register(req: Request, res: Response): Promise<void> {
 }
 
 export async function login(req: Request, res: Response): Promise<void> {
-  const { emailOrUsername, password } = req.body;
-
-  if (!emailOrUsername || !password) {
-    res.status(400).json({ message: 'All fields are required' });
-    return;
-  }
-
-  const prisma = getPrisma();
-
-  // Search by username or email
-  const user = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { username: emailOrUsername },
-        { email: emailOrUsername },
-      ],
-    },
-  });
+  const { emailOrUsername, password } = parseInput(loginSchema, req.body);
+  const user = await findUserByLogin(emailOrUsername);
 
   if (!user) {
     res.status(401).json({ message: 'Invalid credentials' });

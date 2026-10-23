@@ -1,6 +1,40 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Lock, Mail, User, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
+import { loginSchema, registerSchema, parseWithSchema, FieldError } from '@webchat/shared';
+
+type FieldErrors = Record<string, string>;
+
+function toFieldErrors(fields: FieldError[]): FieldErrors {
+  return Object.fromEntries(fields.map((f) => [f.field, f.message]));
+}
+
+interface FieldLabelProps {
+  htmlFor: string;
+  label: string;
+  error?: string;
+  className: string;
+}
+
+/**
+ * A field's label row. Its validation message shares the row with the label, so showing or
+ * clearing a message never moves anything inside the fixed form (Zero-Shift Auth Architecture).
+ */
+const FieldLabel: React.FC<FieldLabelProps> = ({ htmlFor, label, error, className }) => (
+  <div className={`flex items-baseline justify-between gap-2 ml-1 h-4 ${className}`}>
+    <label htmlFor={htmlFor} className="block text-xs font-semibold text-google-grey700 shrink-0">
+      {label}
+    </label>
+    {error && (
+      <span id={`${htmlFor}-error`} title={error} className="text-[10px] leading-4 font-medium text-google-red truncate">
+        {error}
+      </span>
+    )}
+  </div>
+);
+
+const invalidProps = (id: string, error?: string) =>
+  error ? { 'aria-invalid': true as const, 'aria-describedby': `${id}-error` } : {};
 
 export const AuthScreen: React.FC = () => {
   const { login, register } = useAuth();
@@ -10,21 +44,32 @@ export const AuthScreen: React.FC = () => {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  const clearFieldError = (field: string) =>
+    setFieldErrors((current) => {
+      if (!(field in current)) return current;
+      const rest = { ...current };
+      delete rest[field];
+      return rest;
+    });
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    const credentials = { emailOrUsername: emailOrUsername.trim(), password };
+    const parsed = parseWithSchema(loginSchema, credentials);
+    if (!parsed.success) {
+      setFieldErrors(toFieldErrors(parsed.fields));
+      return;
+    }
+    setFieldErrors({});
     setIsSubmitting(true);
 
     try {
-      if (!emailOrUsername.trim() || !password) {
-        throw new Error('Please enter your credentials');
-      }
-      await login({
-        emailOrUsername: emailOrUsername.trim(),
-        password,
-      });
+      await login(credentials);
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
     } finally {
@@ -35,17 +80,19 @@ export const AuthScreen: React.FC = () => {
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // The same shared rules the server enforces; the server stays the authority.
+    const account = { username: username.trim(), email: email.trim(), password };
+    const parsed = parseWithSchema(registerSchema, account);
+    if (!parsed.success) {
+      setFieldErrors(toFieldErrors(parsed.fields));
+      return;
+    }
+    setFieldErrors({});
     setIsSubmitting(true);
 
     try {
-      if (!username.trim() || !email.trim() || !password) {
-        throw new Error('Please fill in all fields');
-      }
-      await register({
-        username: username.trim(),
-        email: email.trim(),
-        password,
-      });
+      await register(account);
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
     } finally {
@@ -104,6 +151,7 @@ export const AuthScreen: React.FC = () => {
               onClick={() => {
                 setIsRegister(false);
                 setError(null);
+                setFieldErrors({});
               }}
               className={`flex-1 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
                 !isRegister
@@ -122,6 +170,7 @@ export const AuthScreen: React.FC = () => {
               onClick={() => {
                 setIsRegister(true);
                 setError(null);
+                setFieldErrors({});
               }}
               className={`flex-1 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${
                 isRegister
@@ -149,7 +198,7 @@ export const AuthScreen: React.FC = () => {
                 isRegister ? 'hidden' : ''
               }`}
             >
-              <form onSubmit={handleLoginSubmit} className="h-full flex flex-col justify-between">
+              <form onSubmit={handleLoginSubmit} noValidate className="h-full flex flex-col justify-between">
                 <div className="space-y-4 pt-1">
                   {error && !isRegister && (
                     <div
@@ -162,19 +211,23 @@ export const AuthScreen: React.FC = () => {
                   )}
 
                   <div>
-                    <label
+                    <FieldLabel
                       htmlFor="login-username"
-                      className="block text-xs font-semibold text-google-grey700 mb-1 ml-1"
-                    >
-                      Email or Username
-                    </label>
+                      label="Email or Username"
+                      error={fieldErrors.emailOrUsername}
+                      className="mb-1"
+                    />
                     <div className="relative">
                       <Mail className="w-4 h-4 absolute left-3.5 top-3 text-google-grey700" />
                       <input
                         id="login-username"
+                        {...invalidProps('login-username', fieldErrors.emailOrUsername)}
                         type="text"
                         value={emailOrUsername}
-                        onChange={(e) => setEmailOrUsername(e.target.value)}
+                        onChange={(e) => {
+                          setEmailOrUsername(e.target.value);
+                          clearFieldError('emailOrUsername');
+                        }}
                         placeholder="alex or alex@gdghust.dev"
                         className="w-full pl-10 pr-4 py-2.5 rounded-full border border-google-grey300 bg-google-grey50 focus:bg-white focus:outline-none focus:border-google-blue focus:ring-2 focus:ring-google-blue/20 text-xs sm:text-sm transition-all"
                         required
@@ -183,19 +236,23 @@ export const AuthScreen: React.FC = () => {
                   </div>
 
                   <div>
-                    <label
+                    <FieldLabel
                       htmlFor="login-password"
-                      className="block text-xs font-semibold text-google-grey700 mb-1 ml-1"
-                    >
-                      Password
-                    </label>
+                      label="Password"
+                      error={fieldErrors.password}
+                      className="mb-1"
+                    />
                     <div className="relative">
                       <Lock className="w-4 h-4 absolute left-3.5 top-3 text-google-grey700" />
                       <input
                         id="login-password"
+                        {...invalidProps('login-password', fieldErrors.password)}
                         type="password"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          clearFieldError('password');
+                        }}
                         placeholder="••••••••••••"
                         className="w-full pl-10 pr-4 py-2.5 rounded-full border border-google-grey300 bg-google-grey50 focus:bg-white focus:outline-none focus:border-google-blue focus:ring-2 focus:ring-google-blue/20 text-xs sm:text-sm transition-all"
                         required
@@ -237,7 +294,7 @@ export const AuthScreen: React.FC = () => {
                 !isRegister ? 'hidden' : ''
               }`}
             >
-              <form onSubmit={handleRegisterSubmit} className="h-full flex flex-col justify-between">
+              <form onSubmit={handleRegisterSubmit} noValidate className="h-full flex flex-col justify-between">
                 <div className="space-y-2.5">
                   {error && isRegister && (
                     <div
@@ -250,19 +307,23 @@ export const AuthScreen: React.FC = () => {
                   )}
 
                   <div>
-                    <label
+                    <FieldLabel
                       htmlFor="reg-username"
-                      className="block text-xs font-semibold text-google-grey700 mb-0.5 ml-1"
-                    >
-                      Username
-                    </label>
+                      label="Username"
+                      error={fieldErrors.username}
+                      className="mb-0.5"
+                    />
                     <div className="relative">
                       <User className="w-4 h-4 absolute left-3.5 top-2.5 text-google-grey700" />
                       <input
                         id="reg-username"
+                        {...invalidProps('reg-username', fieldErrors.username)}
                         type="text"
                         value={username}
-                        onChange={(e) => setUsername(e.target.value)}
+                        onChange={(e) => {
+                          setUsername(e.target.value);
+                          clearFieldError('username');
+                        }}
                         placeholder="e.g. duynat_dev"
                         className="w-full pl-10 pr-4 py-2 rounded-full border border-google-grey300 bg-google-grey50 focus:bg-white focus:outline-none focus:border-google-blue focus:ring-2 focus:ring-google-blue/20 text-xs sm:text-sm transition-all"
                         required
@@ -271,19 +332,23 @@ export const AuthScreen: React.FC = () => {
                   </div>
 
                   <div>
-                    <label
+                    <FieldLabel
                       htmlFor="reg-email"
-                      className="block text-xs font-semibold text-google-grey700 mb-0.5 ml-1"
-                    >
-                      Email Address
-                    </label>
+                      label="Email Address"
+                      error={fieldErrors.email}
+                      className="mb-0.5"
+                    />
                     <div className="relative">
                       <Mail className="w-4 h-4 absolute left-3.5 top-2.5 text-google-grey700" />
                       <input
                         id="reg-email"
+                        {...invalidProps('reg-email', fieldErrors.email)}
                         type="email"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          clearFieldError('email');
+                        }}
                         placeholder="alex@gdghust.dev"
                         className="w-full pl-10 pr-4 py-2 rounded-full border border-google-grey300 bg-google-grey50 focus:bg-white focus:outline-none focus:border-google-blue focus:ring-2 focus:ring-google-blue/20 text-xs sm:text-sm transition-all"
                         required
@@ -292,19 +357,23 @@ export const AuthScreen: React.FC = () => {
                   </div>
 
                   <div>
-                    <label
+                    <FieldLabel
                       htmlFor="reg-password"
-                      className="block text-xs font-semibold text-google-grey700 mb-0.5 ml-1"
-                    >
-                      Password
-                    </label>
+                      label="Password"
+                      error={fieldErrors.password}
+                      className="mb-0.5"
+                    />
                     <div className="relative">
                       <Lock className="w-4 h-4 absolute left-3.5 top-2.5 text-google-grey700" />
                       <input
                         id="reg-password"
+                        {...invalidProps('reg-password', fieldErrors.password)}
                         type="password"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          clearFieldError('password');
+                        }}
                         placeholder="••••••••••••"
                         className="w-full pl-10 pr-4 py-2 rounded-full border border-google-grey300 bg-google-grey50 focus:bg-white focus:outline-none focus:border-google-blue focus:ring-2 focus:ring-google-blue/20 text-xs sm:text-sm transition-all"
                         required

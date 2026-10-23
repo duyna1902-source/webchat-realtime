@@ -24,5 +24,6 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
     code: publicError.code,
     requestId: req.requestId,
   };
+  if (publicError.fields) body.fields = publicError.fields;
   res.status(publicError.status).json(body);
 };

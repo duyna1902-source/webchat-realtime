@@ -48,14 +48,18 @@ describe('Socket error layer (SEC-05, SEC-09)', () => {
   });
 
   it('an unexpected failure acks only { success: false, error: INTERNAL_ERROR, requestId } and logs the stack', async () => {
-    const ack = await emitWithAck(client!, SOCKET_EVENTS.DIRECT_SEND, { directChatId: { not: 'x' }, content: 'hi' });
+    // Passes validation, then fails in the database: PostgreSQL text cannot hold a NUL byte.
+    const room = await getPrisma().room.create({
+      data: { name: 'nul', ownerId: userId, members: { create: { userId, role: 'OWNER' } } },
+    });
+    const ack = await emitWithAck(client!, SOCKET_EVENTS.ROOM_SEND, { roomId: room.id, content: 'hi\u0000' });
 
     expect(ack).toEqual({ success: false, error: 'INTERNAL_ERROR', requestId: expect.stringMatching(/^[0-9a-f-]{36}$/) });
 
     const entry = sink.entries().find((e) => e.requestId === ack.requestId && e.level >= 50);
     expect(entry).toBeDefined();
     expect(entry!.userId).toBe(userId);
-    expect(entry!.event).toBe(SOCKET_EVENTS.DIRECT_SEND);
+    expect(entry!.event).toBe(SOCKET_EVENTS.ROOM_SEND);
     expect(entry!.err.stack).toMatch(/at /);
   });
 
@@ -73,7 +77,12 @@ describe('Socket error layer (SEC-05, SEC-09)', () => {
   it('an event sent with only an ack callback gets VALIDATION_ERROR instead of crashing the handler', async () => {
     const ack = await emitWithAck(client!, SOCKET_EVENTS.ROOM_SEND);
 
-    expect(ack).toEqual({ success: false, error: 'VALIDATION_ERROR', requestId: expect.any(String) });
+    expect(ack).toEqual({
+      success: false,
+      error: 'VALIDATION_ERROR',
+      requestId: expect.any(String),
+      fields: [{ field: '', message: expect.any(String) }],
+    });
   });
 
   it('a packet over 64KB closes the connection and the server keeps serving', async () => {

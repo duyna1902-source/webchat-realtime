@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { ERROR_CODES, ErrorCode } from '@webchat/shared';
+import { ERROR_CODES, ErrorCode, FieldError } from '@webchat/shared';
 
 /**
  * An expected failure whose `message` is safe to show the user. Anything thrown that is
@@ -8,12 +8,20 @@ import { ERROR_CODES, ErrorCode } from '@webchat/shared';
 export class AppError extends Error {
   readonly status: number;
   readonly code: ErrorCode;
+  /** Invalid fields, shown to the client as they are (validation errors only). */
+  readonly fields?: FieldError[];
 
-  constructor(status: number, code: ErrorCode, message: string = http.STATUS_CODES[status] ?? 'Error') {
+  constructor(
+    status: number,
+    code: ErrorCode,
+    message: string = http.STATUS_CODES[status] ?? 'Error',
+    fields?: FieldError[]
+  ) {
     super(message);
     this.name = 'AppError';
     this.status = status;
     this.code = code;
+    this.fields = fields;
   }
 }
 
@@ -21,6 +29,7 @@ export interface PublicError {
   status: number;
   code: ErrorCode;
   message: string;
+  fields?: FieldError[];
 }
 
 export const INTERNAL_ERROR: PublicError = {
@@ -35,7 +44,9 @@ export const INTERNAL_ERROR: PublicError = {
  */
 export function toPublicError(err: unknown): PublicError {
   if (err instanceof AppError) {
-    return { status: err.status, code: err.code, message: err.message };
+    return err.fields
+      ? { status: err.status, code: err.code, message: err.message, fields: err.fields }
+      : { status: err.status, code: err.code, message: err.message };
   }
 
   const candidate = err as { type?: unknown; status?: unknown; expose?: unknown } | null;

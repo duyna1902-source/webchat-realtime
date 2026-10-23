@@ -11,7 +11,11 @@ import {
   RoomRole,
   SOCKET_EVENTS,
   RoomMemberChangePayload,
+  createRoomSchema,
+  addRoomMemberSchema,
+  changeRoomMemberRoleSchema,
 } from '@webchat/shared';
+import { parseInput } from '../lib/validation.js';
 import { toUserDto } from './user.controller.js';
 import { getServerContext } from '../context.js';
 import { syncUserSocketsRoomMembership } from '../socket/room.handler.js';
@@ -25,7 +29,6 @@ export function toRoomReceiveMessagePayload(msg: any): RoomReceiveMessagePayload
     sender: {
       id: msg.sender.id,
       username: msg.sender.username,
-      avatarUrl: msg.sender.avatarUrl,
     },
     content: msg.content,
     type: msg.type,
@@ -55,11 +58,7 @@ export async function createRoom(req: AuthenticatedRequest, res: Response): Prom
     return;
   }
 
-  const { name, description } = req.body;
-  if (!name || typeof name !== 'string' || !name.trim()) {
-    res.status(400).json({ message: 'Room name is required' });
-    return;
-  }
+  const { name, description } = parseInput(createRoomSchema, req.body);
 
   const currentUserId = req.user.userId;
   const prisma = getPrisma();
@@ -67,8 +66,8 @@ export async function createRoom(req: AuthenticatedRequest, res: Response): Prom
   // Create room and add creator as OWNER inside a transaction
   const room = await prisma.room.create({
     data: {
-      name: name.trim(),
-      description: description ? description.trim() : null,
+      name,
+      description,
       ownerId: currentUserId,
       members: {
         create: {
@@ -248,12 +247,7 @@ export async function addRoomMember(req: AuthenticatedRequest, res: Response): P
 
   const currentUserId = req.user.userId;
   const { id } = req.params;
-  const { userId: targetUserId } = req.body;
-
-  if (!targetUserId || typeof targetUserId !== 'string') {
-    res.status(400).json({ message: 'userId is required' });
-    return;
-  }
+  const { userId: targetUserId } = parseInput(addRoomMemberSchema, req.body);
 
   const prisma = getPrisma();
 
@@ -414,12 +408,7 @@ export async function changeRoomMemberRole(req: AuthenticatedRequest, res: Respo
 
   const currentUserId = req.user.userId;
   const { id, userId: targetUserId } = req.params;
-  const { role } = req.body;
-
-  if (role !== RoomRole.ADMIN && role !== RoomRole.MEMBER) {
-    res.status(400).json({ message: 'Valid role (ADMIN or MEMBER) is required' });
-    return;
-  }
+  const { role } = parseInput(changeRoomMemberRoleSchema, req.body);
 
   const prisma = getPrisma();
 

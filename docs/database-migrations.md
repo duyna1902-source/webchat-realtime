@@ -11,6 +11,7 @@ Run every command below from `server/`, or through `npm run <script> --workspace
 | `server/prisma/schema.prisma` | The source of truth for the schema. |
 | `server/prisma/migrations/0_baseline/` | The schema as production had it when it was created with `db push`. It is the output of `prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script` at the commit that added it. Never edit it. |
 | `server/prisma/migrations/20261023000000_enable_rls/` | Enables Row Level Security, with no policy, on every table that exists at that point, including Prisma's `_prisma_migrations` (decision Q42). |
+| `server/prisma/migrations/20261024000000_expand_username_normalized/` | Expand (ticket 07): adds the nullable `User.usernameNormalized` key. The data upgrade fills it; ticket 20 makes it required and unique. |
 | `server/prisma/schema.sql` | **Generated. Do not edit by hand.** It is the DDL that the tests load into in-memory PGlite. Regenerate it with `npm run db:schema-sql`. |
 | `server/scripts/generate-schema-sql.mjs` | The generator. With `--check` it fails if `schema.sql` is stale, and the test suite runs that check. |
 | `server/src/upgrade/` and `server/src/cli/upgrade-data.ts` | The data upgrade command (see below). |
@@ -81,5 +82,17 @@ The command loads the normal server configuration (`loadConfig`). It connects Pr
 - **One transaction.** Every step runs inside a single database transaction. A failing step rolls back all of them.
 - **Dry run.** `--dry-run` runs the same code and then rolls the transaction back, so its report already reflects each step seeing the earlier steps' changes. Storage writes cannot be rolled back. In a dry run, every storage method except the read-only ones (`list`, `createSignedUrl`, `createSignedUrls`) is skipped and listed in the report.
 - **Idempotent.** Each step must report 0 changes on a second run.
+
+Registered steps, in order:
+
+| Step | What it does |
+|---|---|
+| `normalize-usernames` | Renames usernames that break the rules (3–32 characters of `[a-zA-Z0-9_.]`) to `user_<first 6 characters of the id>`. Of a case-insensitive duplicate pair, the account created first keeps its name. |
+| `fill-username-normalized` | Sets `usernameNormalized` to the lowercase username. |
+| `lowercase-emails` | Lowercases emails. A later account whose email clashes gets `+dup<n>` in the local part. |
+| `clear-avatar-urls` | Sets every `avatarUrl` to null (the column is dropped by the contract migration). |
+| `sanitize-rooms` | Removes control characters, trims, and cuts room names to 64 and descriptions to 500 characters. An empty name becomes `Room <first 6 characters of the id>`; an empty description becomes null. |
+
+The report lists each changed username, email, room name and description as `old -> new` (very long values shortened).
 
 To add a step, implement `UpgradeStep` from `server/src/upgrade/runner.ts`. Register it in `UPGRADE_STEPS`, then test it through `runUpgradeCommand` against a database built with `tests/helpers/migrations.ts` (see `tests/upgrade-data.test.ts`).

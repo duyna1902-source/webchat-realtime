@@ -16,7 +16,11 @@ import {
   MessageStatus,
   MESSAGE_LIMITS,
   ERROR_CODES,
+  directSendSchema,
+  directTypingSchema,
+  directReadSchema,
 } from '@webchat/shared';
+import { parseInput } from '../lib/validation.js';
 
 export async function handleDirectMessagesDeliveryOnConnect(io: Server, userId: string, log: Logger): Promise<void> {
   try {
@@ -75,11 +79,10 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
   socket.on(
     SOCKET_EVENTS.DIRECT_SEND,
     socketHandler<DirectSendMessagePayload>(log, SOCKET_EVENTS.DIRECT_SEND, async (payload) => {
-      const { directChatId, content, type, attachmentUrl, attachmentName, attachmentSize } = payload || ({} as DirectSendMessagePayload);
-
-      if (!directChatId || (!content && !attachmentUrl)) {
-        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'directChatId and content or attachment are required');
-      }
+      const { directChatId, content, type, attachmentUrl, attachmentName, attachmentSize } = parseInput(
+        directSendSchema,
+        payload
+      );
 
       if (content && content.length > MESSAGE_LIMITS.DIRECT) {
         throw new AppError(400, ERROR_CODES.MESSAGE_TOO_LONG, `Message exceeds character limit of ${MESSAGE_LIMITS.DIRECT}`);
@@ -116,7 +119,7 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
           directChatId,
           senderId: userId,
           content: content || '',
-          type: (type as any) || MessageType.TEXT,
+          type: type || MessageType.TEXT,
           status: initialStatus,
           attachmentUrl: attachmentUrl || null,
           attachmentName: attachmentName || null,
@@ -140,7 +143,6 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
         sender: {
           id: message.sender.id,
           username: message.sender.username,
-          avatarUrl: message.sender.avatarUrl,
         },
         content: message.content,
         type: message.type as MessageType,
@@ -162,12 +164,8 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
 
   socket.on(
     SOCKET_EVENTS.DIRECT_TYPING,
-    socketHandler<{ directChatId: string; isTyping: boolean }>(log, SOCKET_EVENTS.DIRECT_TYPING, async (payload) => {
-      if (!payload || !payload.directChatId || typeof payload.isTyping !== 'boolean') {
-        return;
-      }
-
-      const { directChatId, isTyping } = payload;
+    socketHandler<DirectTypingPayload>(log, SOCKET_EVENTS.DIRECT_TYPING, async (payload) => {
+      const { directChatId, isTyping } = parseInput(directTypingSchema, payload);
       const prisma = getPrisma();
 
       // Verify that direct chat exists and sender is a participant
@@ -200,12 +198,8 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
 
   socket.on(
     SOCKET_EVENTS.DIRECT_READ,
-    socketHandler<{ directChatId: string; messageId: string }>(log, SOCKET_EVENTS.DIRECT_READ, async (payload) => {
-      if (!payload || !payload.directChatId || !payload.messageId) {
-        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'directChatId and messageId are required');
-      }
-
-      const { directChatId, messageId } = payload;
+    socketHandler<DirectReadPayload>(log, SOCKET_EVENTS.DIRECT_READ, async (payload) => {
+      const { directChatId, messageId } = parseInput(directReadSchema, payload);
       const prisma = getPrisma();
 
       // Verify that direct chat exists and caller is a participant

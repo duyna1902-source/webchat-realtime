@@ -16,7 +16,13 @@ import {
   MESSAGE_LIMITS,
   RoomRole,
   ERROR_CODES,
+  roomJoinSchema,
+  roomLeaveSchema,
+  roomSendSchema,
+  roomReadSchema,
+  roomTypingSchema,
 } from '@webchat/shared';
+import { parseInput } from '../lib/validation.js';
 
 export async function autoJoinUserRooms(io: Server, socket: AuthenticatedSocket, log: Logger): Promise<void> {
   const userId = socket.data?.user?.userId;
@@ -94,10 +100,7 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, lo
   socket.on(
     SOCKET_EVENTS.ROOM_JOIN,
     socketHandler<RoomJoinPayload>(log, SOCKET_EVENTS.ROOM_JOIN, async (payload) => {
-      const { roomId } = payload || ({} as RoomJoinPayload);
-      if (!roomId) {
-        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'roomId is required');
-      }
+      const { roomId } = parseInput(roomJoinSchema, payload);
 
       await requireMember(roomId);
 
@@ -109,10 +112,8 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, lo
   socket.on(
     SOCKET_EVENTS.ROOM_LEAVE,
     socketHandler<RoomLeavePayload>(log, SOCKET_EVENTS.ROOM_LEAVE, async (payload) => {
-      const { roomId } = payload || ({} as RoomLeavePayload);
-      if (roomId) {
-        socket.leave(`room:${roomId}`);
-      }
+      const { roomId } = parseInput(roomLeaveSchema, payload);
+      socket.leave(`room:${roomId}`);
       return { success: true };
     })
   );
@@ -120,10 +121,7 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, lo
   socket.on(
     SOCKET_EVENTS.ROOM_SEND,
     socketHandler<RoomSendMessagePayload>(log, SOCKET_EVENTS.ROOM_SEND, async (payload) => {
-      const { roomId, content, type, attachmentUrl, attachmentName, attachmentSize } = payload || ({} as RoomSendMessagePayload);
-      if (!roomId || (!content && !attachmentUrl)) {
-        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'roomId and content or attachment are required');
-      }
+      const { roomId, content, type, attachmentUrl, attachmentName, attachmentSize } = parseInput(roomSendSchema, payload);
 
       const prisma = getPrisma();
 
@@ -145,7 +143,7 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, lo
           roomId,
           senderId: userId,
           content: content || '',
-          type: (type as any) || MessageType.TEXT,
+          type: type || MessageType.TEXT,
           attachmentUrl: attachmentUrl || null,
           attachmentName: attachmentName || null,
           attachmentSize: attachmentSize || null,
@@ -168,7 +166,6 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, lo
         sender: {
           id: message.sender.id,
           username: message.sender.username,
-          avatarUrl: message.sender.avatarUrl,
         },
         content: message.content,
         type: message.type as MessageType,
@@ -187,12 +184,8 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, lo
 
   socket.on(
     SOCKET_EVENTS.ROOM_READ,
-    socketHandler<{ roomId: string; messageId: string }>(log, SOCKET_EVENTS.ROOM_READ, async (payload) => {
-      if (!payload || !payload.roomId || !payload.messageId) {
-        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'roomId and messageId are required');
-      }
-
-      const { roomId, messageId } = payload;
+    socketHandler<RoomReadPayload>(log, SOCKET_EVENTS.ROOM_READ, async (payload) => {
+      const { roomId, messageId } = parseInput(roomReadSchema, payload);
       const prisma = getPrisma();
 
       // Verify that user is a member of this room
@@ -237,10 +230,7 @@ export function registerRoomHandlers(io: Server, socket: AuthenticatedSocket, lo
   socket.on(
     SOCKET_EVENTS.ROOM_TYPING,
     socketHandler<RoomTypingPayload>(log, SOCKET_EVENTS.ROOM_TYPING, async (payload) => {
-      const { roomId, isTyping } = payload || ({} as RoomTypingPayload);
-      if (!roomId || typeof isTyping !== 'boolean') {
-        throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'roomId and isTyping are required');
-      }
+      const { roomId, isTyping } = parseInput(roomTypingSchema, payload);
 
       // Validate user is a member of the room
       await requireMember(roomId);
