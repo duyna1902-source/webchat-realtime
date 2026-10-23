@@ -38,6 +38,7 @@ import {
   AlertCircle,
   X,
 } from 'lucide-react';
+import { apiFetch } from '../../utils/apiFetch';
 
 interface ChatAreaProps {
   activeChat: DirectChatListItemDto | null;
@@ -60,7 +61,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onSendMessage,
   onBack,
 }) => {
-  const { currentUser, token } = useAuth();
+  const { currentUser } = useAuth();
   const { isConnected } = useSocket();
   const [inputText, setInputText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -196,11 +197,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch('/api/upload', {
+    const res = await apiFetch('/api/upload', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
       body: formData,
     });
 

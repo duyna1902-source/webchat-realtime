@@ -48,8 +48,7 @@ const mockChat: DirectChatListItemDto = {
 
 function renderWithProviders(ui: React.ReactElement, socketConnected = true, customSocket?: any) {
   const authValue: any = {
-    currentUser: mockUser,
-    token: 'token-xyz',
+    currentUser: mockUser,
     isLoading: false,
     login: vi.fn(),
     register: vi.fn(),
@@ -369,8 +368,7 @@ describe('Direct Chat Client Components', () => {
     rerender(
       <AuthContext.Provider
         value={{
-          currentUser: mockUser,
-          token: 'token-xyz',
+          currentUser: mockUser,
           isLoading: false,
           login: vi.fn(),
           register: vi.fn(),

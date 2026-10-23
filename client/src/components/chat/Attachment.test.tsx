@@ -46,8 +46,7 @@ const mockChat: DirectChatListItemDto = {
 
 function renderWithProviders(ui: React.ReactElement) {
   const authValue: any = {
-    currentUser: mockUser,
-    token: 'token-xyz',
+    currentUser: mockUser,
     isLoading: false,
     login: vi.fn(),
     register: vi.fn(),
@@ -700,8 +699,7 @@ describe('File Attachments, Image Preview & Message Cards', () => {
     it('displays role-aware counter (X/2000 for MEMBER, X/4000 for OWNER/ADMIN) when an attachment is selected in Room Chat', async () => {
       // 1. As MEMBER (2000 quota)
       const memberAuthValue = {
-        currentUser: { id: 'user-member-id', username: 'charlie_member', email: 'charlie@example.com' },
-        token: 'token-xyz',
+        currentUser: { id: 'user-member-id', username: 'charlie_member', email: 'charlie@example.com' },
         isLoading: false,
       };
 
@@ -750,8 +748,7 @@ describe('File Attachments, Image Preview & Message Cards', () => {
 
       // 2. Now render as OWNER (4000 quota) and draft 2001 chars
       const ownerAuthValue = {
-        currentUser: { id: 'user-owner-id', username: 'alice_owner', email: 'alice@example.com' },
-        token: 'token-xyz',
+        currentUser: { id: 'user-owner-id', username: 'alice_owner', email: 'alice@example.com' },
         isLoading: false,
       };
 

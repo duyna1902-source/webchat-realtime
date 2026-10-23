@@ -31,7 +31,7 @@ const roomDetails = {
 } as unknown as RoomDetailDto;
 
 function renderWithProviders(ui: React.ReactElement) {
-  const authValue: any = { currentUser: me, token: 'token-xyz', isLoading: false, login: vi.fn(), register: vi.fn(), logout: vi.fn() };
+  const authValue: any = { currentUser: me, isLoading: false, login: vi.fn(), register: vi.fn(), logout: vi.fn() };
   const socketValue: any = { socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() }, isConnected: true, isConnecting: false, connectionError: null };
   return render(
     <AuthContext.Provider value={authValue}>
