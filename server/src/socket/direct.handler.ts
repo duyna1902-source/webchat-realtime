@@ -22,6 +22,7 @@ import {
   directReadSchema,
 } from '@webchat/shared';
 import { parseInput } from '../lib/validation.js';
+import { toPublicUserDto } from '../controllers/user.controller.js';
 
 export async function handleDirectMessagesDeliveryOnConnect(io: Server, userId: string, log: Logger): Promise<void> {
   try {
@@ -142,10 +143,7 @@ export function registerDirectChatHandlers(io: Server, socket: AuthenticatedSock
         id: message.id,
         directChatId: message.directChatId,
         senderId: message.senderId,
-        sender: {
-          id: message.sender.id,
-          username: message.sender.username,
-        },
+        sender: toPublicUserDto(message.sender),
         content: message.content,
         type: message.type as MessageType,
         status: message.status as MessageStatus,

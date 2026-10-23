@@ -5,12 +5,20 @@ import { DirectReceiveMessagePayload, RoomReceiveMessagePayload } from './events
 // AUTH DTOs
 // ==========================================
 
-export interface UserDto {
+/**
+ * Another User as anyone may see them: user search, Room Members, Direct Chat partners and
+ * message senders, over REST and socket alike. Never carries the email (SEC-13).
+ */
+export interface PublicUserDto {
   id: string;
   username: string;
-  email: string;
   isOnline: boolean;
   lastSeenAt: string;
+}
+
+/** The signed-in User's own account, with email. Only `/api/auth/me`, register and login return it. */
+export interface SelfUserDto extends PublicUserDto {
+  email: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -31,7 +39,7 @@ export interface LoginRequestDto {
  * HttpOnly `__Host-session` cookie, never in a body (ADR 0010).
  */
 export interface AuthResponseDto {
-  user: UserDto;
+  user: SelfUserDto;
 }
 
 // ==========================================
@@ -44,12 +52,12 @@ export interface DirectChatDto {
   user2Id: string;
   createdAt: string;
   updatedAt: string;
-  partner?: UserDto;
+  partner?: PublicUserDto;
 }
 
 export interface DirectChatListItemDto {
   id: string;
-  partner: UserDto;
+  partner: PublicUserDto;
   lastMessage?: DirectReceiveMessagePayload | null;
   unreadCount: number;
   lastReadMessageId?: string | null;
@@ -98,7 +106,7 @@ export interface RoomMemberDto {
   role: RoomRole;
   lastReadMessageId?: string | null;
   joinedAt: string;
-  user: UserDto;
+  user: PublicUserDto;
 }
 
 export interface RoomDetailDto extends RoomDto {

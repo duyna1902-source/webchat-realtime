@@ -19,6 +19,7 @@ import {
   SOCKET_EVENTS,
 } from '@webchat/shared';
 import * as notificationUtils from '../../utils/notifications';
+import { publicUser } from '../../test/fixtures';
 
 const mockCurrentUser = {
   id: 'user-alice-id',
@@ -93,7 +94,7 @@ const mockRoomDetails: RoomDetailDto = {
 
 function renderWithProviders(ui: React.ReactElement, socketMock?: any) {
   const authValue: any = {
-    currentUser: mockCurrentUser,
+    currentUser: mockCurrentUser,
     isLoading: false,
     login: vi.fn(),
     register: vi.fn(),
@@ -123,7 +124,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'msg-sent',
         directChatId: 'chat-alice-bob',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
+        sender: publicUser(mockCurrentUser.id, mockCurrentUser.username),
         content: 'Hello Bob! This is sent.',
         type: MessageType.TEXT,
         status: MessageStatus.SENT,
@@ -150,7 +151,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'msg-delivered',
         directChatId: 'chat-alice-bob',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
+        sender: publicUser(mockCurrentUser.id, mockCurrentUser.username),
         content: 'Hello Bob! This is delivered.',
         type: MessageType.TEXT,
         status: MessageStatus.DELIVERED,
@@ -177,7 +178,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'msg-read',
         directChatId: 'chat-alice-bob',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
+        sender: publicUser(mockCurrentUser.id, mockCurrentUser.username),
         content: 'Hello Bob! You have read this.',
         type: MessageType.TEXT,
         status: MessageStatus.READ,
@@ -206,7 +207,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'msg-1',
         directChatId: 'chat-alice-bob',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
+        sender: publicUser(mockCurrentUser.id, mockCurrentUser.username),
         content: 'First message',
         type: MessageType.TEXT,
         status: MessageStatus.READ,
@@ -217,7 +218,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'msg-2',
         directChatId: 'chat-alice-bob',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
+        sender: publicUser(mockCurrentUser.id, mockCurrentUser.username),
         content: 'Second message',
         type: MessageType.TEXT,
         status: MessageStatus.SENT,
@@ -247,7 +248,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
       rerender(
         <AuthContext.Provider
           value={{
-            currentUser: mockCurrentUser,
+            currentUser: mockCurrentUser,
             isLoading: false,
             login: vi.fn(),
             register: vi.fn(),
@@ -286,7 +287,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'room-msg-sent',
         roomId: 'room-1',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
+        sender: publicUser(mockCurrentUser.id, mockCurrentUser.username),
         content: 'Message waiting for readers',
         type: MessageType.TEXT,
         createdAt: new Date().toISOString(),
@@ -321,7 +322,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'room-msg-1',
         roomId: 'room-1',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
+        sender: publicUser(mockCurrentUser.id, mockCurrentUser.username),
         content: 'Welcome team!',
         type: MessageType.TEXT,
         createdAt: new Date().toISOString(),
@@ -425,7 +426,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: `msg-${i + 1}`,
         directChatId: 'chat-alice-bob',
         senderId: mockPartnerUser.id,
-        sender: { id: mockPartnerUser.id, username: mockPartnerUser.username },
+        sender: publicUser(mockPartnerUser.id, mockPartnerUser.username),
         content: `Message #${i + 1}`,
         type: MessageType.TEXT,
         status: MessageStatus.READ,
@@ -573,7 +574,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
             roomId: 'room-other',
             senderId: 'user-bob-id',
             // An old server or a tampered payload may still carry an avatar URL.
-            sender: { id: 'user-bob-id', username: 'bob', avatarUrl: 'https://attacker.example/track.png' },
+            sender: { ...publicUser('user-bob-id', 'bob'), avatarUrl: 'https://attacker.example/track.png' },
             content: 'Hello',
             type: MessageType.TEXT,
             createdAt: new Date().toISOString(),
