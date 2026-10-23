@@ -108,6 +108,8 @@ While the new instance runs the contract migration, the old instance is still se
 
 ## The data upgrade command
 
+Against a real database, take a `pg_dump` backup first ([incident runbook](incident-runbook.md#back-up-the-database-before-any-data-operation)), and run the command while nobody is uploading.
+
 ```bash
 npm run db:upgrade-data --workspace=server -- --dry-run   # report only
 npm run db:upgrade-data --workspace=server                # apply

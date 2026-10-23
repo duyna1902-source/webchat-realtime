@@ -2,6 +2,8 @@
 
 Hệ thống yêu cầu xử lý tệp đính kèm (hình ảnh/tài liệu tối đa 10MB) và đảm bảo tự động kết nối lại khi mất mạng để đồng bộ dữ liệu mà không tốn chi phí hạ tầng. Chúng tôi quyết định sử dụng Cloudinary/Supabase Storage cho tệp đính kèm và mô hình đồng bộ hai lớp (Socket.io Connection State Recovery kết hợp REST Catch-up API).
 
+Ghi chú (2026-10): adapter Cloudinary đã bị gỡ trong đợt nâng cấp bảo mật, nên tệp đính kèm chỉ còn lưu trên Supabase Storage, trong bucket private ([ADR 0009](./0009-private-attachments-via-records-and-signed-urls.md)).
+
 ## Status
 accepted, một phần bị thay thế bởi ADR-0009 (Attachment là bản ghi do server quản lý, nằm trong bucket private và được truy cập qua signed URL thay cho URL public)
 
