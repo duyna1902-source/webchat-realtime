@@ -6,11 +6,11 @@ Spec: [`../spec.md`](../spec.md), mục *Quyền riêng tư User*.
 
 **Blocked by:** 07 (Validation dùng chung, quy tắc tài khoản và room)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Có hai DTO tách biệt, định nghĩa trong `shared`:
+- [x] Có hai DTO tách biệt, định nghĩa trong `shared`:
   - `SelfUserDto` có email, chỉ trả ở `/api/auth/me`, register và login.
   - `PublicUserDto` gồm `{ id, username, isOnline, lastSeenAt }`, dùng ở mọi chỗ còn lại, kể cả payload socket.
-- [ ] `GET /api/users` thiếu `q` hoặc `q` rỗng thì trả `400`. Có `q` thì khớp theo `username` không phân biệt hoa thường, không khớp theo email, và trả tối đa 20 kết quả.
-- [ ] Client hiển thị đúng ở mọi chỗ trước đây có dùng email của người khác (nếu có).
-- [ ] Test hồi quy qua seam 1: A11 (`/api/users` không chứa email, thiếu `q` trả `400`). Tìm theo một phần email không ra ai. Chi tiết room, danh sách Direct Chat và tin nhắn broadcast không chứa email của người khác.
+- [x] `GET /api/users` thiếu `q` hoặc `q` rỗng thì trả `400`. Có `q` thì khớp theo `username` không phân biệt hoa thường, không khớp theo email, và trả tối đa 20 kết quả.
+- [x] Client hiển thị đúng ở mọi chỗ trước đây có dùng email của người khác (nếu có).
+- [x] Test hồi quy qua seam 1: A11 (`/api/users` không chứa email, thiếu `q` trả `400`). Tìm theo một phần email không ra ai. Chi tiết room, danh sách Direct Chat và tin nhắn broadcast không chứa email của người khác.

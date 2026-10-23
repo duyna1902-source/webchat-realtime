@@ -6,11 +6,11 @@ Spec: [`../spec.md`](../spec.md), mục *Tổng quan kiến trúc → Blueprint 
 
 **Blocked by:** 01 (Server factory và module cấu hình)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Storage adapter Supabase đọc `SUPABASE_SECRET_KEY` từ cấu hình và chỉ gửi key qua header `apikey`. Bỏ các biến `SUPABASE_SERVICE_ROLE_KEY` và `SUPABASE_ANON_KEY`.
-- [ ] Xóa adapter Cloudinary cùng các biến cấu hình của nó.
-- [ ] Trong blueprint Render, mọi secret (`DATABASE_URL`, `SUPABASE_SECRET_KEY`, `GIPHY_API_KEY`, `JWT_SECRET` cho tới khi ticket 10 gỡ nó) dùng `sync: false`. Không còn giá trị secret nào trong file. `APP_ORIGIN` được ghi dưới dạng giá trị thường.
-- [ ] Có pre-commit hook `gitleaks`, kèm hướng dẫn cài đặt cho developer. Chạy `gitleaks` trên trạng thái hiện tại của repo không còn phát hiện nào, trừ các phát hiện trong lịch sử git đã được ghi nhận.
-- [ ] `.env.example` phản ánh các biến mới.
-- [ ] Test qua seam 1 với một adapter Supabase dùng `fetch` giả: request upload chỉ mang header `apikey` và không có `Authorization`.
+- [x] Storage adapter Supabase đọc `SUPABASE_SECRET_KEY` từ cấu hình và chỉ gửi key qua header `apikey`. Bỏ các biến `SUPABASE_SERVICE_ROLE_KEY` và `SUPABASE_ANON_KEY`.
+- [x] Xóa adapter Cloudinary cùng các biến cấu hình của nó.
+- [x] Trong blueprint Render, mọi secret (`DATABASE_URL`, `SUPABASE_SECRET_KEY`, `GIPHY_API_KEY`, `JWT_SECRET` cho tới khi ticket 10 gỡ nó) dùng `sync: false`. Không còn giá trị secret nào trong file. `APP_ORIGIN` được ghi dưới dạng giá trị thường.
+- [x] Có pre-commit hook `gitleaks`, kèm hướng dẫn cài đặt cho developer. Chạy `gitleaks` trên trạng thái hiện tại của repo không còn phát hiện nào, trừ các phát hiện trong lịch sử git đã được ghi nhận.
+- [x] `.env.example` phản ánh các biến mới.
+- [x] Test qua seam 1 với một adapter Supabase dùng `fetch` giả: request upload chỉ mang header `apikey` và không có `Authorization`.

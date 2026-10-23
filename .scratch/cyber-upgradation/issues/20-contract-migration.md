@@ -8,17 +8,17 @@ Spec: [`../spec.md`](../spec.md), mục *Thay đổi schema DB → Contract migr
 
 **Blocked by:** 07 (Validation dùng chung, quy tắc tài khoản và room), 13 (Bản ghi Attachment và signed URL), 14 (Nâng cấp Attachment cũ)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Migration contract:
+- [x] Migration contract:
   - Xóa `User.avatarUrl` và các cột `attachmentUrl`/`attachmentName`/`attachmentSize` của Direct Message và Room Message.
   - Đặt khóa username chuẩn hóa thành `NOT NULL UNIQUE`, đảm bảo `email` unique ở dạng chữ thường.
   - Thêm ràng buộc độ dài cho `Room.name` và `Room.description`.
-- [ ] Migration **báo lỗi rõ ràng** nếu dữ liệu chưa được chuẩn hóa (ví dụ còn khóa username null, hoặc còn tin có `attachmentUrl` chưa được xử lý), thay vì âm thầm làm mất dữ liệu.
-- [ ] Mã ứng dụng không còn tham chiếu tới các cột bị xóa. Bỏ phần kiểm tra trùng username ở tầng ứng dụng nếu ràng buộc DB đã đảm nhiệm, nhưng vẫn trả lỗi validate thân thiện khi trùng.
-- [ ] Schema PGlite sinh tự động được tái tạo theo schema mới.
-- [ ] Test qua seam 3: dựng baseline, nạp dữ liệu rác, áp các migration expand, chạy lệnh nâng cấp dữ liệu, áp migration contract. Kiểm tra:
+- [x] Migration **báo lỗi rõ ràng** nếu dữ liệu chưa được chuẩn hóa (ví dụ còn khóa username null, hoặc còn tin có `attachmentUrl` chưa được xử lý), thay vì âm thầm làm mất dữ liệu.
+- [x] Mã ứng dụng không còn tham chiếu tới các cột bị xóa. Bỏ phần kiểm tra trùng username ở tầng ứng dụng nếu ràng buộc DB đã đảm nhiệm, nhưng vẫn trả lỗi validate thân thiện khi trùng.
+- [x] Schema PGlite sinh tự động được tái tạo theo schema mới.
+- [x] Test qua seam 3: dựng baseline, nạp dữ liệu rác, áp các migration expand, chạy lệnh nâng cấp dữ liệu, áp migration contract. Kiểm tra:
   - Mọi ràng buộc có hiệu lực: chèn trực tiếp `Alice` khi đã có `alice` bị DB từ chối.
   - Mọi bảng vẫn bật RLS.
-- [ ] Test qua seam 3: áp migration contract khi **chưa** chạy lệnh dữ liệu thì báo lỗi.
-- [ ] Toàn bộ test server và client pass.
+- [x] Test qua seam 3: áp migration contract khi **chưa** chạy lệnh dữ liệu thì báo lỗi.
+- [x] Toàn bộ test server và client pass.

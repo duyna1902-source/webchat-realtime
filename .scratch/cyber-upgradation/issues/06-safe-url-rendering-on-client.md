@@ -6,11 +6,11 @@ Spec: [`../spec.md`](../spec.md), mục *Attachment → Client* và *Testing Dec
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Có helper URL an toàn dùng chung ở client.
-- [ ] Mọi chỗ hiện đang dùng URL từ tin nhắn đều đi qua helper: thẻ tài liệu và nút Download, Document Preview (iframe PDF, `fetch` preview văn bản, các link), Image Lightbox, click mở GIF.
-- [ ] URL bị từ chối thì Attachment hiển thị ở trạng thái không khả dụng thay cho một link hỏng.
-- [ ] Test qua seam 4, render component tin nhắn: tin `DOCUMENT` với `attachmentUrl: "javascript:alert(1)"` và tên `report.pdf` không tạo ra `href`, `src` hay iframe nào mang scheme `javascript:`. Mở preview hay bấm Download đều không gọi `window.open` hay điều hướng với URL đó (A18).
-- [ ] Test qua seam 4: tin `EMOJI_GIF` có `content` là `javascript:alert(1)` không gọi `window.open` khi click (A20).
-- [ ] Test xác nhận URL `https://` hợp lệ vẫn hiển thị và mở được như trước.
+- [x] Có helper URL an toàn dùng chung ở client.
+- [x] Mọi chỗ hiện đang dùng URL từ tin nhắn đều đi qua helper: thẻ tài liệu và nút Download, Document Preview (iframe PDF, `fetch` preview văn bản, các link), Image Lightbox, click mở GIF.
+- [x] URL bị từ chối thì Attachment hiển thị ở trạng thái không khả dụng thay cho một link hỏng.
+- [x] Test qua seam 4, render component tin nhắn: tin `DOCUMENT` với `attachmentUrl: "javascript:alert(1)"` và tên `report.pdf` không tạo ra `href`, `src` hay iframe nào mang scheme `javascript:`. Mở preview hay bấm Download đều không gọi `window.open` hay điều hướng với URL đó (A18).
+- [x] Test qua seam 4: tin `EMOJI_GIF` có `content` là `javascript:alert(1)` không gọi `window.open` khi click (A20).
+- [x] Test xác nhận URL `https://` hợp lệ vẫn hiển thị và mở được như trước.
