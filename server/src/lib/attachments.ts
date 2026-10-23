@@ -67,6 +67,19 @@ export function attachmentOf(
   return message.attachment ? (signed.get(message.attachment.id) ?? null) : null;
 }
 
+/**
+ * True when the message should show "attachment no longer available": the data upgrade removed
+ * its legacy attachment or GIF, or it is an image or document message without a readable
+ * Attachment (e.g. its object could not be signed).
+ */
+export function isAttachmentUnavailable(
+  message: { type: string; attachmentUnavailable?: boolean | null },
+  attachment: AttachmentDto | null
+): boolean {
+  if (message.attachmentUnavailable) return true;
+  return !attachment && (message.type === MessageType.IMAGE || message.type === MessageType.DOCUMENT);
+}
+
 /** Message type of a message carrying an Attachment of this kind. */
 export function messageTypeFor(kind: AttachmentKind | string): MessageType {
   return kind === AttachmentKind.IMAGE ? MessageType.IMAGE : MessageType.DOCUMENT;

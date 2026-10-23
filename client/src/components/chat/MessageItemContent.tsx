@@ -31,6 +31,8 @@ interface MessageItemContentProps {
   type?: MessageType;
   /** The message's Attachment, with a signed URL that is refreshed once if it expired or fails. */
   attachment?: AttachmentDto | null;
+  /** The server removed this message's attachment or GIF (legacy data): show the notice instead. */
+  attachmentUnavailable?: boolean;
   isMe?: boolean;
   /** Receives the Attachment with its current (possibly refreshed) URL. */
   onImageClick?: (attachment: AttachmentDto) => void;
@@ -41,6 +43,7 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
   content,
   type,
   attachment: givenAttachment,
+  attachmentUnavailable = false,
   isMe = false,
   onImageClick,
   onDocumentClick,
@@ -51,6 +54,10 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
   const { attachment, url: attachmentUrl, onLoadError } = useAttachmentUrl(givenAttachment);
   const attachmentName = attachment?.name;
   const attachmentSize = attachment?.size;
+
+  if (attachmentUnavailable) {
+    return <UnavailableAttachment caption={content.trim() !== '' ? content : null} isMe={isMe} />;
+  }
 
   if (isGif) {
     const gifUrl = safeUrl(content);

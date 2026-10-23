@@ -506,6 +506,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                       content={msg.content}
                       type={msg.type}
                       attachment={msg.attachment}
+                      attachmentUnavailable={msg.attachmentUnavailable}
                       isMe={isMe}
                       onImageClick={setLightboxImage}
                       onDocumentClick={setPreviewDoc}

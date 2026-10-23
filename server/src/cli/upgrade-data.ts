@@ -4,7 +4,7 @@ import { loadConfig, ConfigError } from '../config.js';
 import { initPrisma } from '../lib/prisma.js';
 import { createStorageAdapter } from '../lib/storage.js';
 import { runUpgradeCommand } from '../upgrade/runner.js';
-import { UPGRADE_STEPS } from '../upgrade/steps.js';
+import { upgradeSteps } from '../upgrade/steps.js';
 
 // Data upgrade command: `npm run db:upgrade-data --workspace=server -- [--dry-run]`.
 // It works on whatever DATABASE_URL and storage the configuration points at, so always
@@ -14,7 +14,7 @@ async function main() {
   const prisma = await initPrisma(config.databaseUrl);
   const storage = createStorageAdapter(config.storage);
   try {
-    await runUpgradeCommand(process.argv.slice(2), { prisma, storage, steps: UPGRADE_STEPS });
+    await runUpgradeCommand(process.argv.slice(2), { prisma, storage, steps: upgradeSteps(config.storage) });
   } finally {
     await prisma.$disconnect();
   }
