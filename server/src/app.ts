@@ -30,6 +30,9 @@ function isServerOwnedPath(requestPath: string): boolean {
 export function createApp(config: AppConfig, logger: Logger, storage: StorageAdapter): express.Express {
   const app = express();
   app.disable('x-powered-by');
+  // Render puts exactly one proxy in front of the app: trust its X-Forwarded-For so `req.ip`
+  // is the real client IP, for rate limiting and logs.
+  app.set('trust proxy', 1);
 
   // Single-host, same-origin app (ADR 0010): no CORS. Security headers go first so every response has them.
   app.use(securityHeaders(config));

@@ -3,6 +3,7 @@ import { Server, Socket } from 'socket.io';
 import { verifyToken, JwtPayload } from '../lib/jwt.js';
 import type { AppConfig } from '../config.js';
 import type { Logger } from '../lib/logger.js';
+import { createSocketRateLimiter } from '../lib/rate-limit.js';
 import { SOCKET_EVENTS } from '@webchat/shared';
 import { registerDirectChatHandlers, handleDirectMessagesDeliveryOnConnect } from './direct.handler.js';
 import { registerRoomHandlers, autoJoinUserRooms, findRevokedRoomChannels } from './room.handler.js';
@@ -29,6 +30,7 @@ export function setupSocketServer(httpServer: http.Server, config: AppConfig, lo
     },
   });
   reconcileRoomMembershipOnRecovery(io);
+  const rateLimiter = createSocketRateLimiter(config.rateLimits);
 
   // JWT Authentication Middleware for Socket.io
   io.use((socket, next) => {
@@ -55,6 +57,7 @@ export function setupSocketServer(httpServer: http.Server, config: AppConfig, lo
   io.on('connection', async (socket) => {
     const authSocket = socket as AuthenticatedSocket;
     const log = logger.child({ userId: authSocket.data.user.userId, socketId: socket.id, ip: socket.handshake.address });
+    const limits = rateLimiter.forSocket(authSocket.data.user.userId, log);
 
     // Registered first so presence is cleaned up even if the setup below fails.
     socket.on('disconnect', () => {
@@ -71,9 +74,9 @@ export function setupSocketServer(httpServer: http.Server, config: AppConfig, lo
       }
 
       // Register direct chat events
-      registerDirectChatHandlers(io, authSocket, log);
+      registerDirectChatHandlers(io, authSocket, log, limits);
       // Register room chat events
-      registerRoomHandlers(io, authSocket, log);
+      registerRoomHandlers(io, authSocket, log, limits);
       // Automatically subscribe to user's rooms in the background
       await autoJoinUserRooms(io, authSocket, log);
     } catch (err) {

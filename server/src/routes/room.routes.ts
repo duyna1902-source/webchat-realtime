@@ -12,12 +12,13 @@ import {
 } from '../controllers/room.controller.js';
 import { authMiddleware } from '../middlewares/auth.middleware.js';
 import { asyncHandler } from '../lib/async-handler.js';
+import { rateLimit } from '../middlewares/rate-limit.js';
 
 const router = Router();
 
 router.use(authMiddleware);
 
-router.post('/', asyncHandler(createRoom));
+router.post('/', rateLimit('roomCreate'), asyncHandler(createRoom));
 router.get('/', asyncHandler(getRooms));
 router.get('/:id', asyncHandler(getRoomById));
 router.delete('/:id', asyncHandler(deleteRoom));

@@ -12,6 +12,7 @@ import {
 } from '@webchat/shared';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import type { SendMessageAck } from '../utils/rateLimit';
 
 export interface SendRoomMessageOptions {
   type?: MessageType;
@@ -252,7 +253,8 @@ export function useRoomMessages(activeRoomId: string | null) {
   }, [socket, activeRoomId, fetchRoomDetails, syncCatchup]);
 
   const sendMessage = useCallback(
-    (content: string, optionsOrType?: MessageType | SendRoomMessageOptions) => {
+    /** Resolves with the server's ack, e.g. `RATE_LIMITED`; undefined when nothing was sent. */
+    (content: string, optionsOrType?: MessageType | SendRoomMessageOptions): Promise<SendMessageAck> | undefined => {
       if (!socket || !activeRoomId) return;
 
       let msgType = MessageType.TEXT;
@@ -280,7 +282,7 @@ export function useRoomMessages(activeRoomId: string | null) {
         attachmentSize,
       };
 
-      socket.emit(SOCKET_EVENTS.ROOM_SEND, payload);
+      return new Promise<SendMessageAck>((resolve) => socket.emit(SOCKET_EVENTS.ROOM_SEND, payload, resolve));
     },
     [socket, activeRoomId]
   );

@@ -2,6 +2,7 @@ import type { Request } from 'express';
 import type { Server } from 'socket.io';
 import type { AppConfig } from './config.js';
 import type { StorageAdapter } from './lib/storage.js';
+import type { RestRateLimiters } from './middlewares/rate-limit.js';
 
 /**
  * Dependencies of one server instance, built by the server factory and attached to its
@@ -11,6 +12,8 @@ export interface ServerContext {
   config: AppConfig;
   storage: StorageAdapter;
   io: Server;
+  /** This instance's REST rate limiters; use the `rateLimit(name)` route middleware. */
+  rateLimiters: RestRateLimiters;
 }
 
 const CONTEXT_KEY = 'serverContext';
