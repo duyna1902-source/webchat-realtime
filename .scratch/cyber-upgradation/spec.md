@@ -1,6 +1,6 @@
 # Spec: Cyber Upgradation: khắc phục các lỗ hổng từ Security Audit
 
-Status: ready-for-agent
+Status: resolved
 
 Nguồn:
 - Danh sách lỗi: [`../security-audit/spec.md`](../security-audit/spec.md) (SEC-01 → SEC-18) và [`../security-audit/checklist.md`](../security-audit/checklist.md).

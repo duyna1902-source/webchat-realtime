@@ -1,6 +1,6 @@
 # Spec: Security Audit Findings (theo FallibleInc Security Checklist)
 
-Status: needs-triage
+Status: resolved
 
 Ngày kiểm tra: 2026-10-22 · Nhánh: `feat/message-character-limit` @ `4c205d7`
 Checklist đối chiếu: [`checklist.md`](./checklist.md)

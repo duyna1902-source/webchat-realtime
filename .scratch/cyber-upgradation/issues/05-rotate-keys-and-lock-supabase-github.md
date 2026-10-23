@@ -6,7 +6,7 @@ Spec: [`../spec.md`](../spec.md), mục *Quy trình và tài liệu → Checklis
 
 **Blocked by:** 04 (Secret key Supabase và vệ sinh secret trong repo)
 
-**Status:** ready-for-human
+**Status:** resolved
 
 - [x] Supabase: tạo secret key mới (`sb_secret_…`) và đặt vào `SUPABASE_SECRET_KEY` trên Render, sau khi bản deploy chứa ticket 04 đã chạy.
 - [x] Xác nhận upload trên production vẫn hoạt động với key mới.
@@ -14,9 +14,10 @@ Spec: [`../spec.md`](../spec.md), mục *Quy trình và tài liệu → Checklis
 - [x] Supabase: tắt Data API. Nếu không tắt hẳn được thì bỏ `public` khỏi danh sách schema được expose. Kiểm tra lại: `GET /rest/v1/User` bằng key mới phải trả lỗi hoặc danh sách rỗng.
 - [x] Render: xóa các biến key Supabase cũ, đặt `APP_ORIGIN=https://webchat-realtime.onrender.com`, xác nhận các biến `sync: false` đã có giá trị.
 - [x] GitHub: bật Secret scanning, Push protection và Private vulnerability reporting.
-- [ ] (Khuyến nghị) Xem log API và Storage của Supabase để tìm truy cập lạ dùng key `service_role`, rồi ghi kết quả vào phần Comments của ticket này.
+- [x] (Khuyến nghị) Xem log API và Storage của Supabase để tìm truy cập lạ dùng key `service_role`, rồi ghi kết quả vào phần Comments của ticket này.
 
 ## Comments
 
 - 2026-10-23: Đã tạo secret key `sb_secret_…` và đặt vào `SUPABASE_SECRET_KEY` trên Render; đã xóa `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET` và đặt `APP_ORIGIN`. GitHub: đã bật Secret scanning, Push protection, Private vulnerability reporting (API xác nhận `enabled: true`). Còn lại: xác nhận upload với key mới, deactivate legacy key, tắt Data API, xem log Supabase.
 - 2026-10-23: Upload ảnh trên production chạy với key mới. Legacy key `anon`/`service_role` đã bị tắt: `GET /rest/v1/User` bằng key `anon` cũ (lấy từ lịch sử git) trả `Legacy API keys are disabled`. Data API: `GET /rest/v1/User` bằng secret key mới trả `PGRST002`, không có dữ liệu. Còn lại (khuyến nghị): xem log API và Storage của Supabase.
+- 2026-10-23: Đã xem log API Gateway và Storage của Supabase trong khoảng thời gian còn lưu: không có request `/rest/v1/…` lạ, không có tải hàng loạt hay xóa file bất thường.
