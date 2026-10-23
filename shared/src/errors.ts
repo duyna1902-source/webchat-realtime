@@ -1,3 +1,5 @@
+import type { FieldError } from './validation.js';
+
 // ==========================================
 // ERROR CONTRACT
 // ==========================================
@@ -24,6 +26,8 @@ export interface ErrorResponseDto {
   message: string;
   code: ErrorCode;
   requestId: string;
+  /** Present on `VALIDATION_ERROR`: which fields were rejected and why. */
+  fields?: FieldError[];
 }
 
 /** Ack sent to a socket event callback when the event fails. */
@@ -31,4 +35,6 @@ export interface SocketErrorAck {
   success: false;
   error: ErrorCode;
   requestId: string;
+  /** Present on `VALIDATION_ERROR`: which fields were rejected and why. */
+  fields?: FieldError[];
 }

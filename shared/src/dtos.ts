@@ -9,7 +9,6 @@ export interface UserDto {
   id: string;
   username: string;
   email: string;
-  avatarUrl?: string | null;
   isOnline: boolean;
   lastSeenAt: string;
   createdAt: string;
@@ -20,7 +19,6 @@ export interface RegisterRequestDto {
   username: string;
   email: string;
   password: string;
-  avatarUrl?: string;
 }
 
 export interface LoginRequestDto {

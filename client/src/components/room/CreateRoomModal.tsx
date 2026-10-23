@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Hash, Loader2 } from 'lucide-react';
+import { createRoomSchema, parseWithSchema } from '@webchat/shared';
 
 interface CreateRoomModalProps {
   isOpen: boolean;
@@ -21,15 +22,17 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      setError('Room name is required');
+    // Same rules the server enforces: name 1-64 characters, description up to 500.
+    const parsed = parseWithSchema(createRoomSchema, { name, description });
+    if (!parsed.success) {
+      setError(parsed.fields[0].message);
       return;
     }
 
     try {
       setIsSubmitting(true);
       setError(null);
-      await onCreateRoom(name.trim(), description.trim() || undefined);
+      await onCreateRoom(parsed.data.name, parsed.data.description ?? undefined);
       setName('');
       setDescription('');
       onClose();

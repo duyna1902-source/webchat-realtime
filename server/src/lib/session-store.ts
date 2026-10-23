@@ -20,7 +20,6 @@ export interface SessionUser {
   id: string;
   username: string;
   email: string;
-  avatarUrl: string | null;
   isOnline: boolean;
   lastSeenAt: Date;
   createdAt: Date;

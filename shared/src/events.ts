@@ -44,7 +44,6 @@ export interface DirectReceiveMessagePayload {
   sender: {
     id: string;
     username: string;
-    avatarUrl?: string | null;
   };
   content: string;
   type: MessageType;
@@ -101,7 +100,6 @@ export interface RoomReceiveMessagePayload {
   sender: {
     id: string;
     username: string;
-    avatarUrl?: string | null;
   };
   content: string;
   type: MessageType;

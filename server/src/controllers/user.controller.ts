@@ -8,7 +8,6 @@ export function toUserDto(user: any): UserDto {
     id: user.id,
     username: user.username,
     email: user.email,
-    avatarUrl: user.avatarUrl,
     isOnline: user.isOnline,
     lastSeenAt: user.lastSeenAt instanceof Date ? user.lastSeenAt.toISOString() : new Date(user.lastSeenAt).toISOString(),
     createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : new Date(user.createdAt).toISOString(),

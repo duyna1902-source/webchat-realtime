@@ -122,6 +122,56 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  it('shows register validation messages in place, inside the fixed form, without shifting the fields', async () => {
+    renderAuthScreen();
+    fireEvent.click(screen.getByRole('tab', { name: /^create account$/i }));
+
+    const registerPanel = document.getElementById('panel-register')!;
+    const fieldStack = registerPanel.querySelector('form > div')!;
+    const rowsBefore = Array.from(fieldStack.children);
+
+    const usernameInput = within(registerPanel).getByLabelText(/^username/i);
+    const passwordInput = within(registerPanel).getByLabelText(/^password/i);
+    fireEvent.change(usernameInput, { target: { value: 'ab' } });
+    fireEvent.change(within(registerPanel).getByLabelText(/^email address/i), { target: { value: 'user@test.com' } });
+    fireEvent.change(passwordInput, { target: { value: 'short' } });
+    fireEvent.click(within(registerPanel).getByRole('button', { name: /create gdg-hust account/i }));
+
+    expect(mockRegister).not.toHaveBeenCalled();
+
+    // Each message sits in its field's label row, which exists before the error too.
+    const usernameHint = await within(registerPanel).findByText('Username must be at least 3 characters');
+    expect(usernameInput).toHaveAttribute('aria-invalid', 'true');
+    expect(usernameInput).toHaveAccessibleDescription('Username must be at least 3 characters');
+    expect(passwordInput).toHaveAccessibleDescription('Password must be at least 8 characters');
+    expect(usernameHint.parentElement!.querySelector('label[for="reg-username"]')).not.toBeNull();
+
+    // No row was inserted above or between the fields, and the container keeps its height.
+    expect(Array.from(fieldStack.children)).toEqual(rowsBefore);
+    expect(screen.getByTestId('auth-form-container')).toHaveStyle({ height: '275px' });
+
+    // Fixing the field clears its message.
+    fireEvent.change(usernameInput, { target: { value: 'abc' } });
+    expect(within(registerPanel).queryByText('Username must be at least 3 characters')).not.toBeInTheDocument();
+    expect(usernameInput).not.toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('submits a registration that passes the shared rules', async () => {
+    mockRegister.mockResolvedValue(undefined);
+    renderAuthScreen();
+    fireEvent.click(screen.getByRole('tab', { name: /^create account$/i }));
+
+    const registerPanel = document.getElementById('panel-register')!;
+    fireEvent.change(within(registerPanel).getByLabelText(/^username/i), { target: { value: 'new.user_1' } });
+    fireEvent.change(within(registerPanel).getByLabelText(/^email address/i), { target: { value: 'New@Test.com' } });
+    fireEvent.change(within(registerPanel).getByLabelText(/^password/i), { target: { value: 'password123' } });
+    fireEvent.click(within(registerPanel).getByRole('button', { name: /create gdg-hust account/i }));
+
+    await waitFor(() =>
+      expect(mockRegister).toHaveBeenCalledWith({ username: 'new.user_1', email: 'New@Test.com', password: 'password123' })
+    );
+  });
+
   it('displays error in register panel when registration fails', async () => {
     mockRegister.mockRejectedValue(new Error('Username already taken'));
     renderAuthScreen();

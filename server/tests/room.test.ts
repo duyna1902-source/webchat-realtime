@@ -79,7 +79,8 @@ describe('Room Chat REST APIs & Role Governance', () => {
         .send({ name: '   ' })
         .expect(400);
 
-      expect(res.body.message).toMatch(/name is required/i);
+      expect(res.body.code).toBe('VALIDATION_ERROR');
+      expect(res.body.fields).toEqual([{ field: 'name', message: expect.stringMatching(/name is required/i) }]);
     });
 
     it('creates room and automatically adds creator as OWNER in RoomMember', async () => {

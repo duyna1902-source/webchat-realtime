@@ -22,18 +22,19 @@ describe('Error layer (SEC-05, SEC-09)', () => {
     session = await loginAs(app, user);
   });
 
-  it('A25/A26: a malformed room payload returns a generic 500 and the server keeps answering /health', async () => {
+  it('A25/A26: a malformed room payload is refused with 400 and the server keeps answering /health', async () => {
     const res = await request(app)
       .post('/api/rooms')
       .set(session)
       .send({ name: 'x', description: 12345 })
       .timeout(3000);
 
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
     expect(res.body).toEqual({
-      message: 'Internal server error',
-      code: 'INTERNAL_ERROR',
+      message: 'Invalid input',
+      code: 'VALIDATION_ERROR',
       requestId: res.headers['x-request-id'],
+      fields: [{ field: 'description', message: expect.any(String) }],
     });
     expect(res.body.requestId).toMatch(/^[0-9a-f-]{36}$/);
 
@@ -76,8 +77,8 @@ describe('Error layer (SEC-05, SEC-09)', () => {
       .set('Origin', TEST_APP_ORIGIN)
       .send({ username: { a: 1 }, email: 'a07@test.com', password: 'password123' });
 
-    expect(res.status).toBeGreaterThanOrEqual(400);
-    expect(Object.keys(res.body).sort()).toEqual(['code', 'message', 'requestId']);
+    expect(res.status).toBe(400);
+    expect(Object.keys(res.body).sort()).toEqual(['code', 'fields', 'message', 'requestId']);
     expect(JSON.stringify(res.body)).not.toMatch(/prisma|invocation|findUnique|Argument/i);
   });
 
