@@ -1,6 +1,17 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { SOCKET_EVENTS, SessionEndedPayload } from '@webchat/shared';
 import { useAuth } from './AuthContext';
+
+/** What the sign-in screen says when the server ended the Session. */
+export const SESSION_ENDED_NOTICES: Record<SessionEndedPayload['reason'] | 'unauthenticated', string> = {
+  revoked: 'Session revoked (signed out on another device). Please sign in again.',
+  expired: 'Your session expired. Please sign in again.',
+  unauthenticated: 'Your session ended. Please sign in again.',
+};
+
+/** The handshake error the server gives a socket whose Session is unknown, expired or revoked. */
+const AUTHENTICATION_REQUIRED = 'Authentication required';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -13,7 +24,7 @@ interface SocketContextType {
 export const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, endSession } = useAuth();
   // The socket follows the signed-in User; the Session cookie authenticates its handshake.
   const userId = currentUser?.id ?? null;
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -55,7 +66,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setConnectionError(null);
     });
 
+    // The server ended the Session (revoked or expired) and is about to close this socket.
+    newSocket.on(SOCKET_EVENTS.SESSION_ENDED, ({ reason }: SessionEndedPayload) => {
+      endSession(SESSION_ENDED_NOTICES[reason] ?? SESSION_ENDED_NOTICES.unauthenticated);
+    });
+
     newSocket.on('connect_error', (err) => {
+      // Retrying cannot help without a Session: back to sign-in rather than "Reconnecting...".
+      if (err.message === AUTHENTICATION_REQUIRED) {
+        endSession(SESSION_ENDED_NOTICES.unauthenticated);
+        return;
+      }
       setIsConnecting(false);
       setIsConnected(false);
       setIsReconnecting(true);
@@ -90,6 +111,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       newSocket.disconnect();
     };
+    // `endSession` is stable; the socket follows the User only.
   }, [userId]);
 
   return (

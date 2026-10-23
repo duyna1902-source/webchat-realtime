@@ -10,7 +10,7 @@ import {
   createDirectChatSchema,
 } from '@webchat/shared';
 import { parseInput } from '../lib/validation.js';
-import { toUserDto } from './user.controller.js';
+import { toPublicUserDto } from './user.controller.js';
 import { parsePaginationParams, fetchPaginatedMessages } from '../lib/pagination.js';
 import { attachmentOf, signAttachments, SignedAttachments } from '../lib/attachments.js';
 import { attachmentSigner } from '../context.js';
@@ -21,10 +21,7 @@ export function toDirectReceiveMessagePayload(msg: any, attachments: SignedAttac
     id: msg.id,
     directChatId: msg.directChatId,
     senderId: msg.senderId,
-    sender: {
-      id: msg.sender.id,
-      username: msg.sender.username,
-    },
+    sender: toPublicUserDto(msg.sender),
     content: msg.content,
     type: msg.type,
     status: msg.status,
@@ -80,7 +77,7 @@ export async function createOrGetDirectChat(req: AuthenticatedRequest, res: Resp
       user2Id: existingChat.user2Id,
       createdAt: existingChat.createdAt.toISOString(),
       updatedAt: existingChat.updatedAt.toISOString(),
-      partner: toUserDto(partner),
+      partner: toPublicUserDto(partner),
     };
     res.status(200).json(responseDto);
     return;
@@ -111,7 +108,7 @@ export async function createOrGetDirectChat(req: AuthenticatedRequest, res: Resp
     user2Id: newChat.user2Id,
     createdAt: newChat.createdAt.toISOString(),
     updatedAt: newChat.updatedAt.toISOString(),
-    partner: toUserDto(partner),
+    partner: toPublicUserDto(partner),
   };
 
   res.status(201).json(responseDto);
@@ -213,7 +210,7 @@ export async function getDirectChats(req: AuthenticatedRequest, res: Response): 
 
       return {
         id: chat.id,
-        partner: toUserDto(partner),
+        partner: toPublicUserDto(partner),
         lastMessage: lastMsg,
         unreadCount,
         lastReadMessageId: myParticipant?.lastReadMessageId ?? null,

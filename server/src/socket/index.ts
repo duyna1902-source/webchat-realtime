@@ -1,13 +1,13 @@
 import http from 'http';
-import { Server, Socket } from 'socket.io';
+import { Server, Socket, RemoteSocket } from 'socket.io';
 import type { AppConfig } from '../config.js';
 import type { Logger } from '../lib/logger.js';
 import type { StorageAdapter } from '../lib/storage.js';
 import type { AttachmentSigner } from '../lib/attachments.js';
-import type { SessionStore } from '../lib/session-store.js';
+import type { SessionRevocation, SessionStore } from '../lib/session-store.js';
 import { readSessionToken } from '../lib/session-cookie.js';
 import { createSocketRateLimiter } from '../lib/rate-limit.js';
-import { SOCKET_EVENTS } from '@webchat/shared';
+import { SOCKET_EVENTS, SessionEndedPayload } from '@webchat/shared';
 import { registerDirectChatHandlers, handleDirectMessagesDeliveryOnConnect } from './direct.handler.js';
 import { registerRoomHandlers, autoJoinUserRooms, findRevokedRoomChannels } from './room.handler.js';
 import { handleUserConnect, handleUserDisconnect } from './presence.handler.js';
@@ -22,6 +22,8 @@ export interface AuthenticatedSocket extends Socket {
   data: {
     user: SocketUser;
     sessionId: string;
+    /** When the Session reaches its absolute expiry (epoch ms). */
+    sessionExpiresAt: number;
   };
 }
 
@@ -36,6 +38,11 @@ export interface SocketServerDeps {
 /** Internal room holding every socket of one Session, so they can be cut off together. */
 export function sessionChannel(sessionId: string): string {
   return `session:${sessionId}`;
+}
+
+/** Internal room holding every socket of one User, on every device. */
+export function userChannel(userId: string): string {
+  return `user:${userId}`;
 }
 
 /** 64KB: comfortably above the largest valid event (a 4000-character message). */
@@ -55,6 +62,7 @@ export function setupSocketServer(httpServer: http.Server, { config, logger, ses
     },
   });
   reconcileRoomMembershipOnRecovery(io);
+  disconnectEndedSessions(io, httpServer, sessions, config.timing.sessionRecheckIntervalMs, logger);
   const rateLimiter = createSocketRateLimiter(config.rateLimits);
 
   // Handshake: same-origin only (no Cross-Site WebSocket Hijacking), then the Session cookie.
@@ -76,17 +84,21 @@ export function setupSocketServer(httpServer: http.Server, { config, logger, ses
 
     socket.data.user = { userId: resolved.user.id, username: resolved.user.username };
     socket.data.sessionId = resolved.session.id;
+    socket.data.sessionExpiresAt = resolved.session.expiresAt.getTime();
     next();
   });
 
   io.on('connection', async (socket) => {
     const authSocket = socket as AuthenticatedSocket;
     const log = logger.child({ userId: authSocket.data.user.userId, socketId: socket.id, ip: socket.handshake.address });
-    socket.join(sessionChannel(authSocket.data.sessionId));
+    // Joined before anything async, so a revocation from now on reaches this socket.
+    socket.join([sessionChannel(authSocket.data.sessionId), userChannel(authSocket.data.user.userId)]);
+    const cancelExpiry = runAt(authSocket.data.sessionExpiresAt, () => endSession(socket, 'expired'));
     const limits = rateLimiter.forSocket(authSocket.data.user.userId, log);
 
     // Registered first so presence is cleaned up even if the setup below fails.
     socket.on('disconnect', () => {
+      cancelExpiry();
       handleUserDisconnect(io, authSocket, config.timing.presenceGracePeriodMs);
     });
 
@@ -113,6 +125,85 @@ export function setupSocketServer(httpServer: http.Server, { config, logger, ses
   });
 
   return io;
+}
+
+// ==========================================
+// ENDING SESSIONS (Q24, Q45)
+// ==========================================
+
+/** Sockets, or a group of them, that can be told their Session ended and then cut off. */
+interface Disconnectable {
+  emit(event: string, payload: SessionEndedPayload): unknown;
+  disconnect?(close: boolean): unknown;
+  disconnectSockets?(close: boolean): unknown;
+}
+
+/** Tells the client why (so it can show the sign-in screen with a notice), then closes the connection. */
+function endSession(target: Disconnectable, reason: SessionEndedPayload['reason']): void {
+  const payload: SessionEndedPayload = { reason };
+  target.emit(SOCKET_EVENTS.SESSION_ENDED, payload);
+  // `true` closes the underlying connection; the event above is flushed first.
+  if (target.disconnectSockets) target.disconnectSockets(true);
+  else target.disconnect?.(true);
+}
+
+/** Longest delay `setTimeout` accepts; a 30-day absolute TTL is longer, so long waits are chained. */
+const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
+
+/** Runs `fn` at the epoch time `atMs` (at once if it has passed). Returns a cancel function. */
+function runAt(atMs: number, fn: () => void): () => void {
+  let timer: NodeJS.Timeout;
+  const schedule = () => {
+    const remaining = atMs - Date.now();
+    if (remaining <= 0) {
+      fn();
+      return;
+    }
+    timer = setTimeout(schedule, Math.min(remaining, MAX_TIMER_DELAY_MS));
+  };
+  schedule();
+  return () => clearTimeout(timer);
+}
+
+/**
+ * Cuts off the sockets of every Session that ends while they are connected:
+ * - a revocation in this process (logout, logout everywhere) is announced by the Session store and
+ *   acted on at once, through the `session:<id>` / `user:<id>` rooms;
+ * - a revocation by another process (the operator CLI) only shows in the DB, so the Sessions of the
+ *   connected sockets are re-checked every `recheckIntervalMs`.
+ * The absolute expiry is handled per socket by a timer set at connection.
+ */
+function disconnectEndedSessions(
+  io: Server,
+  httpServer: http.Server,
+  sessions: SessionStore,
+  recheckIntervalMs: number,
+  logger: Logger
+): void {
+  const unsubscribe = sessions.onRevoked((revocation: SessionRevocation) => {
+    if (revocation.scope === 'all') endSession(io, 'revoked');
+    else if (revocation.scope === 'user') endSession(io.in(userChannel(revocation.userId)), 'revoked');
+    else endSession(io.in(sessionChannel(revocation.sessionId)), 'revoked');
+  });
+
+  const recheck = async () => {
+    const sockets = (await io.local.fetchSockets()) as RemoteSocket<any, AuthenticatedSocket['data']>[];
+    const sessionIds = [...new Set(sockets.map((socket) => socket.data.sessionId).filter(Boolean))];
+    if (sessionIds.length === 0) return;
+    const active = await sessions.findActive(sessionIds);
+    for (const socket of sockets) {
+      if (socket.data.sessionId && !active.has(socket.data.sessionId)) endSession(socket, 'revoked');
+    }
+  };
+  const interval = setInterval(() => {
+    recheck().catch((err) => logger.error({ err }, 'Session re-check failed'));
+  }, recheckIntervalMs);
+  interval.unref();
+
+  httpServer.once('close', () => {
+    clearInterval(interval);
+    unsubscribe();
+  });
 }
 
 /**

@@ -8,7 +8,7 @@ import { useRoomMessages } from '../../hooks/useRoomMessages';
 import { Sidebar, formatSidebarPreview } from '../chat/Sidebar';
 import { ChatArea } from '../chat/ChatArea';
 import { RoomChatArea } from '../room/RoomChatArea';
-import { LogOut, Bell, BellOff } from 'lucide-react';
+import { LogOut, MonitorX, Bell, BellOff } from 'lucide-react';
 import {
   SOCKET_EVENTS,
   DirectReceiveMessagePayload,
@@ -20,7 +20,7 @@ import { showBrowserNotification, playNotificationSound } from '../../utils/noti
 import { getAvatarColorClass, getAvatarIconUrl } from '../../utils/avatarColor';
 
 export const Dashboard: React.FC = () => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, logoutEverywhere } = useAuth();
   const { socket, isConnected, isConnecting, isReconnecting } = useSocket();
 
   // Active navigation mode
@@ -303,6 +303,17 @@ export const Dashboard: React.FC = () => {
           >
             <LogOut className="w-4 h-4 shrink-0" />
             <span className="hidden sm:inline text-xs font-medium">Sign Out</span>
+          </button>
+
+          {/* Sign out of all devices: ends every Session of this User, on every device */}
+          <button
+            onClick={logoutEverywhere}
+            className="p-1.5 text-google-grey700 hover:text-google-red hover:bg-google-red-subtle rounded-lg transition cursor-pointer flex items-center gap-1"
+            title="Sign out of all devices"
+            aria-label="Sign out of all devices"
+          >
+            <MonitorX className="w-4 h-4 shrink-0" />
+            <span className="hidden lg:inline text-xs font-medium">All Devices</span>
           </button>
         </div>
       </header>

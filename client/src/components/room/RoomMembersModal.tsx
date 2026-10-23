@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RoomDetailDto, RoomRole, UserDto } from '@webchat/shared';
+import { RoomDetailDto, RoomRole, PublicUserDto } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { getAvatarColorClass } from '../../utils/avatarColor';
 import { readApiErrorMessage } from '../../utils/rateLimit';
@@ -42,7 +42,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
 }) => {
   const { currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<UserDto[]>([]);
+  const [searchResults, setSearchResults] = useState<PublicUserDto[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -62,7 +62,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
         setSearchError(null);
         const res = await apiFetch(`/api/users?q=${encodeURIComponent(searchQuery.trim())}`);
         if (res.ok) {
-          const data: UserDto[] = await res.json();
+          const data: PublicUserDto[] = await res.json();
           // Filter out users already in room
           const existingUserIds = new Set(roomDetails?.members.map((m) => m.userId) || []);
           setSearchResults(data.filter((u) => !existingUserIds.has(u.id)));
@@ -190,7 +190,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search username or email to add..."
+                placeholder="Search username to add..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-white border border-google-grey300 focus:border-google-blue focus:ring-1 focus:ring-google-blue rounded-full text-base sm:text-xs outline-none transition"
@@ -211,7 +211,6 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
                         {user.username.slice(0, 2).toUpperCase()}
                       </div>
                       <span className="font-medium text-gray-900 truncate">{user.username}</span>
-                      <span className="text-gray-400 truncate text-[11px]">{user.email}</span>
                     </div>
                     <button
                       onClick={() => handleAddUser(user.id)}
@@ -264,7 +263,6 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-400 truncate">{member.user.email}</p>
                   </div>
                 </div>
 

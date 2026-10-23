@@ -1,4 +1,5 @@
 import { MessageType, MessageStatus, RoomRole, AttachmentKind } from './enums.js';
+import type { PublicUserDto } from './dtos.js';
 
 // ==========================================
 // SOCKET EVENT NAMES
@@ -22,6 +23,9 @@ export const SOCKET_EVENTS = {
 
   // Presence
   PRESENCE_UPDATE: 'presence:update',
+
+  // Session: sent just before the server cuts off a socket whose Session ended
+  SESSION_ENDED: 'session:ended',
 } as const;
 
 // ==========================================
@@ -64,10 +68,7 @@ export interface DirectReceiveMessagePayload {
   id: string;
   directChatId: string;
   senderId: string;
-  sender: {
-    id: string;
-    username: string;
-  };
+  sender: PublicUserDto;
   content: string;
   type: MessageType;
   status: MessageStatus;
@@ -114,10 +115,7 @@ export interface RoomReceiveMessagePayload {
   id: string;
   roomId: string;
   senderId: string;
-  sender: {
-    id: string;
-    username: string;
-  };
+  sender: PublicUserDto;
   content: string;
   type: MessageType;
   /** The message's Attachment with a freshly signed URL; null (or absent) when it has none. */
@@ -155,4 +153,13 @@ export interface PresenceUpdatePayload {
   userId: string;
   isOnline: boolean;
   lastSeenAt: string; // ISO String
+}
+
+// ==========================================
+// SESSION PAYLOADS
+// ==========================================
+
+/** Why the server ended a socket's Session: it was revoked (logout, logout everywhere, operator) or reached its absolute expiry. */
+export interface SessionEndedPayload {
+  reason: 'revoked' | 'expired';
 }

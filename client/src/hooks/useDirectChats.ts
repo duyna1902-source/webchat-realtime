@@ -5,7 +5,6 @@ import {
   DirectReceiveMessagePayload,
   PresenceUpdatePayload,
   DirectReadPayload,
-  UserDto,
 } from '@webchat/shared';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';

@@ -143,6 +143,18 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Enter your password').max(LOGIN_FIELD_MAX_LENGTH, 'Invalid credentials'),
 });
 
+/** Most users one search returns, so a search cannot list the whole directory (SEC-13). */
+export const USER_SEARCH_MAX_RESULTS = 20;
+
+/** `GET /api/users?q=`: a username fragment is required; email is never searched. */
+export const userSearchQuerySchema = z.object({
+  q: z
+    .string('Enter a username to search')
+    .trim()
+    .min(1, 'Enter a username to search')
+    .max(ACCOUNT_RULES.USERNAME_MAX_LENGTH, `Search must be at most ${ACCOUNT_RULES.USERNAME_MAX_LENGTH} characters`),
+});
+
 // ------------------------------------------
 // Rooms
 // ------------------------------------------

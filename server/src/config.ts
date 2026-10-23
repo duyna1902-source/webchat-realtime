@@ -49,6 +49,8 @@ export interface TimingConfig {
   sessionAbsoluteTtlMs: number;
   /** Minimum gap between two writes of a Session's `lastActiveAt`. */
   sessionTouchIntervalMs: number;
+  /** How often the Sessions of connected sockets are re-checked, to catch revocations by another process (the CLI). */
+  sessionRecheckIntervalMs: number;
 }
 
 export interface AppConfig {
@@ -89,6 +91,7 @@ export const DEFAULT_TIMING: TimingConfig = {
   sessionIdleTtlMs: 7 * DAY,
   sessionAbsoluteTtlMs: 30 * DAY,
   sessionTouchIntervalMs: 5 * MINUTE,
+  sessionRecheckIntervalMs: MINUTE,
 };
 
 export interface ConfigIssue {
