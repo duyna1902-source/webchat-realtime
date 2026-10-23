@@ -1,20 +1,33 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import { io } from 'socket.io-client';
 import App from './App';
 
-// The socket is faked so the tests can see how the client connects; nothing else depends on it.
+// The socket is faked so the tests can see how the client connects, and can play what the
+// server sends through `serverSends`.
 vi.mock('socket.io-client', () => {
-  const fakeSocket = () => ({
-    on: vi.fn(),
-    off: vi.fn(),
-    emit: vi.fn(),
-    disconnect: vi.fn(),
-    connected: false,
-    io: { on: vi.fn(), off: vi.fn() },
-  });
+  const fakeSocket = () => {
+    const handlers = new Map<string, ((...args: unknown[]) => void)[]>();
+    return {
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        handlers.set(event, [...(handlers.get(event) ?? []), handler]);
+      }),
+      off: vi.fn(),
+      emit: vi.fn(),
+      disconnect: vi.fn(),
+      connected: false,
+      io: { on: vi.fn(), off: vi.fn() },
+      serverSends: (event: string, ...args: unknown[]) => handlers.get(event)?.forEach((handler) => handler(...args)),
+    };
+  };
   return { io: vi.fn(() => fakeSocket()) };
 });
+
+/** The socket the app opened last, as the fake above builds it. */
+function lastSocket(): { serverSends: (event: string, ...args: unknown[]) => void } {
+  const results = vi.mocked(io).mock.results;
+  return results[results.length - 1].value;
+}
 
 interface FakeResponse {
   status: number;
@@ -286,7 +299,7 @@ describe('Session cookie startup and sign-out (SEC-11, Q46)', () => {
     render(<App />);
     await screen.findByText(/welcome, frank_client/i);
 
-    fireEvent.click(screen.getByRole('button', { name: /sign out/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^sign out$/i }));
 
     expect(await screen.findByRole('button', { name: /sign in to gdg-hust/i })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith('/api/auth/logout', expect.objectContaining({ method: 'POST' }));
@@ -310,7 +323,7 @@ describe('Session cookie startup and sign-out (SEC-11, Q46)', () => {
 
     expect(localStorage.length).toBe(0);
 
-    fireEvent.click(screen.getByRole('button', { name: /sign out/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^sign out$/i }));
     await screen.findByRole('button', { name: /sign in to gdg-hust/i });
 
     expect(localStorage.length).toBe(0);
@@ -328,5 +341,73 @@ describe('Session cookie startup and sign-out (SEC-11, Q46)', () => {
       const options = args.find((arg) => typeof arg === 'object') as Record<string, unknown> | undefined;
       expect(options).not.toHaveProperty('auth');
     }
+  });
+});
+
+describe('Sign out of all devices and revoked Sessions (SEC-11, Q24)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.mocked(io).mockClear();
+  });
+
+  async function renderSignedIn(username: string) {
+    const fetchMock = mockServer({
+      'GET /api/auth/me': { status: 200, body: { user: userDto(`id-${username}`, username) } },
+      'POST /api/auth/logout': { status: 204 },
+      'POST /api/auth/logout-all': { status: 204 },
+    });
+    render(<App />);
+    await screen.findByText(new RegExp(`welcome, ${username}`, 'i'));
+    await waitFor(() => expect(io).toHaveBeenCalled());
+    return fetchMock;
+  }
+
+  it('"Sign out of all devices", next to "Sign Out", calls POST /api/auth/logout-all and returns to the sign-in screen', async () => {
+    const fetchMock = await renderSignedIn('ivy_client');
+
+    fireEvent.click(screen.getByRole('button', { name: /sign out of all devices/i }));
+
+    expect(await screen.findByRole('button', { name: /sign in to gdg-hust/i })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/logout-all', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/auth/logout', expect.anything());
+    expect(screen.getByRole('status')).toHaveTextContent(/signed out on all devices/i);
+  });
+
+  it('a Session revoked elsewhere sends this device to the sign-in screen with a clear notice', async () => {
+    await renderSignedIn('jack_client');
+
+    act(() => lastSocket().serverSends('session:ended', { reason: 'revoked' }));
+
+    expect(await screen.findByRole('button', { name: /sign in to gdg-hust/i })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/signed out.*another device|session was revoked/i);
+  });
+
+  it('a Session that reached its maximum age says so on the sign-in screen', async () => {
+    await renderSignedIn('kate_client');
+
+    act(() => lastSocket().serverSends('session:ended', { reason: 'expired' }));
+
+    expect(await screen.findByRole('button', { name: /sign in to gdg-hust/i })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/session (has )?expired/i);
+  });
+
+  it('a socket handshake refused for a missing Session sends the user to sign in instead of reconnecting forever', async () => {
+    await renderSignedIn('liam_client');
+
+    act(() => lastSocket().serverSends('connect_error', new Error('Authentication required')));
+
+    expect(await screen.findByRole('button', { name: /sign in to gdg-hust/i })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/session (has )?ended|sign in again/i);
+  });
+
+  it('a plain "Sign Out" shows no revocation notice', async () => {
+    await renderSignedIn('mona_client');
+
+    fireEvent.click(screen.getByRole('button', { name: /^sign out$/i }));
+    // The server also ends this device's socket Session; that is not news to the user.
+    act(() => lastSocket().serverSends('session:ended', { reason: 'revoked' }));
+
+    expect(await screen.findByRole('button', { name: /sign in to gdg-hust/i })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 });

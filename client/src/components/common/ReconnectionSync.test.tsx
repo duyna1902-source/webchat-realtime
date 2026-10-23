@@ -182,11 +182,15 @@ describe('Reconnection & Catch-up Sync Client Features', () => {
       render(
         <AuthContext.Provider
           value={{
-            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
+            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
+
             isLoading: false,
             login: vi.fn(),
             register: vi.fn(),
             logout: vi.fn(),
+            logoutEverywhere: vi.fn(),
+            endSession: vi.fn(),
+            sessionNotice: null,
           }}
         >
           <SocketContext.Provider
@@ -273,11 +277,15 @@ describe('Reconnection & Catch-up Sync Client Features', () => {
       render(
         <AuthContext.Provider
           value={{
-            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
+            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
+
             isLoading: false,
             login: vi.fn(),
             register: vi.fn(),
             logout: vi.fn(),
+            logoutEverywhere: vi.fn(),
+            endSession: vi.fn(),
+            sessionNotice: null,
           }}
         >
           <SocketContext.Provider
@@ -359,11 +367,15 @@ describe('Reconnection & Catch-up Sync Client Features', () => {
       render(
         <AuthContext.Provider
           value={{
-            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
+            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
+
             isLoading: false,
             login: vi.fn(),
             register: vi.fn(),
             logout: vi.fn(),
+            logoutEverywhere: vi.fn(),
+            endSession: vi.fn(),
+            sessionNotice: null,
           }}
         >
           <SocketContext.Provider
@@ -463,11 +475,15 @@ describe('Reconnection & Catch-up Sync Client Features', () => {
       render(
         <AuthContext.Provider
           value={{
-            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
+            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
+
             isLoading: false,
             login: vi.fn(),
             register: vi.fn(),
             logout: vi.fn(),
+            logoutEverywhere: vi.fn(),
+            endSession: vi.fn(),
+            sessionNotice: null,
           }}
         >
           <SocketContext.Provider

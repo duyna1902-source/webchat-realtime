@@ -43,7 +43,7 @@ const defaultMockRooms = [
 
 const renderDashboard = () => {
   const authValue: any = {
-    currentUser: mockUser,
+    currentUser: mockUser,
     isLoading: false,
     login: vi.fn(),
     register: vi.fn(),
@@ -527,7 +527,7 @@ describe('Ultra-Compact Dashboard Header and Maximal Chat Workspace (Ticket 03)'
       expect(screen.getByText('GDG-HUST')).toBeInTheDocument();
     });
 
-    const logoutBtn = screen.getByRole('button', { name: /sign out/i });
+    const logoutBtn = screen.getByRole('button', { name: /^sign out$/i });
     expect(logoutBtn).toBeInTheDocument();
     expect(logoutBtn.className).toMatch(/hover:text-google-red/);
     expect(logoutBtn.className).toMatch(/hover:bg-google-red-subtle/);
