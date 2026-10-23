@@ -10,6 +10,12 @@ export const PRISMA_DIR = path.resolve(__dirname, '../../prisma');
 export const MIGRATIONS_DIR = path.join(PRISMA_DIR, 'migrations');
 export const SCHEMA_SQL_PATH = path.join(PRISMA_DIR, 'schema.sql');
 
+/**
+ * The last expand migration. The data upgrade command runs on a database migrated up to here;
+ * the contract migration after it refuses to run until the command has normalized the data.
+ */
+export const LAST_EXPAND_MIGRATION = '20261026000000_expand_attachment_unavailable';
+
 export interface Migration {
   name: string;
   sql: string;

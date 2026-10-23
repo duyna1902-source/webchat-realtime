@@ -51,13 +51,13 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
 
     // Create users
     ownerUser = await prisma.user.create({
-      data: { username: 'alice_owner', email: 'alice@test.com', passwordHash: 'hash' },
+      data: { username: 'alice_owner', usernameNormalized: 'alice_owner', email: 'alice@test.com', passwordHash: 'hash' },
     });
     memberUser = await prisma.user.create({
-      data: { username: 'bob_member', email: 'bob@test.com', passwordHash: 'hash' },
+      data: { username: 'bob_member', usernameNormalized: 'bob_member', email: 'bob@test.com', passwordHash: 'hash' },
     });
     outsiderUser = await prisma.user.create({
-      data: { username: 'charlie_outsider', email: 'charlie@test.com', passwordHash: 'hash' },
+      data: { username: 'charlie_outsider', usernameNormalized: 'charlie_outsider', email: 'charlie@test.com', passwordHash: 'hash' },
     });
 
     // Create Room with Alice (Owner) and Bob (Member)
@@ -356,7 +356,7 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
     const prisma = getPrisma();
     // Create admin user and join room as ADMIN
     const adminUser = await prisma.user.create({
-      data: { username: 'dan_admin', email: 'dan@test.com', passwordHash: 'hash' },
+      data: { username: 'dan_admin', usernameNormalized: 'dan_admin', email: 'dan@test.com', passwordHash: 'hash' },
     });
     await prisma.roomMember.create({
       data: { roomId: testRoom.id, userId: adminUser.id, role: RoomRole.ADMIN },
@@ -419,7 +419,7 @@ describe('Room Chat Socket.io Real-Time Integration', () => {
   it('rejects room:send when OWNER or ADMIN sends message exceeding MESSAGE_LIMITS.ROOM_LEADER (4000 chars)', async () => {
     const prisma = getPrisma();
     const adminUser = await prisma.user.create({
-      data: { username: 'eve_admin', email: 'eve@test.com', passwordHash: 'hash' },
+      data: { username: 'eve_admin', usernameNormalized: 'eve_admin', email: 'eve@test.com', passwordHash: 'hash' },
     });
     await prisma.roomMember.create({
       data: { roomId: testRoom.id, userId: adminUser.id, role: RoomRole.ADMIN },

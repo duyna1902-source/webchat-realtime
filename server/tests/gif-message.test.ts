@@ -48,9 +48,11 @@ describe('GIF Search API & EMOJI_GIF Real-Time Messaging Integration', () => {
 
   beforeEach(async () => {
     const prisma = getPrisma();
+    const stamp = Date.now();
     userAlice = await prisma.user.create({
       data: {
-        username: `alice_gif_${Date.now()}`,
+        username: `alice_gif_${stamp}`,
+        usernameNormalized: `alice_gif_${stamp}`,
         email: `alice_gif_${Date.now()}@example.com`,
         passwordHash: 'hashed_password',
       },
@@ -58,7 +60,8 @@ describe('GIF Search API & EMOJI_GIF Real-Time Messaging Integration', () => {
 
     userBob = await prisma.user.create({
       data: {
-        username: `bob_gif_${Date.now()}`,
+        username: `bob_gif_${stamp}`,
+        usernameNormalized: `bob_gif_${stamp}`,
         email: `bob_gif_${Date.now()}@example.com`,
         passwordHash: 'hashed_password',
       },

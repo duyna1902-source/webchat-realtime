@@ -105,7 +105,9 @@ describe('Row Level Security (Q42: Supabase Data API sees nothing)', () => {
   });
 
   it('creates no policy, so a Data API role reads no rows', async () => {
-    await prisma.user.create({ data: { username: 'alice', email: 'alice@example.com', passwordHash: 'hash' } });
+    await prisma.user.create({
+      data: { username: 'alice', usernameNormalized: 'alice', email: 'alice@example.com', passwordHash: 'hash' },
+    });
 
     const policies = await db.query(`SELECT * FROM pg_policies WHERE schemaname = 'public'`);
     expect(policies.rows).toEqual([]);
@@ -123,7 +125,7 @@ describe('Row Level Security (Q42: Supabase Data API sees nothing)', () => {
 
   it('still lets Prisma, connected as the table owner, read and write', async () => {
     const created = await prisma.user.create({
-      data: { username: 'bob', email: 'bob@example.com', passwordHash: 'hash' },
+      data: { username: 'bob', usernameNormalized: 'bob', email: 'bob@example.com', passwordHash: 'hash' },
     });
     await prisma.user.update({ where: { id: created.id }, data: { isOnline: true } });
 

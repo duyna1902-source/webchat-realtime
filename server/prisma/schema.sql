@@ -1,6 +1,6 @@
 -- GENERATED FILE: DO NOT EDIT BY HAND.
 -- Regenerate after changing prisma/schema.prisma: npm run db:schema-sql --workspace=server
--- Source: prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script
+-- Source: prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script, then prisma/check-constraints.sql
 -- Loaded into in-memory PGlite by the tests. Production schema changes go through prisma/migrations.
 
 -- CreateSchema
@@ -22,10 +22,9 @@ CREATE TYPE "AttachmentKind" AS ENUM ('IMAGE', 'DOCUMENT');
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "username" TEXT NOT NULL,
-    "usernameNormalized" TEXT,
+    "usernameNormalized" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "passwordHash" TEXT NOT NULL,
-    "avatarUrl" TEXT,
     "isOnline" BOOLEAN NOT NULL DEFAULT false,
     "lastSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -79,9 +78,6 @@ CREATE TABLE "DirectMessage" (
     "content" TEXT NOT NULL,
     "type" "MessageType" NOT NULL DEFAULT 'TEXT',
     "status" "MessageStatus" NOT NULL DEFAULT 'SENT',
-    "attachmentUrl" TEXT,
-    "attachmentName" TEXT,
-    "attachmentSize" INTEGER,
     "attachmentUnavailable" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -121,9 +117,6 @@ CREATE TABLE "RoomMessage" (
     "senderId" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "type" "MessageType" NOT NULL DEFAULT 'TEXT',
-    "attachmentUrl" TEXT,
-    "attachmentName" TEXT,
-    "attachmentSize" INTEGER,
     "attachmentUnavailable" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -149,6 +142,9 @@ CREATE TABLE "Attachment" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_usernameNormalized_key" ON "User"("usernameNormalized");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
@@ -267,3 +263,19 @@ ALTER TABLE "Attachment" ADD CONSTRAINT "Attachment_directMessageId_fkey" FOREIG
 -- AddForeignKey
 ALTER TABLE "Attachment" ADD CONSTRAINT "Attachment_roomMessageId_fkey" FOREIGN KEY ("roomMessageId") REFERENCES "RoomMessage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+
+-- CHECK constraints that prisma/schema.prisma cannot express (Prisma has no syntax for them).
+-- scripts/generate-schema-sql.mjs appends this file to the generated prisma/schema.sql, so the
+-- tests' PGlite database enforces them too. Production got them from the contract migration
+-- (prisma/migrations/20261027000000_contract). To change one, add a migration AND edit this file:
+-- tests/migrations.test.ts fails if the two disagree.
+
+-- Case-insensitive username uniqueness: the unique key must be the lowercase username.
+ALTER TABLE "User" ADD CONSTRAINT "User_usernameNormalized_check" CHECK ("usernameNormalized" = lower("username"));
+
+-- Emails are stored lowercase, so the unique index on "email" is case-insensitive.
+ALTER TABLE "User" ADD CONSTRAINT "User_email_lowercase_check" CHECK ("email" = lower("email"));
+
+-- Room name: 1–64 characters, not blank. Description: at most 500 characters (ROOM_RULES).
+ALTER TABLE "Room" ADD CONSTRAINT "Room_name_length_check" CHECK (char_length("name") <= 64 AND btrim("name") <> '');
+ALTER TABLE "Room" ADD CONSTRAINT "Room_description_length_check" CHECK (char_length("description") <= 500);

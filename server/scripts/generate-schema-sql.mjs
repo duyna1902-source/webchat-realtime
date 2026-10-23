@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Regenerates prisma/schema.sql, the DDL that the tests load into in-memory PGlite, from
-// prisma/schema.prisma with `prisma migrate diff --from-empty`. Offline: never connects to a database.
+// prisma/schema.prisma with `prisma migrate diff --from-empty`, followed by prisma/check-constraints.sql
+// (the CHECK constraints Prisma's schema cannot express). Offline: never connects to a database.
 //
 //   node scripts/generate-schema-sql.mjs          rewrite prisma/schema.sql
 //   node scripts/generate-schema-sql.mjs --check  exit 1 if prisma/schema.sql is stale
@@ -15,11 +16,12 @@ import { fileURLToPath } from 'node:url';
 const SERVER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCHEMA_PRISMA = 'prisma/schema.prisma';
 const SCHEMA_SQL = path.join(SERVER_DIR, 'prisma', 'schema.sql');
+const CHECK_CONSTRAINTS_SQL = path.join(SERVER_DIR, 'prisma', 'check-constraints.sql');
 
 const HEADER = [
   '-- GENERATED FILE: DO NOT EDIT BY HAND.',
   '-- Regenerate after changing prisma/schema.prisma: npm run db:schema-sql --workspace=server',
-  `-- Source: prisma migrate diff --from-empty --to-schema ${SCHEMA_PRISMA} --script`,
+  `-- Source: prisma migrate diff --from-empty --to-schema ${SCHEMA_PRISMA} --script, then prisma/check-constraints.sql`,
   '-- Loaded into in-memory PGlite by the tests. Production schema changes go through prisma/migrations.',
   '',
   '',
@@ -40,7 +42,8 @@ function generate() {
     process.stderr.write(result.stderr || String(result.error));
     throw new Error(`prisma migrate diff failed (exit ${result.status})`);
   }
-  return HEADER + result.stdout.replace(/\r\n/g, '\n');
+  const checks = fs.readFileSync(CHECK_CONSTRAINTS_SQL, 'utf8').replace(/\r\n/g, '\n');
+  return HEADER + result.stdout.replace(/\r\n/g, '\n') + '\n' + checks;
 }
 
 const check = process.argv.includes('--check');

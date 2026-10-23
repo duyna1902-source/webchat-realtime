@@ -41,8 +41,8 @@ describe('Socket payload validation (SEC-05)', () => {
 
   beforeEach(async () => {
     const prisma = getPrisma();
-    const user = await prisma.user.create({ data: { username: 'sender', email: 'sender@test.com', passwordHash: 'hash' } });
-    const partner = await prisma.user.create({ data: { username: 'partner', email: 'partner@test.com', passwordHash: 'hash' } });
+    const user = await prisma.user.create({ data: { username: 'sender', usernameNormalized: 'sender', email: 'sender@test.com', passwordHash: 'hash' } });
+    const partner = await prisma.user.create({ data: { username: 'partner', usernameNormalized: 'partner', email: 'partner@test.com', passwordHash: 'hash' } });
     const room = await prisma.room.create({
       data: { name: 'general', ownerId: user.id, members: { create: { userId: user.id, role: 'OWNER' } } },
     });

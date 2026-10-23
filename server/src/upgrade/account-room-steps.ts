@@ -5,6 +5,7 @@ import {
   stripControlCharacters,
   truncateCharacters,
 } from '@webchat/shared';
+import { hasLegacyColumn } from './legacy-columns.js';
 import type { UpgradeStep, UpgradeStepContext } from './runner.js';
 
 // ==========================================
@@ -149,8 +150,9 @@ export const fillUsernameNormalizedStep: UpgradeStep = {
 export const clearAvatarUrlsStep: UpgradeStep = {
   name: 'clear-avatar-urls',
   async run({ db }) {
-    const { count } = await db.user.updateMany({ where: { avatarUrl: { not: null } }, data: { avatarUrl: null } });
-    return { changed: count };
+    if (!(await hasLegacyColumn(db, 'User', 'avatarUrl'))) return { changed: 0 };
+    const changed = await db.$executeRaw`UPDATE "User" SET "avatarUrl" = NULL WHERE "avatarUrl" IS NOT NULL`;
+    return { changed };
   },
 };
 

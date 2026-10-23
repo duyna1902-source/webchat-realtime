@@ -47,6 +47,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
     user1 = await prisma.user.create({
       data: {
         username: 'alice',
+        usernameNormalized: 'alice',
         email: 'alice@example.com',
         passwordHash: 'hash1',
       },
@@ -55,6 +56,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
     user2 = await prisma.user.create({
       data: {
         username: 'bob',
+        usernameNormalized: 'bob',
         email: 'bob@example.com',
         passwordHash: 'hash2',
       },
@@ -63,6 +65,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
     user3 = await prisma.user.create({
       data: {
         username: 'charlie',
+        usernameNormalized: 'charlie',
         email: 'charlie@example.com',
         passwordHash: 'hash3',
       },

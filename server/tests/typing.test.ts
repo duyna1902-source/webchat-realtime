@@ -50,13 +50,13 @@ describe('Direct Chat Typing Indicator Socket Integration', () => {
     const prisma = getPrisma();
 
     userAlice = await prisma.user.create({
-      data: { username: 'alice', email: 'alice@test.com', passwordHash: 'hash' },
+      data: { username: 'alice', usernameNormalized: 'alice', email: 'alice@test.com', passwordHash: 'hash' },
     });
     userBob = await prisma.user.create({
-      data: { username: 'bob', email: 'bob@test.com', passwordHash: 'hash' },
+      data: { username: 'bob', usernameNormalized: 'bob', email: 'bob@test.com', passwordHash: 'hash' },
     });
     userCharlie = await prisma.user.create({
-      data: { username: 'charlie', email: 'charlie@test.com', passwordHash: 'hash' },
+      data: { username: 'charlie', usernameNormalized: 'charlie', email: 'charlie@test.com', passwordHash: 'hash' },
     });
 
     const [u1, u2] = normalizeDirectChatPair(userAlice.id, userBob.id);

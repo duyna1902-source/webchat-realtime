@@ -23,6 +23,7 @@ describe('Direct Chat REST APIs', () => {
     user1 = await prisma.user.create({
       data: {
         username: 'alice',
+        usernameNormalized: 'alice',
         email: 'alice@example.com',
         passwordHash: 'hash1',
       },
@@ -31,6 +32,7 @@ describe('Direct Chat REST APIs', () => {
     user2 = await prisma.user.create({
       data: {
         username: 'bob',
+        usernameNormalized: 'bob',
         email: 'bob@example.com',
         passwordHash: 'hash2',
       },
@@ -39,6 +41,7 @@ describe('Direct Chat REST APIs', () => {
     user3 = await prisma.user.create({
       data: {
         username: 'charlie',
+        usernameNormalized: 'charlie',
         email: 'charlie@example.com',
         passwordHash: 'hash3',
       },

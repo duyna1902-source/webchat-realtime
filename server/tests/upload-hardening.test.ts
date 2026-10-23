@@ -22,7 +22,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   const user = await getPrisma().user.create({
-    data: { username: 'uploader', email: 'uploader@example.com', passwordHash: 'hash123' },
+    data: { username: 'uploader', usernameNormalized: 'uploader', email: 'uploader@example.com', passwordHash: 'hash123' },
   });
   authSession = await loginAs(server.app, user);
 });

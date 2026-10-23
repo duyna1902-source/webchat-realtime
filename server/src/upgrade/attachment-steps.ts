@@ -1,5 +1,6 @@
 import { ATTACHMENT_RULES, MessageType, isAllowedGifUrl, truncateCharacters } from '@webchat/shared';
 import type { StorageConfig } from '../config.js';
+import { hasLegacyColumn } from './legacy-columns.js';
 import type { UpgradeStep, UpgradeStepContext } from './runner.js';
 
 // ==========================================
@@ -59,45 +60,39 @@ interface LegacyMessage {
   attachmentSize: number | null;
 }
 
+// The legacy columns are no longer in the Prisma schema (the contract migration drops them), so
+// they are read and cleared with raw SQL, and only while they still exist.
 interface MessageTable {
   label: 'DirectMessage' | 'RoomMessage';
   withLegacyAttachment(db: Db): Promise<LegacyMessage[]>;
-  update(db: Db, id: string, data: { attachmentUnavailable?: boolean }): Promise<unknown>;
+  /** Clears the legacy columns, and marks the message unavailable when its attachment was removed. */
+  clearLegacy(db: Db, id: string, unavailable: boolean): Promise<unknown>;
   link(id: string): { directMessageId: string } | { roomMessageId: string };
 }
-
-const LEGACY_SELECT = {
-  id: true,
-  senderId: true,
-  type: true,
-  attachmentUrl: true,
-  attachmentName: true,
-  attachmentSize: true,
-} as const;
-
-const CLEARED_LEGACY_COLUMNS = { attachmentUrl: null, attachmentName: null, attachmentSize: null };
 
 const TABLES: readonly MessageTable[] = [
   {
     label: 'DirectMessage',
-    withLegacyAttachment: (db) =>
-      db.directMessage.findMany({
-        where: { attachmentUrl: { not: null } },
-        select: LEGACY_SELECT,
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      }),
-    update: (db, id, data) => db.directMessage.update({ where: { id }, data: { ...CLEARED_LEGACY_COLUMNS, ...data } }),
+    withLegacyAttachment: (db) => db.$queryRaw<LegacyMessage[]>`
+      SELECT "id", "senderId", "type"::text AS "type", "attachmentUrl", "attachmentName", "attachmentSize"
+        FROM "DirectMessage" WHERE "attachmentUrl" IS NOT NULL ORDER BY "createdAt", "id"`,
+    clearLegacy: (db, id, unavailable) => db.$executeRaw`
+      UPDATE "DirectMessage"
+         SET "attachmentUrl" = NULL, "attachmentName" = NULL, "attachmentSize" = NULL,
+             "attachmentUnavailable" = ("attachmentUnavailable" OR ${unavailable})
+       WHERE "id" = ${id}`,
     link: (id) => ({ directMessageId: id }),
   },
   {
     label: 'RoomMessage',
-    withLegacyAttachment: (db) =>
-      db.roomMessage.findMany({
-        where: { attachmentUrl: { not: null } },
-        select: LEGACY_SELECT,
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      }),
-    update: (db, id, data) => db.roomMessage.update({ where: { id }, data: { ...CLEARED_LEGACY_COLUMNS, ...data } }),
+    withLegacyAttachment: (db) => db.$queryRaw<LegacyMessage[]>`
+      SELECT "id", "senderId", "type"::text AS "type", "attachmentUrl", "attachmentName", "attachmentSize"
+        FROM "RoomMessage" WHERE "attachmentUrl" IS NOT NULL ORDER BY "createdAt", "id"`,
+    clearLegacy: (db, id, unavailable) => db.$executeRaw`
+      UPDATE "RoomMessage"
+         SET "attachmentUrl" = NULL, "attachmentName" = NULL, "attachmentSize" = NULL,
+             "attachmentUnavailable" = ("attachmentUnavailable" OR ${unavailable})
+       WHERE "id" = ${id}`,
     link: (id) => ({ roomMessageId: id }),
   },
 ];
@@ -140,6 +135,7 @@ export function createLegacyAttachmentsStep(bucketUrl: string | null): UpgradeSt
       let created = 0;
       const removed: string[] = [];
       for (const table of TABLES) {
+        if (!(await hasLegacyColumn(db, table.label, 'attachmentUrl'))) continue;
         for (const message of await table.withLegacyAttachment(db)) {
           const storageKey = storageKeyOfLegacyUrl(message.attachmentUrl ?? '', bucketUrl);
           const kind = kindOf(message.type);
@@ -157,12 +153,12 @@ export function createLegacyAttachmentsStep(bucketUrl: string | null): UpgradeSt
                 ...table.link(message.id),
               },
             });
-            await table.update(db, message.id, {});
+            await table.clearLegacy(db, message.id, false);
             created++;
             continue;
           }
 
-          await table.update(db, message.id, { attachmentUnavailable: true });
+          await table.clearLegacy(db, message.id, true);
           const reason = !storageKey
             ? 'URL is not an object of the project bucket'
             : !kind

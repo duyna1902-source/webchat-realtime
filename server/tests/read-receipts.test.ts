@@ -52,13 +52,13 @@ describe('Read Receipts Socket Integration (direct:read and room:read)', () => {
 
     // Create users
     userAlice = await prisma.user.create({
-      data: { username: 'alice', email: 'alice@test.com', passwordHash: 'hash' },
+      data: { username: 'alice', usernameNormalized: 'alice', email: 'alice@test.com', passwordHash: 'hash' },
     });
     userBob = await prisma.user.create({
-      data: { username: 'bob', email: 'bob@test.com', passwordHash: 'hash' },
+      data: { username: 'bob', usernameNormalized: 'bob', email: 'bob@test.com', passwordHash: 'hash' },
     });
     userCharlie = await prisma.user.create({
-      data: { username: 'charlie', email: 'charlie@test.com', passwordHash: 'hash' },
+      data: { username: 'charlie', usernameNormalized: 'charlie', email: 'charlie@test.com', passwordHash: 'hash' },
     });
 
     // Create DirectChat between Alice and Bob
@@ -227,7 +227,7 @@ describe('Read Receipts Socket Integration (direct:read and room:read)', () => {
 
       // Create an offline user Dan and a chat between Alice and Dan
       const userDan = await prisma.user.create({
-        data: { username: 'dan', email: 'dan@test.com', passwordHash: 'hash', isOnline: false },
+        data: { username: 'dan', usernameNormalized: 'dan', email: 'dan@test.com', passwordHash: 'hash', isOnline: false },
       });
       const [u1, u2] = normalizeDirectChatPair(userAlice.id, userDan.id);
       const chatDan = await prisma.directChat.create({

@@ -66,10 +66,10 @@ describe('Attachment Messages Socket Integration (IMAGE & DOCUMENT)', () => {
 
     // Create users
     const userAlice = await prisma.user.create({
-      data: { username: 'alice_attach', email: 'alice_attach@test.com', passwordHash: 'hash' },
+      data: { username: 'alice_attach', usernameNormalized: 'alice_attach', email: 'alice_attach@test.com', passwordHash: 'hash' },
     });
     const userBob = await prisma.user.create({
-      data: { username: 'bob_attach', email: 'bob_attach@test.com', passwordHash: 'hash' },
+      data: { username: 'bob_attach', usernameNormalized: 'bob_attach', email: 'bob_attach@test.com', passwordHash: 'hash' },
     });
 
     // Create DirectChat between Alice and Bob

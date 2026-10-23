@@ -5,10 +5,11 @@ import { PrismaClient } from '@prisma/client';
 import { InMemoryStorageAdapter } from '../src/lib/storage.js';
 import { runUpgradeCommand, UpgradeReport } from '../src/upgrade/runner.js';
 import { upgradeSteps } from '../src/upgrade/steps.js';
-import { applyMigrations, createMigratedDatabase } from './helpers/migrations.js';
+import { LAST_EXPAND_MIGRATION, applyMigrations, createMigratedDatabase } from './helpers/migrations.js';
 
 // Seam 3: the account and room steps of the data upgrade command (ticket 07), run on junk data
-// loaded the way production has it (before the expand migration), then the expand migration.
+// loaded the way production has it (before the expand migration), then the expand migrations.
+// After the command, the contract migration (ticket 20) applies.
 
 const LAST_MIGRATION_BEFORE_EXPAND = '20261023000000_enable_rls';
 
@@ -78,7 +79,7 @@ describe('Data upgrade: account and room rules (seam 3)', () => {
   beforeEach(async () => {
     db = await createMigratedDatabase({ until: LAST_MIGRATION_BEFORE_EXPAND });
     await loadJunk(db);
-    await applyMigrations(db);
+    await applyMigrations(db, { until: LAST_EXPAND_MIGRATION });
     prisma = new PrismaClient({ adapter: new PrismaPGlite(db) });
     output = [];
   }, 30_000);
@@ -122,8 +123,10 @@ describe('Data upgrade: account and room rules (seam 3)', () => {
 
     for (const user of await users()) {
       expect(user.usernameNormalized).toBe(user.username.toLowerCase());
-      expect(user.avatarUrl).toBeNull();
     }
+    // The column is no longer in the Prisma schema: the contract migration drops it.
+    const avatars = await db.query(`SELECT id FROM "User" WHERE "avatarUrl" IS NOT NULL`);
+    expect(avatars.rows).toEqual([]);
   });
 
   it('trims and cleans room names and descriptions, naming an empty room after its id', async () => {
@@ -159,6 +162,9 @@ describe('Data upgrade: account and room rules (seam 3)', () => {
       expect(Array.from(r.description ?? '').length).toBeLessThanOrEqual(500);
       expect(r.description ?? '').not.toMatch(/\p{Cc}/u);
     }
+
+    // So the contract migration, which enforces these rules in the database, now applies.
+    await expect(applyMigrations(db)).resolves.toContain('20261027000000_contract');
   });
 
   it('reports every changed account and room value as old -> new', async () => {

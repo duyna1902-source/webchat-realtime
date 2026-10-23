@@ -50,7 +50,7 @@ function connect(session: SessionHeaders): Promise<ClientSocketType> {
 }
 
 async function createUser(username: string, email: string) {
-  return getPrisma().user.create({ data: { username, email, passwordHash: 'hash' } });
+  return getPrisma().user.create({ data: { username, usernameNormalized: username.toLowerCase(), email, passwordHash: 'hash' } });
 }
 
 describe('GET /api/users (bounded search)', () => {

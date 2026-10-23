@@ -11,11 +11,13 @@ Run every command below from `server/`, or through `npm run <script> --workspace
 | `server/prisma/schema.prisma` | The source of truth for the schema. |
 | `server/prisma/migrations/0_baseline/` | The schema as production had it when it was created with `db push`. It is the output of `prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script` at the commit that added it. Never edit it. |
 | `server/prisma/migrations/20261023000000_enable_rls/` | Enables Row Level Security, with no policy, on every table that exists at that point, including Prisma's `_prisma_migrations` (decision Q42). |
-| `server/prisma/migrations/20261024000000_expand_username_normalized/` | Expand (ticket 07): adds the nullable `User.usernameNormalized` key. The data upgrade fills it; ticket 20 makes it required and unique. |
-| `server/prisma/migrations/20261025000000_expand_attachments/` | Expand (ticket 13, ADR 0009): adds the `Attachment` table (RLS on) with nullable, unique links to a Direct Message or Room Message. The legacy `attachmentUrl`/`attachmentName`/`attachmentSize` columns stay until ticket 20. |
+| `server/prisma/migrations/20261024000000_expand_username_normalized/` | Expand (ticket 07): adds the nullable `User.usernameNormalized` key. The data upgrade fills it; the contract migration makes it required and unique. |
+| `server/prisma/migrations/20261025000000_expand_attachments/` | Expand (ticket 13, ADR 0009): adds the `Attachment` table (RLS on) with nullable, unique links to a Direct Message or Room Message. The legacy `attachmentUrl`/`attachmentName`/`attachmentSize` columns stay until the contract migration. |
 | `server/prisma/migrations/20261026000000_expand_attachment_unavailable/` | Expand (ticket 14): adds `attachmentUnavailable` (default false) to `DirectMessage` and `RoomMessage`. The data upgrade sets it on messages whose legacy attachment or GIF it removed; message DTOs carry it. |
+| `server/prisma/migrations/20261027000000_contract/` | Contract (ticket 20). Refuses to run, changing nothing, while any row is not normalized yet (see below). Then drops `User.avatarUrl` and the `attachmentUrl`/`attachmentName`/`attachmentSize` columns of `DirectMessage` and `RoomMessage` (`attachmentUnavailable` stays), makes `usernameNormalized` `NOT NULL UNIQUE`, and adds the CHECK constraints of `check-constraints.sql`. |
+| `server/prisma/check-constraints.sql` | The CHECK constraints Prisma's schema cannot express: `usernameNormalized = lower(username)`, `email = lower(email)`, room `name` 1–64 characters and not blank, `description` at most 500 characters. The generator appends it to `schema.sql`. A change needs a new migration **and** an edit here; the drift test fails if they disagree. |
 | `server/prisma/schema.sql` | **Generated. Do not edit by hand.** It is the DDL that the tests load into in-memory PGlite. Regenerate it with `npm run db:schema-sql`. |
-| `server/scripts/generate-schema-sql.mjs` | The generator. With `--check` it fails if `schema.sql` is stale, and the test suite runs that check. |
+| `server/scripts/generate-schema-sql.mjs` | The generator: `prisma migrate diff --from-empty` output followed by `check-constraints.sql`. With `--check` it fails if `schema.sql` is stale, and the test suite runs that check. |
 | `server/src/upgrade/` and `server/src/cli/upgrade-data.ts` | The data upgrade command (see below). |
 
 ## npm scripts (in `server/`)
@@ -53,6 +55,31 @@ Schema changes follow the order **expand → data → contract**:
 
 The contract migration must fail if the data step has not run.
 
+### The contract migration (ticket 20)
+
+Since the contract migration, the database itself refuses rows that break the account and room rules, even if the app misses one: a second account `Alice` next to `alice`, an email with capitals, a duplicate email, a room name over 64 characters or blank, a description over 500 characters. Registration no longer checks for a taken username or email before inserting. It inserts, and turns the unique-constraint error into the usual `400 VALIDATION_ERROR` on the `username` or `email` field, so two registrations racing for one name cannot both get in.
+
+Its first statement is a guard. It counts the rows the data upgrade has not normalized yet:
+
+- users without `usernameNormalized`, or with one that is not `lower(username)`;
+- usernames shared by two accounts, ignoring case;
+- emails that are not lowercase;
+- users that still have an `avatarUrl`;
+- rooms whose name or description is out of bounds;
+- messages that still have a legacy `attachmentUrl`.
+
+If it finds any, it raises an error that lists them and names the data upgrade command. The whole migration runs in one transaction, so nothing is dropped. `prisma migrate deploy` then records the migration as failed and refuses later deploys until you clear it:
+
+```bash
+npm run db:upgrade-data --workspace=server -- --dry-run   # read the report
+npm run db:upgrade-data --workspace=server
+npx prisma migrate resolve --rolled-back 20261027000000_contract   # from server/
+```
+
+Then deploy again.
+
+The data upgrade steps still run after the contract migration. They report 0 changes. The steps that clean the dropped columns (`clear-avatar-urls`, `migrate-legacy-attachments`) use raw SQL, because those columns are no longer in the Prisma schema. They skip a column that no longer exists.
+
 ## Production: one-time baseline (ticket 21, done by a human)
 
 Production was created with `db push`, so it has no `_prisma_migrations` table. Before the first deploy that runs `prisma migrate deploy`, tell Prisma that production already has the baseline:
@@ -71,6 +98,13 @@ Production was created with `db push`, so it has no `_prisma_migrations` table. 
 5. Check that the Data API is locked: `GET <SUPABASE_URL>/rest/v1/User` must return an error or an empty list.
 
 Prisma connects as the role that owns the tables, and RLS is not `FORCE`d, so the app keeps working with no policies.
+
+The first deploy must not contain the contract migration yet: ticket 20 is merged only after the data upgrade has run on production (ticket 21). Then:
+
+6. Run the data upgrade on production, `--dry-run` first, while nobody is uploading.
+7. Merge ticket 20 and deploy. `migrate deploy` applies `20261027000000_contract`. If its guard refuses, see [The contract migration](#the-contract-migration-ticket-20).
+
+While the new instance runs the contract migration, the old instance is still serving. Its Prisma client still selects the dropped columns, so requests that read users or messages fail until the new instance takes over. That takes a few seconds. Expect them.
 
 ## The data upgrade command
 
@@ -100,4 +134,4 @@ Registered steps, in order:
 
 The report lists each changed username, email, room name and description as `old -> new` (very long values shortened), how many Attachments were created, each message that lost its attachment or GIF, and each deleted object.
 
-To add a step, implement `UpgradeStep` from `server/src/upgrade/runner.ts`. Register it in `upgradeSteps()`, then test it through `runUpgradeCommand` against a database built with `tests/helpers/migrations.ts` (see `tests/upgrade-data.test.ts`).
+To add a step, implement `UpgradeStep` from `server/src/upgrade/runner.ts`. Register it in `upgradeSteps()`, then test it through `runUpgradeCommand` against a database migrated up to `LAST_EXPAND_MIGRATION` with `tests/helpers/migrations.ts` (see `tests/upgrade-data.test.ts`). `tests/contract-migration.test.ts` runs the whole sequence: baseline, junk data, expand, the command, contract.

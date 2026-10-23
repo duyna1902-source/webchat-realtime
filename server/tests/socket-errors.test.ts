@@ -35,7 +35,7 @@ describe('Socket error layer (SEC-05, SEC-09)', () => {
 
   beforeEach(async () => {
     const user = await getPrisma().user.create({
-      data: { username: 'sock_err', email: 'sock_err@test.com', passwordHash: 'hash' },
+      data: { username: 'sock_err', usernameNormalized: 'sock_err', email: 'sock_err@test.com', passwordHash: 'hash' },
     });
     userId = user.id;
     session = await loginAs(server.app, user);
@@ -65,7 +65,7 @@ describe('Socket error layer (SEC-05, SEC-09)', () => {
 
   it('an expected failure acks its error code and a requestId', async () => {
     const owner = await getPrisma().user.create({
-      data: { username: 'room_owner', email: 'room_owner@test.com', passwordHash: 'hash' },
+      data: { username: 'room_owner', usernameNormalized: 'room_owner', email: 'room_owner@test.com', passwordHash: 'hash' },
     });
     const room = await getPrisma().room.create({ data: { name: 'private', ownerId: owner.id } });
 

@@ -42,13 +42,13 @@ enum AttachmentKind {
 model User {
   id           String    @id @default(uuid())
   username     String    @unique
-  /// Lowercase `username`, for case-insensitive uniqueness. Nullable until the data upgrade
-  /// fills it; the contract migration (ticket 20) makes it required and unique.
-  usernameNormalized String?
+  /// Lowercase `username`: the database enforces case-insensitive uniqueness through it. A
+  /// CHECK constraint (prisma/check-constraints.sql) keeps it equal to lower("username").
+  usernameNormalized String @unique
+  /// Always lowercase (CHECK constraint in prisma/check-constraints.sql).
   email        String    @unique
   passwordHash String
-  avatarUrl    String?
-  isOnline     Boolean   @default(false)
+  isOnline    Boolean   @default(false)
   lastSeenAt   DateTime  @default(now())
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -131,9 +131,6 @@ model DirectMessage {
   content        String        @db.Text
   type           MessageType   @default(TEXT)
   status         MessageStatus @default(SENT)
-  attachmentUrl  String?
-  attachmentName String?
-  attachmentSize Int?
   /// Set by the data upgrade when it removed an unusable legacy attachment or GIF (ticket 14).
   attachmentUnavailable Boolean @default(false)
   createdAt      DateTime      @default(now())
@@ -149,7 +146,9 @@ model DirectMessage {
 
 model Room {
   id          String   @id @default(uuid())
+  /// 1–64 characters (CHECK constraint in prisma/check-constraints.sql).
   name        String
+  /// At most 500 characters (CHECK constraint in prisma/check-constraints.sql).
   description String?
   ownerId     String
   createdAt   DateTime @default(now())
@@ -186,9 +185,6 @@ model RoomMessage {
   senderId       String
   content        String      @db.Text
   type           MessageType @default(TEXT)
-  attachmentUrl  String?
-  attachmentName String?
-  attachmentSize Int?
   /// Set by the data upgrade when it removed an unusable legacy attachment or GIF (ticket 14).
   attachmentUnavailable Boolean @default(false)
   createdAt      DateTime    @default(now())

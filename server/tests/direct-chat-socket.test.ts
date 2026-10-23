@@ -51,13 +51,13 @@ describe('Direct Chat Socket.io Real-Time Integration', () => {
 
     // Create users
     userAlice = await prisma.user.create({
-      data: { username: 'alice', email: 'alice@test.com', passwordHash: 'hash' },
+      data: { username: 'alice', usernameNormalized: 'alice', email: 'alice@test.com', passwordHash: 'hash' },
     });
     userBob = await prisma.user.create({
-      data: { username: 'bob', email: 'bob@test.com', passwordHash: 'hash' },
+      data: { username: 'bob', usernameNormalized: 'bob', email: 'bob@test.com', passwordHash: 'hash' },
     });
     userCharlie = await prisma.user.create({
-      data: { username: 'charlie', email: 'charlie@test.com', passwordHash: 'hash' },
+      data: { username: 'charlie', usernameNormalized: 'charlie', email: 'charlie@test.com', passwordHash: 'hash' },
     });
 
     // Create DirectChat between Alice and Bob

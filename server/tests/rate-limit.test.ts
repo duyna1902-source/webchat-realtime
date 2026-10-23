@@ -31,7 +31,7 @@ afterEach(async () => {
 
 async function createUser(username: string, password = 'Password123!') {
   return getPrisma().user.create({
-    data: { username, email: `${username}@example.com`, passwordHash: await bcrypt.hash(password, 4) },
+    data: { username, usernameNormalized: username.toLowerCase(), email: `${username}@example.com`, passwordHash: await bcrypt.hash(password, 4) },
   });
 }
 
