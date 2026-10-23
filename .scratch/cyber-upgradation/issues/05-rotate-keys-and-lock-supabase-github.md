@@ -8,10 +8,14 @@ Spec: [`../spec.md`](../spec.md), mục *Quy trình và tài liệu → Checklis
 
 **Status:** ready-for-human
 
-- [ ] Supabase: tạo secret key mới (`sb_secret_…`) và đặt vào `SUPABASE_SECRET_KEY` trên Render, sau khi bản deploy chứa ticket 04 đã chạy.
+- [x] Supabase: tạo secret key mới (`sb_secret_…`) và đặt vào `SUPABASE_SECRET_KEY` trên Render, sau khi bản deploy chứa ticket 04 đã chạy.
 - [ ] Xác nhận upload trên production vẫn hoạt động với key mới.
 - [ ] Supabase: deactivate hai legacy key `anon` và `service_role`.
 - [ ] Supabase: tắt Data API. Nếu không tắt hẳn được thì bỏ `public` khỏi danh sách schema được expose. Kiểm tra lại: `GET /rest/v1/User` bằng key mới phải trả lỗi hoặc danh sách rỗng.
-- [ ] Render: xóa các biến key Supabase cũ, đặt `APP_ORIGIN=https://webchat-realtime.onrender.com`, xác nhận các biến `sync: false` đã có giá trị.
-- [ ] GitHub: bật Secret scanning, Push protection và Private vulnerability reporting.
+- [x] Render: xóa các biến key Supabase cũ, đặt `APP_ORIGIN=https://webchat-realtime.onrender.com`, xác nhận các biến `sync: false` đã có giá trị.
+- [x] GitHub: bật Secret scanning, Push protection và Private vulnerability reporting.
 - [ ] (Khuyến nghị) Xem log API và Storage của Supabase để tìm truy cập lạ dùng key `service_role`, rồi ghi kết quả vào phần Comments của ticket này.
+
+## Comments
+
+- 2026-10-23: Đã tạo secret key `sb_secret_…` và đặt vào `SUPABASE_SECRET_KEY` trên Render; đã xóa `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET` và đặt `APP_ORIGIN`. GitHub: đã bật Secret scanning, Push protection, Private vulnerability reporting (API xác nhận `enabled: true`). Còn lại: xác nhận upload với key mới, deactivate legacy key, tắt Data API, xem log Supabase.
