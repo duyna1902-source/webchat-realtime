@@ -37,6 +37,9 @@ enum MessageStatus {
 model User {
   id           String    @id @default(uuid())
   username     String    @unique
+  /// Lowercase `username`, for case-insensitive uniqueness. Nullable until the data upgrade
+  /// fills it; the contract migration (ticket 20) makes it required and unique.
+  usernameNormalized String?
   email        String    @unique
   passwordHash String
   avatarUrl    String?

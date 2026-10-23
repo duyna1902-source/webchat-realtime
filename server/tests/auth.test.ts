@@ -84,7 +84,8 @@ describe('Auth REST API Endpoints', () => {
         })
         .expect(400);
 
-      expect(res.body.message).toMatch(/all fields are required/i);
+      expect(res.body.code).toBe('VALIDATION_ERROR');
+      expect(res.body.fields.map((f: { field: string }) => f.field).sort()).toEqual(['email', 'password']);
     });
   });
 

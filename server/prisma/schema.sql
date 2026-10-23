@@ -19,6 +19,7 @@ CREATE TYPE "MessageStatus" AS ENUM ('SENT', 'DELIVERED', 'READ');
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "username" TEXT NOT NULL,
+    "usernameNormalized" TEXT,
     "email" TEXT NOT NULL,
     "passwordHash" TEXT NOT NULL,
     "avatarUrl" TEXT,

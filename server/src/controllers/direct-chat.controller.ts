@@ -1,7 +1,15 @@
 import { Response } from 'express';
 import { getPrisma } from '../lib/prisma.js';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
-import { normalizeDirectChatPair, DirectChatDto, DirectChatListItemDto, DirectReceiveMessagePayload, PaginatedMessagesDto } from '@webchat/shared';
+import {
+  normalizeDirectChatPair,
+  DirectChatDto,
+  DirectChatListItemDto,
+  DirectReceiveMessagePayload,
+  PaginatedMessagesDto,
+  createDirectChatSchema,
+} from '@webchat/shared';
+import { parseInput } from '../lib/validation.js';
 import { toUserDto } from './user.controller.js';
 import { parsePaginationParams, fetchPaginatedMessages } from '../lib/pagination.js';
 
@@ -13,7 +21,6 @@ export function toDirectReceiveMessagePayload(msg: any): DirectReceiveMessagePay
     sender: {
       id: msg.sender.id,
       username: msg.sender.username,
-      avatarUrl: msg.sender.avatarUrl,
     },
     content: msg.content,
     type: msg.type,
@@ -32,12 +39,7 @@ export async function createOrGetDirectChat(req: AuthenticatedRequest, res: Resp
   }
 
   const currentUserId = req.user.userId;
-  const { targetUserId } = req.body;
-
-  if (!targetUserId || typeof targetUserId !== 'string') {
-    res.status(400).json({ message: 'targetUserId is required' });
-    return;
-  }
+  const { targetUserId } = parseInput(createDirectChatSchema, req.body);
 
   if (targetUserId === currentUserId) {
     res.status(400).json({ message: 'Cannot create direct chat with yourself' });

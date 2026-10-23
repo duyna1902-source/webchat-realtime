@@ -17,7 +17,7 @@ import {
   MessageType,
 } from '@webchat/shared';
 import { showBrowserNotification, playNotificationSound } from '../../utils/notifications';
-import { getAvatarColorClass } from '../../utils/avatarColor';
+import { getAvatarColorClass, getAvatarIconUrl } from '../../utils/avatarColor';
 
 export const Dashboard: React.FC = () => {
   const { currentUser, logout } = useAuth();
@@ -126,8 +126,7 @@ export const Dashboard: React.FC = () => {
       senderName: string,
       snippet: string,
       senderId: string,
-      isCurrentConversation: boolean,
-      avatarUrl?: string | null
+      isCurrentConversation: boolean
     ) => {
       if (senderId === currentUser?.id) return;
 
@@ -138,7 +137,8 @@ export const Dashboard: React.FC = () => {
         playNotificationSound();
         showBrowserNotification(senderName, {
           body: snippet || 'Sent a new message',
-          icon: avatarUrl || undefined,
+          // Always the Deterministic 4-Color Avatar: never load an image URL a User controls.
+          icon: getAvatarIconUrl(senderName),
         });
       } else if (!isCurrentConversation) {
         // Tab is visible, but incoming message is in an inactive conversation:
@@ -151,13 +151,13 @@ export const Dashboard: React.FC = () => {
     const handleDirectReceive = (msg: DirectReceiveMessagePayload) => {
       const snippet = formatSidebarPreview(msg, '');
       const isCurrent = activeChatId !== null && msg.directChatId === activeChatId;
-      handleIncoming(msg.sender.username, snippet, msg.senderId, isCurrent, msg.sender.avatarUrl);
+      handleIncoming(msg.sender.username, snippet, msg.senderId, isCurrent);
     };
 
     const handleRoomReceive = (msg: RoomReceiveMessagePayload) => {
       const snippet = formatSidebarPreview(msg, '');
       const isCurrent = activeRoomId !== null && msg.roomId === activeRoomId;
-      handleIncoming(msg.sender.username, snippet, msg.senderId, isCurrent, msg.sender.avatarUrl);
+      handleIncoming(msg.sender.username, snippet, msg.senderId, isCurrent);
     };
 
     socket.on(SOCKET_EVENTS.DIRECT_RECEIVE, handleDirectReceive);

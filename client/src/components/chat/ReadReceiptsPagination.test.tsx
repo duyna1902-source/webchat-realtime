@@ -124,7 +124,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'msg-sent',
         directChatId: 'chat-alice-bob',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username, avatarUrl: null },
+        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
         content: 'Hello Bob! This is sent.',
         type: MessageType.TEXT,
         status: MessageStatus.SENT,
@@ -151,7 +151,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'msg-delivered',
         directChatId: 'chat-alice-bob',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username, avatarUrl: null },
+        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
         content: 'Hello Bob! This is delivered.',
         type: MessageType.TEXT,
         status: MessageStatus.DELIVERED,
@@ -178,7 +178,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'msg-read',
         directChatId: 'chat-alice-bob',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username, avatarUrl: null },
+        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
         content: 'Hello Bob! You have read this.',
         type: MessageType.TEXT,
         status: MessageStatus.READ,
@@ -207,7 +207,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'msg-1',
         directChatId: 'chat-alice-bob',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username, avatarUrl: null },
+        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
         content: 'First message',
         type: MessageType.TEXT,
         status: MessageStatus.READ,
@@ -218,7 +218,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'msg-2',
         directChatId: 'chat-alice-bob',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username, avatarUrl: null },
+        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
         content: 'Second message',
         type: MessageType.TEXT,
         status: MessageStatus.SENT,
@@ -288,7 +288,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'room-msg-sent',
         roomId: 'room-1',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username, avatarUrl: null },
+        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
         content: 'Message waiting for readers',
         type: MessageType.TEXT,
         createdAt: new Date().toISOString(),
@@ -323,7 +323,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: 'room-msg-1',
         roomId: 'room-1',
         senderId: mockCurrentUser.id,
-        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username, avatarUrl: null },
+        sender: { id: mockCurrentUser.id, username: mockCurrentUser.username },
         content: 'Welcome team!',
         type: MessageType.TEXT,
         createdAt: new Date().toISOString(),
@@ -427,7 +427,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
         id: `msg-${i + 1}`,
         directChatId: 'chat-alice-bob',
         senderId: mockPartnerUser.id,
-        sender: { id: mockPartnerUser.id, username: mockPartnerUser.username, avatarUrl: null },
+        sender: { id: mockPartnerUser.id, username: mockPartnerUser.username },
         content: `Message #${i + 1}`,
         type: MessageType.TEXT,
         status: MessageStatus.READ,
@@ -542,6 +542,51 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
       expect(showSpy).toHaveBeenCalledWith('bob', expect.objectContaining({
         body: 'Hello in background',
       }));
+
+      playSpy.mockRestore();
+      showSpy.mockRestore();
+    });
+
+    it('never uses a user-supplied URL as the browser notification icon (A04)', async () => {
+      const socketListeners: Record<string, Function[]> = {};
+      const mockSocket: any = {
+        emit: vi.fn(),
+        on: vi.fn((event, handler) => {
+          if (!socketListeners[event]) socketListeners[event] = [];
+          socketListeners[event].push(handler);
+        }),
+        off: vi.fn(),
+      };
+
+      (window as any).Notification.permission = 'granted';
+      localStorage.setItem('webchat_notifications_enabled', 'true');
+      Object.defineProperty(document, 'hidden', { value: true, configurable: true, writable: true });
+
+      const playSpy = vi.spyOn(notificationUtils, 'playNotificationSound').mockImplementation(() => {});
+      const showSpy = vi.spyOn(notificationUtils, 'showBrowserNotification').mockImplementation(() => null);
+      global.fetch = vi.fn(() => Promise.resolve({ ok: true, json: async () => [] })) as any;
+
+      renderWithProviders(<Dashboard />, mockSocket);
+
+      await act(async () => {
+        socketListeners[SOCKET_EVENTS.ROOM_RECEIVE]?.forEach((fn) =>
+          fn({
+            id: 'msg-notif-avatar',
+            roomId: 'room-other',
+            senderId: 'user-bob-id',
+            // An old server or a tampered payload may still carry an avatar URL.
+            sender: { id: 'user-bob-id', username: 'bob', avatarUrl: 'https://attacker.example/track.png' },
+            content: 'Hello',
+            type: MessageType.TEXT,
+            createdAt: new Date().toISOString(),
+          })
+        );
+      });
+
+      expect(showSpy).toHaveBeenCalledTimes(1);
+      const icon = showSpy.mock.calls[0][1]?.icon;
+      expect(icon).toMatch(/^blob:/);
+      expect(icon).not.toContain('attacker.example');
 
       playSpy.mockRestore();
       showSpy.mockRestore();
