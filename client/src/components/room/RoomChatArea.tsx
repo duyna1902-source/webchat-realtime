@@ -21,6 +21,7 @@ import { useRoomTyping } from '../../hooks/useRoomTyping';
 import { MobileBackButton } from '../common/MobileBackButton';
 import { getAvatarColorClass } from '../../utils/avatarColor';
 import { truncateUnicodeSafe } from '../../utils/unicode';
+import { rateLimitNoticeFromAck, SendMessageAck } from '../../utils/rateLimit';
 import {
   Hash,
   Users,
@@ -42,7 +43,8 @@ interface RoomChatAreaProps {
   hasMore?: boolean;
   isLoadingOlder?: boolean;
   onLoadOlderMessages?: () => Promise<void> | void;
-  onSendMessage: (content: string, optionsOrType?: MessageType | SendRoomMessageOptions) => void;
+  /** May resolve with the server's ack; a `RATE_LIMITED` ack keeps the draft and shows the wait time. */
+  onSendMessage: (content: string, optionsOrType?: MessageType | SendRoomMessageOptions) => Promise<SendMessageAck> | void;
   onAddMember: (userId: string) => Promise<void>;
   onRemoveMember: (userId: string) => Promise<void>;
   onChangeRole: (userId: string, role: RoomRole.ADMIN | RoomRole.MEMBER) => Promise<void>;
@@ -302,12 +304,18 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
         const isImage = selectedFile.type.startsWith('image/');
         const type = isImage ? MessageType.IMAGE : MessageType.DOCUMENT;
 
-        onSendMessage(inputText.trim(), {
+        const ack = await onSendMessage(inputText.trim(), {
           type,
           attachmentUrl: uploaded.url,
           attachmentName: uploaded.name,
           attachmentSize: uploaded.size,
         });
+        const rateLimitNotice = rateLimitNoticeFromAck(ack);
+        if (rateLimitNotice) {
+          // Not sent: keep the caption and the attachment so the User can retry.
+          showErrorMessage(rateLimitNotice);
+          return;
+        }
 
         handleCancelAttachment();
         setInputText('');
@@ -317,8 +325,15 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
         setIsUploading(false);
       }
     } else {
-      onSendMessage(inputText);
+      const draft = inputText;
+      const pendingAck = onSendMessage(draft);
       setInputText('');
+      const rateLimitNotice = rateLimitNoticeFromAck(await pendingAck);
+      if (rateLimitNotice) {
+        // Not sent: give the draft back, unless the User has already typed something new.
+        setInputText((current) => (current === '' ? draft : current));
+        showErrorMessage(rateLimitNotice);
+      }
     }
   };
 
@@ -362,9 +377,11 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
     });
   };
 
-  const handleSelectGif = (gifUrl: string) => {
-    onSendMessage(gifUrl, MessageType.EMOJI_GIF);
+  const handleSelectGif = async (gifUrl: string) => {
+    const pendingAck = onSendMessage(gifUrl, MessageType.EMOJI_GIF);
     setShowGifModal(false);
+    const rateLimitNotice = rateLimitNoticeFromAck(await pendingAck);
+    if (rateLimitNotice) showErrorMessage(rateLimitNotice);
   };
 
   const formatMessageTime = (dateStr: string) => {
@@ -567,6 +584,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
         {/* Error Alert */}
         {errorMessage && (
           <div
+            role="alert"
             data-testid="room-upload-error-alert"
             className="max-w-4xl mx-auto mb-2 p-2.5 bg-google-red-subtle border border-google-red/20 rounded-xl text-google-red text-xs flex items-center justify-between shadow-xs animate-in fade-in"
           >
