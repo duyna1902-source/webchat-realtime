@@ -9,6 +9,7 @@ import { createApp } from './app.js';
 import { attachServerContext } from './context.js';
 import { createLogger, Logger } from './lib/logger.js';
 import { createSessionStore, SessionStore } from './lib/session-store.js';
+import { createRestRateLimiters } from './middlewares/rate-limit.js';
 
 export interface CreateServerOptions {
   /** Validated configuration from `loadConfig()`. */
@@ -45,7 +46,7 @@ export async function createServer({ config, storage, logger: injectedLogger }: 
   const httpServer = http.createServer(app);
   // Socket.IO must attach after Express so it can intercept `/socket.io` requests first.
   const io = setupSocketServer(httpServer, { config, logger, sessions });
-  attachServerContext(app.locals, { config, storage, io, sessions });
+  attachServerContext(app.locals, { config, storage, io, sessions, rateLimiters: createRestRateLimiters(config.rateLimits) });
 
   return { httpServer, app, io, logger, sessions };
 }

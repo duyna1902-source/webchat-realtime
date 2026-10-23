@@ -9,7 +9,12 @@ import { createTestServer, sessionCookieOf, sessionHeaders, SessionHeaders, TEST
 let app: Express;
 
 beforeAll(async () => {
-  ({ app } = await createTestServer());
+  // One server for the whole file registers, logs in and creates rooms far past the limits
+  // from one IP; the limits themselves are covered in rate-limit.test.ts.
+  const lenient = { max: 1000, windowMs: 60_000 };
+  ({ app } = await createTestServer({
+    config: { rateLimits: { register: lenient, loginFailures: lenient, roomCreate: lenient } },
+  }));
 });
 
 const register = (body: unknown) => request(app).post('/api/auth/register').set('Origin', TEST_APP_ORIGIN).send(body as object);

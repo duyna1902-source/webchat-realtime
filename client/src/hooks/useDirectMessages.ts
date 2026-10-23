@@ -11,6 +11,7 @@ import {
 } from '@webchat/shared';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import type { SendMessageAck } from '../utils/rateLimit';
 import { apiFetch } from '../utils/apiFetch';
 
 export interface SendDirectMessageOptions {
@@ -217,7 +218,8 @@ export function useDirectMessages(activeChatId: string | null) {
   }, [socket, activeChatId, currentUser?.id, syncCatchup]);
 
   const sendMessage = useCallback(
-    (content: string, optionsOrType?: MessageType | SendDirectMessageOptions) => {
+    /** Resolves with the server's ack, e.g. `RATE_LIMITED`; undefined when nothing was sent. */
+    (content: string, optionsOrType?: MessageType | SendDirectMessageOptions): Promise<SendMessageAck> | undefined => {
       if (!socket || !activeChatId) return;
 
       let msgType = MessageType.TEXT;
@@ -245,7 +247,7 @@ export function useDirectMessages(activeChatId: string | null) {
         attachmentSize,
       };
 
-      socket.emit(SOCKET_EVENTS.DIRECT_SEND, payload);
+      return new Promise<SendMessageAck>((resolve) => socket.emit(SOCKET_EVENTS.DIRECT_SEND, payload, resolve));
     },
     [socket, activeChatId]
   );

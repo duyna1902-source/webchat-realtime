@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { RoomDetailDto, RoomRole, UserDto } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { getAvatarColorClass } from '../../utils/avatarColor';
+import { readApiErrorMessage } from '../../utils/rateLimit';
 import {
   X,
   Users,
@@ -43,6 +44,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserDto[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -50,18 +52,23 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
   useEffect(() => {
     if (!currentUser || !searchQuery.trim()) {
       setSearchResults([]);
+      setSearchError(null);
       return;
     }
 
     const timer = setTimeout(async () => {
       try {
         setIsSearching(true);
+        setSearchError(null);
         const res = await apiFetch(`/api/users?q=${encodeURIComponent(searchQuery.trim())}`);
         if (res.ok) {
           const data: UserDto[] = await res.json();
           // Filter out users already in room
           const existingUserIds = new Set(roomDetails?.members.map((m) => m.userId) || []);
           setSearchResults(data.filter((u) => !existingUserIds.has(u.id)));
+        } else {
+          setSearchResults([]);
+          setSearchError(await readApiErrorMessage(res, 'User search failed'));
         }
       } catch (err) {
         console.error('Error searching users:', err);
@@ -217,6 +224,10 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
                   </div>
                 ))}
               </div>
+            ) : searchError ? (
+              <p role="alert" className="text-xs text-google-red py-2 text-center">
+                {searchError}
+              </p>
             ) : searchQuery ? (
               <p className="text-xs text-gray-400 py-2 text-center">No eligible users found</p>
             ) : null}

@@ -3,6 +3,7 @@ import { DirectChatListItemDto, RoomListItemDto, UserDto, RoomRole, MessageStatu
 import { useAuth } from '../../context/AuthContext';
 import { CreateRoomModal } from '../room/CreateRoomModal';
 import { getAvatarColorClass } from '../../utils/avatarColor';
+import { readApiErrorMessage } from '../../utils/rateLimit';
 
 export function formatSidebarPreview(
   lastMsg: { senderId: string; type?: string | MessageType; content: string; attachmentName?: string | null } | null,
@@ -83,6 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserDto[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [showUserSearchModal, setShowUserSearchModal] = useState(false);
   const [isStartingChat, setIsStartingChat] = useState(false);
   const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
@@ -91,16 +93,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     if (!currentUser || !searchQuery.trim() || activeTab !== 'direct') {
       setSearchResults([]);
+      setSearchError(null);
       return;
     }
 
     const timer = setTimeout(async () => {
       try {
         setIsSearchingUsers(true);
+        setSearchError(null);
         const res = await apiFetch(`/api/users?q=${encodeURIComponent(searchQuery.trim())}`);
         if (res.ok) {
           const data: UserDto[] = await res.json();
           setSearchResults(data);
+        } else {
+          setSearchResults([]);
+          setSearchError(await readApiErrorMessage(res, 'User search failed'));
         }
       } catch (err) {
         console.error('Error searching users:', err);
@@ -271,6 +278,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               ))}
             </div>
+          ) : searchError ? (
+            <p role="alert" className="text-xs text-google-red py-2 text-center">
+              {searchError}
+            </p>
           ) : searchQuery ? (
             <p className="text-xs text-gray-500 py-2 text-center">No users found matching "{searchQuery}"</p>
           ) : (

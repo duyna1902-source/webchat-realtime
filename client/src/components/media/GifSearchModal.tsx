@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GifItemDto } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
+import { readApiErrorMessage } from '../../utils/rateLimit';
 import { Search, X, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { apiFetch } from '../../utils/apiFetch';
 
@@ -38,7 +39,7 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
       const res = await apiFetch(endpoint);
 
       if (!res.ok) {
-        throw new Error('Failed to load GIFs from server');
+        throw new Error(await readApiErrorMessage(res, 'Failed to load GIFs from server'));
       }
 
       const data: GifItemDto[] = await res.json();

@@ -19,7 +19,8 @@ function cookieAttributes(setCookie: string): string[] {
 let app: Express;
 
 beforeAll(async () => {
-  ({ app } = await createTestServer());
+  // Many registrations from one IP; the register limit itself is covered in rate-limit.test.ts.
+  ({ app } = await createTestServer({ config: { rateLimits: { register: { max: 1000, windowMs: 60_000 } } } }));
 });
 
 describe('Session cookie login (SEC-11, ADR 0010)', () => {
