@@ -14,6 +14,7 @@ import type { Logger } from './lib/logger.js';
 import { requestContext } from './middlewares/request-id.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { requireSameOrigin } from './middlewares/origin-check.js';
+import { logRefusedRequests } from './middlewares/refused-request-log.js';
 
 /** Largest JSON body accepted; bigger bodies get `413`. */
 export const JSON_BODY_LIMIT = '100kb';
@@ -25,11 +26,21 @@ function isServerOwnedPath(requestPath: string): boolean {
   return SERVER_OWNED_PATH_PREFIXES.some((prefix) => requestPath === prefix || requestPath.startsWith(`${prefix}/`));
 }
 
+export interface AppHealthChecks {
+  /** Rejects when the database cannot be queried; `/health/ready` then answers `503`. */
+  checkDatabase: () => Promise<unknown>;
+}
+
 /**
  * Builds the Express app for one server instance. Use `createServer()` rather than calling this
  * directly: it also attaches the server context (config, storage, Socket.IO) the handlers read.
  */
-export function createApp(config: AppConfig, logger: Logger, storage: StorageAdapter): express.Express {
+export function createApp(
+  config: AppConfig,
+  logger: Logger,
+  storage: StorageAdapter,
+  { checkDatabase }: AppHealthChecks
+): express.Express {
   const app = express();
   app.disable('x-powered-by');
   // Render puts exactly one proxy in front of the app: trust its X-Forwarded-For so `req.ip`
@@ -39,6 +50,7 @@ export function createApp(config: AppConfig, logger: Logger, storage: StorageAda
   // Single-host, same-origin app (ADR 0010): no CORS. Security headers go first so every response has them.
   app.use(securityHeaders(config));
   app.use(requestContext(logger));
+  app.use(logRefusedRequests);
   // Before any body parsing: a cross-site write is refused without reading its body.
   app.use(requireSameOrigin(config.appOrigin));
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
@@ -48,9 +60,20 @@ export function createApp(config: AppConfig, logger: Logger, storage: StorageAda
     app.use('/uploads', storage.createRequestHandler());
   }
 
-  // Health check endpoint
+  // Liveness: the process is up and answering.
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  // Readiness: the database answers too. The reason for a failure goes only to the log.
+  app.get('/health/ready', (req, res) => {
+    checkDatabase().then(
+      () => res.json({ status: 'ready', timestamp: new Date().toISOString() }),
+      (err: unknown) => {
+        req.log.error({ err }, 'Readiness check failed: database unreachable');
+        res.status(503).json({ status: 'unavailable', timestamp: new Date().toISOString() });
+      }
+    );
   });
 
   // Mount API routes

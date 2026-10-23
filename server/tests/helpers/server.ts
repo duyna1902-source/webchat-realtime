@@ -54,6 +54,8 @@ export interface CreateTestServerOptions<S extends StorageAdapter> {
   storage?: S;
   /** Logger to build the server with, e.g. one writing to a test sink. */
   logger?: Logger;
+  /** Replaces the database readiness probe of `/health/ready`, e.g. with a failing one. */
+  checkDatabase?: () => Promise<unknown>;
   /** Listen on a random port (needed for socket.io-client). Supertest works without it. */
   listen?: boolean;
 }
@@ -64,7 +66,7 @@ export async function createTestServer<S extends StorageAdapter = InMemoryStorag
 ): Promise<TestServer<S>> {
   const config = createTestConfig(options.config);
   const storage = (options.storage ?? new InMemoryStorageAdapter()) as S;
-  const server = await createServer({ config, storage, logger: options.logger });
+  const server = await createServer({ config, storage, logger: options.logger, checkDatabase: options.checkDatabase });
 
   let port = 0;
   if (options.listen) {

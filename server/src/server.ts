@@ -17,6 +17,8 @@ export interface CreateServerOptions {
   storage: StorageAdapter;
   /** Defaults to a JSON logger on stdout at `config.logLevel`. */
   logger?: Logger;
+  /** Readiness probe for `/health/ready`; rejects when the database is unreachable. Defaults to `SELECT 1`. */
+  checkDatabase?: () => Promise<unknown>;
 }
 
 export interface WebchatServer {
@@ -32,7 +34,12 @@ export interface WebchatServer {
  * Server factory: the single way to build the server, in production and in tests.
  * Connects the database, then wires Express and Socket.IO onto one HTTP server.
  */
-export async function createServer({ config, storage, logger: injectedLogger }: CreateServerOptions): Promise<WebchatServer> {
+export async function createServer({
+  config,
+  storage,
+  logger: injectedLogger,
+  checkDatabase: injectedCheckDatabase,
+}: CreateServerOptions): Promise<WebchatServer> {
   const logger = injectedLogger ?? createLogger({ level: config.logLevel });
   const prisma = await initPrisma(config.databaseUrl);
   const sessions = createSessionStore({
@@ -40,9 +47,11 @@ export async function createServer({ config, storage, logger: injectedLogger }: 
     idleTtlMs: config.timing.sessionIdleTtlMs,
     absoluteTtlMs: config.timing.sessionAbsoluteTtlMs,
     touchIntervalMs: config.timing.sessionTouchIntervalMs,
+    logger,
   });
 
-  const app = createApp(config, logger, storage);
+  const checkDatabase = injectedCheckDatabase ?? (() => prisma.$queryRaw`SELECT 1`);
+  const app = createApp(config, logger, storage, { checkDatabase });
   const httpServer = http.createServer(app);
   // Socket.IO must attach after Express so it can intercept `/socket.io` requests first.
   const io = setupSocketServer(httpServer, { config, logger, sessions, storage });
