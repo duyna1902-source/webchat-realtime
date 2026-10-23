@@ -125,3 +125,14 @@ export async function logout(req: Request, res: Response): Promise<void> {
   clearSessionCookie(res);
   res.status(204).end();
 }
+
+/**
+ * "Log out everywhere": ends every Session of the User, this one included, and clears the cookie.
+ * The socket layer disconnects the User's sockets on every device.
+ */
+export async function logoutAll(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const { sessions } = getServerContext(req);
+  await sessions.revokeAllForUser(req.user!.userId);
+  clearSessionCookie(res);
+  res.status(204).end();
+}
