@@ -1,18 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Download, FileText, Loader2, AlertCircle } from 'lucide-react';
 import { formatFileSize } from '../../utils/format';
-import { safeUrl } from '../../utils/safeUrl';
+import type { AttachmentDto } from '@webchat/shared';
 import { ATTACHMENT_UNAVAILABLE_TEXT } from './MessageItemContent';
+import { useAttachmentUrl } from '../../hooks/useAttachmentUrl';
 
 export interface DocumentPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  documentUrl: string;
-  documentName?: string | null;
-  documentSize?: number | null;
+  /** The document Attachment; its signed URL is refreshed once if it expired or fails to load. */
+  attachment: AttachmentDto | null;
 }
 
-export function getDocType(filename?: string | null): 'pdf' | 'text' | 'binary' {
+/** How to preview a document: from the type the server detected, else from the file name. */
+export function getDocType(filename?: string | null, mimeType?: string | null): 'pdf' | 'text' | 'binary' {
+  if (mimeType === 'application/pdf') return 'pdf';
+  if (mimeType?.startsWith('text/plain')) return 'text';
   if (!filename) return 'binary';
   const ext = filename.split('.').pop()?.toLowerCase() || '';
   if (ext === 'pdf') return 'pdf';
@@ -27,19 +30,18 @@ export function getFileExtension(filename?: string | null): string {
   return 'FILE';
 }
 
-export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
-  isOpen,
-  onClose,
-  documentUrl,
-  documentName,
-  documentSize,
-}) => {
+export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({ isOpen, onClose, attachment }) => {
   const [textContent, setTextContent] = useState<string | null>(null);
   const [isLoadingText, setIsLoadingText] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
 
-  const safeDocumentUrl = safeUrl(documentUrl);
-  const docType = getDocType(documentName);
+  const { url: safeDocumentUrl, onLoadError, hasRefreshed, isRefreshing } = useAttachmentUrl(attachment);
+  // Read by the preview fetch when it fails, without re-running it.
+  const retry = useRef({ hasRefreshed, onLoadError });
+  retry.current = { hasRefreshed, onLoadError };
+  const documentName = attachment?.name;
+  const documentSize = attachment?.size;
+  const docType = getDocType(documentName, attachment?.mimeType);
   const fileExt = getFileExtension(documentName);
 
   // Close on Escape key
@@ -65,6 +67,12 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
       setErrorText(null);
       return;
     }
+    if (isRefreshing) {
+      // A fresh signed URL is on its way; the preview runs again with it.
+      setIsLoadingText(true);
+      setErrorText(null);
+      return;
+    }
 
     let isMounted = true;
     setIsLoadingText(true);
@@ -84,16 +92,20 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         }
       })
       .catch((err) => {
-        if (isMounted) {
-          setErrorText(err.message || 'Failed to load preview');
-          setIsLoadingText(false);
+        if (!isMounted) return;
+        if (!retry.current.hasRefreshed) {
+          // Probably an expired signed URL: get a fresh one, which runs this preview again.
+          retry.current.onLoadError();
+          return;
         }
+        setErrorText(err.message || 'Failed to load preview');
+        setIsLoadingText(false);
       });
 
     return () => {
       isMounted = false;
     };
-  }, [isOpen, docType, safeDocumentUrl]);
+  }, [isOpen, docType, safeDocumentUrl, isRefreshing]);
 
   if (!isOpen) return null;
 
@@ -172,6 +184,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 src={safeDocumentUrl}
                 title={documentName || 'PDF Document'}
                 data-testid="pdf-preview-frame"
+                onError={onLoadError}
                 className="w-full h-full border-0 bg-white"
               />
             </div>

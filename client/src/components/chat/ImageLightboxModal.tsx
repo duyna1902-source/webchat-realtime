@@ -1,21 +1,20 @@
 import React, { useEffect } from 'react';
 import { X, Download, AlertCircle } from 'lucide-react';
-import { safeUrl } from '../../utils/safeUrl';
+import type { AttachmentDto } from '@webchat/shared';
 import { ATTACHMENT_UNAVAILABLE_TEXT } from './MessageItemContent';
+import { useAttachmentUrl } from '../../hooks/useAttachmentUrl';
 
 interface ImageLightboxModalProps {
-  imageUrl: string;
-  imageName?: string | null;
+  /** The image Attachment; its signed URL is refreshed once if it expired or fails to load. */
+  attachment: AttachmentDto | null;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
-  imageUrl,
-  imageName,
-  isOpen,
-  onClose,
-}) => {
+export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({ attachment, isOpen, onClose }) => {
+  const { url: safeImageUrl, onLoadError } = useAttachmentUrl(attachment);
+  const imageName = attachment?.name;
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -31,8 +30,6 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
-
-  const safeImageUrl = safeUrl(imageUrl);
 
   return (
     <div
@@ -74,6 +71,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
           <img
             src={safeImageUrl}
             alt={imageName || 'Full size view'}
+            onError={onLoadError}
             className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
           />
         ) : (

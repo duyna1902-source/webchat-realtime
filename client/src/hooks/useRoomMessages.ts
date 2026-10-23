@@ -4,7 +4,7 @@ import {
   RoomDetailDto,
   PaginatedMessagesDto,
   SOCKET_EVENTS,
-  MessageType,
+  SendMessageFields,
   RoomRole,
   RoomSendMessagePayload,
   RoomMemberChangePayload,
@@ -15,12 +15,8 @@ import { useSocket } from '../context/SocketContext';
 import type { SendMessageAck } from '../utils/rateLimit';
 import { apiFetch } from '../utils/apiFetch';
 
-export interface SendRoomMessageOptions {
-  type?: MessageType;
-  attachmentUrl?: string | null;
-  attachmentName?: string | null;
-  attachmentSize?: number | null;
-}
+/** What goes with the text: an uploaded `attachmentId`, or a Giphy `gifUrl` sent on its own. */
+export type SendRoomMessageOptions = Pick<SendMessageFields, 'attachmentId' | 'gifUrl'>;
 
 export function useRoomMessages(activeRoomId: string | null) {
   const { currentUser } = useAuth();
@@ -241,33 +237,22 @@ export function useRoomMessages(activeRoomId: string | null) {
 
   const sendMessage = useCallback(
     /** Resolves with the server's ack, e.g. `RATE_LIMITED`; undefined when nothing was sent. */
-    (content: string, optionsOrType?: MessageType | SendRoomMessageOptions): Promise<SendMessageAck> | undefined => {
+    (content: string, options: SendRoomMessageOptions = {}): Promise<SendMessageAck> | undefined => {
       if (!socket || !activeRoomId) return;
 
-      let msgType = MessageType.TEXT;
-      let attachmentUrl: string | null = null;
-      let attachmentName: string | null = null;
-      let attachmentSize: number | null = null;
-
-      if (typeof optionsOrType === 'string') {
-        msgType = optionsOrType;
-      } else if (optionsOrType) {
-        msgType = optionsOrType.type ?? MessageType.TEXT;
-        attachmentUrl = optionsOrType.attachmentUrl ?? null;
-        attachmentName = optionsOrType.attachmentName ?? null;
-        attachmentSize = optionsOrType.attachmentSize ?? null;
+      const { attachmentId, gifUrl } = options;
+      const text = content.trim();
+      // Only what the client may send; the server derives the type and the file details.
+      let payload: RoomSendMessagePayload;
+      if (gifUrl) {
+        payload = { roomId: activeRoomId, gifUrl };
+      } else if (attachmentId) {
+        payload = { roomId: activeRoomId, content: text, attachmentId };
+      } else if (text) {
+        payload = { roomId: activeRoomId, content: text };
+      } else {
+        return;
       }
-
-      if (!content.trim() && !attachmentUrl) return;
-
-      const payload: RoomSendMessagePayload = {
-        roomId: activeRoomId,
-        content: content.trim(),
-        type: msgType,
-        attachmentUrl,
-        attachmentName,
-        attachmentSize,
-      };
 
       return new Promise<SendMessageAck>((resolve) => socket.emit(SOCKET_EVENTS.ROOM_SEND, payload, resolve));
     },

@@ -1,8 +1,9 @@
 import React from 'react';
-import { MessageType } from '@webchat/shared';
+import { AttachmentDto, MessageType } from '@webchat/shared';
 import { FileText, Download, FileX } from 'lucide-react';
 import { formatFileSize } from '../../utils/format';
 import { safeUrl } from '../../utils/safeUrl';
+import { useAttachmentUrl } from '../../hooks/useAttachmentUrl';
 
 export const ATTACHMENT_UNAVAILABLE_TEXT = 'Tệp đính kèm không còn khả dụng';
 
@@ -28,20 +29,18 @@ const UnavailableAttachment: React.FC<{ caption?: string | null; isMe: boolean }
 interface MessageItemContentProps {
   content: string;
   type?: MessageType;
-  attachmentUrl?: string | null;
-  attachmentName?: string | null;
-  attachmentSize?: number | null;
+  /** The message's Attachment, with a signed URL that is refreshed once if it expired or fails. */
+  attachment?: AttachmentDto | null;
   isMe?: boolean;
-  onImageClick?: (url: string, name?: string | null) => void;
-  onDocumentClick?: (url: string, name?: string | null, size?: number | null) => void;
+  /** Receives the Attachment with its current (possibly refreshed) URL. */
+  onImageClick?: (attachment: AttachmentDto) => void;
+  onDocumentClick?: (attachment: AttachmentDto) => void;
 }
 
 export const MessageItemContent: React.FC<MessageItemContentProps> = ({
   content,
   type,
-  attachmentUrl,
-  attachmentName,
-  attachmentSize,
+  attachment: givenAttachment,
   isMe = false,
   onImageClick,
   onDocumentClick,
@@ -49,6 +48,9 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
   const isImage = type === MessageType.IMAGE;
   const isDocument = type === MessageType.DOCUMENT;
   const isGif = type === MessageType.EMOJI_GIF;
+  const { attachment, url: attachmentUrl, onLoadError } = useAttachmentUrl(givenAttachment);
+  const attachmentName = attachment?.name;
+  const attachmentSize = attachment?.size;
 
   if (isGif) {
     const gifUrl = safeUrl(content);
@@ -68,38 +70,35 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
     );
   }
 
-  if (isImage && attachmentUrl) {
+  if (isImage || isDocument) {
     const hasDistinctContent = content && content.trim() !== '' && content !== attachmentName;
-    const imageUrl = safeUrl(attachmentUrl);
-    if (!imageUrl) {
+    // No Attachment (no longer available) or a URL that must not be rendered.
+    if (!attachment || !attachmentUrl) {
       return <UnavailableAttachment caption={hasDistinctContent ? content : null} isMe={isMe} />;
     }
-    return (
-      <div className="flex flex-col gap-1.5">
-        <img
-          src={imageUrl}
-          alt={attachmentName || 'Image attachment'}
-          onClick={() => onImageClick?.(imageUrl, attachmentName)}
-          className="rounded-xl max-h-60 max-w-full sm:max-w-xs object-cover cursor-pointer hover:opacity-95 transition shadow-xs border border-black/5"
-        />
-        {hasDistinctContent && (
-          <p className="text-sm break-words [overflow-wrap:anywhere] whitespace-pre-wrap">{content}</p>
-        )}
-      </div>
-    );
-  }
 
-  if (isDocument && attachmentUrl) {
-    const hasDistinctContent = content && content.trim() !== '' && content !== attachmentName;
-    const documentUrl = safeUrl(attachmentUrl);
-    if (!documentUrl) {
-      return <UnavailableAttachment caption={hasDistinctContent ? content : null} isMe={isMe} />;
+    if (isImage) {
+      return (
+        <div className="flex flex-col gap-1.5">
+          <img
+            src={attachmentUrl}
+            alt={attachmentName || 'Image attachment'}
+            onClick={() => onImageClick?.(attachment)}
+            onError={onLoadError}
+            className="rounded-xl max-h-60 max-w-full sm:max-w-xs object-cover cursor-pointer hover:opacity-95 transition shadow-xs border border-black/5"
+          />
+          {hasDistinctContent && (
+            <p className="text-sm break-words [overflow-wrap:anywhere] whitespace-pre-wrap">{content}</p>
+          )}
+        </div>
+      );
     }
+
     return (
       <div className="flex flex-col gap-2">
         <div
           data-testid="document-attachment-card"
-          onClick={() => onDocumentClick?.(documentUrl, attachmentName, attachmentSize)}
+          onClick={() => onDocumentClick?.(attachment)}
           className={`flex items-center gap-3 p-2.5 rounded-xl border transition cursor-pointer ${
             isMe
               ? 'bg-blue-700/40 border-blue-400/40 text-white hover:bg-blue-700/50'
@@ -124,7 +123,7 @@ export const MessageItemContent: React.FC<MessageItemContentProps> = ({
           </div>
 
           <a
-            href={documentUrl}
+            href={attachmentUrl}
             download={attachmentName || 'document'}
             target="_blank"
             rel="noopener noreferrer"

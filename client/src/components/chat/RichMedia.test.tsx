@@ -15,6 +15,7 @@ import {
   MessageType,
   MessageStatus,
 } from '@webchat/shared';
+import { attachmentFixture } from '../../test/attachmentFixtures';
 
 const mockUser = {
   id: 'user-alice',
@@ -266,10 +267,7 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
       // Click Happy Dance GIF
       fireEvent.click(screen.getByTitle('Happy Dance'));
 
-      expect(onSendMessage).toHaveBeenCalledWith(
-        'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif',
-        MessageType.EMOJI_GIF
-      );
+      expect(onSendMessage).toHaveBeenCalledWith('', { gifUrl: 'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif' });
     });
   });
 
@@ -284,9 +282,7 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
           content: 'Look at this funny GIF!',
           type: MessageType.TEXT,
           status: MessageStatus.SENT,
-          attachmentUrl: null,
-          attachmentName: null,
-          attachmentSize: null,
+          attachment: null,
           createdAt: new Date().toISOString(),
         },
         {
@@ -297,9 +293,7 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
           content: 'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif',
           type: MessageType.EMOJI_GIF,
           status: MessageStatus.SENT,
-          attachmentUrl: null,
-          attachmentName: null,
-          attachmentSize: null,
+          attachment: null,
           createdAt: new Date().toISOString(),
         },
       ];
@@ -339,9 +333,7 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
               content: gifUrl,
               type: MessageType.EMOJI_GIF,
               status: MessageStatus.SENT,
-              attachmentUrl: null,
-              attachmentName: null,
-              attachmentSize: null,
+              attachment: null,
               createdAt: new Date().toISOString(),
             },
           ]}
@@ -370,9 +362,7 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
               content: 'javascript:alert(1)',
               type: MessageType.EMOJI_GIF,
               status: MessageStatus.SENT,
-              attachmentUrl: null,
-              attachmentName: null,
-              attachmentSize: null,
+              attachment: null,
               createdAt: new Date().toISOString(),
             },
           ]}
@@ -416,9 +406,7 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
           sender: { id: 'user-bob', username: 'bob' },
           content: 'https://media.giphy.com/media/jpbnoe3UIa8TU8LM13/giphy.gif',
           type: MessageType.EMOJI_GIF,
-          attachmentUrl: null,
-          attachmentName: null,
-          attachmentSize: null,
+          attachment: null,
           createdAt: new Date().toISOString(),
         },
       ];
@@ -463,10 +451,7 @@ describe('Rich Media: Emoji Picker & GIF Search Integration', () => {
       });
 
       fireEvent.click(screen.getByTitle('Party Cat'));
-      expect(onSendMessage).toHaveBeenCalledWith(
-        'https://media.giphy.com/media/jpbnoe3UIa8TU8LM13/giphy.gif',
-        MessageType.EMOJI_GIF
-      );
+      expect(onSendMessage).toHaveBeenCalledWith('', { gifUrl: 'https://media.giphy.com/media/jpbnoe3UIa8TU8LM13/giphy.gif' });
     });
   });
   describe('Ticket 04: Emoji Picker Capacity Guard & Unicode Boundary Protection', () => {

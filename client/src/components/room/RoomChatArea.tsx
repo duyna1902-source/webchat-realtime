@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
+  AttachmentDto,
+  UploadResponseDto,
   RoomListItemDto,
   RoomReceiveMessagePayload,
   RoomDetailDto,
@@ -47,7 +49,7 @@ interface RoomChatAreaProps {
   isLoadingOlder?: boolean;
   onLoadOlderMessages?: () => Promise<void> | void;
   /** May resolve with the server's ack; a `RATE_LIMITED` ack keeps the draft and shows the wait time. */
-  onSendMessage: (content: string, optionsOrType?: MessageType | SendRoomMessageOptions) => Promise<SendMessageAck> | void;
+  onSendMessage: (content: string, options?: SendRoomMessageOptions) => Promise<SendMessageAck> | void;
   onAddMember: (userId: string) => Promise<void>;
   onRemoveMember: (userId: string) => Promise<void>;
   onChangeRole: (userId: string, role: RoomRole.ADMIN | RoomRole.MEMBER) => Promise<void>;
@@ -102,8 +104,8 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
       }
     };
   }, []);
-  const [lightboxImage, setLightboxImage] = useState<{ url: string; name?: string | null } | null>(null);
-  const [previewDoc, setPreviewDoc] = useState<{ url: string; name?: string | null; size?: number | null } | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<AttachmentDto | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<AttachmentDto | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -210,7 +212,8 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
     }
   };
 
-  const uploadAttachment = async (file: File): Promise<{ url: string; name: string; size: number }> => {
+  /** Uploads the file; the server answers with the new, not yet sent Attachment. */
+  const uploadAttachment = async (file: File): Promise<AttachmentDto> => {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -223,7 +226,8 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
       throw new Error(await describeUploadError(res));
     }
 
-    return res.json();
+    const body: UploadResponseDto = await res.json();
+    return body.attachment;
   };
 
   const currentMemberRole = useMemo(() => {
@@ -300,15 +304,8 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
       try {
         setIsUploading(true);
         const uploaded = await uploadAttachment(selectedFile);
-        const isImage = selectedFile.type.startsWith('image/');
-        const type = isImage ? MessageType.IMAGE : MessageType.DOCUMENT;
-
-        const ack = await onSendMessage(inputText.trim(), {
-          type,
-          attachmentUrl: uploaded.url,
-          attachmentName: uploaded.name,
-          attachmentSize: uploaded.size,
-        });
+        // The server fills in the file details and the message type from the Attachment.
+        const ack = await onSendMessage(inputText.trim(), { attachmentId: uploaded.id });
         const rateLimitNotice = rateLimitNoticeFromAck(ack);
         if (rateLimitNotice) {
           // Not sent: keep the caption and the attachment so the User can retry.
@@ -377,7 +374,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   };
 
   const handleSelectGif = async (gifUrl: string) => {
-    const pendingAck = onSendMessage(gifUrl, MessageType.EMOJI_GIF);
+    const pendingAck = onSendMessage('', { gifUrl });
     setShowGifModal(false);
     const rateLimitNotice = rateLimitNoticeFromAck(await pendingAck);
     if (rateLimitNotice) showErrorMessage(rateLimitNotice);
@@ -508,12 +505,10 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
                     <MessageItemContent
                       content={msg.content}
                       type={msg.type}
-                      attachmentUrl={msg.attachmentUrl}
-                      attachmentName={msg.attachmentName}
-                      attachmentSize={msg.attachmentSize}
+                      attachment={msg.attachment}
                       isMe={isMe}
-                      onImageClick={(url, name) => setLightboxImage({ url, name })}
-                      onDocumentClick={(url, name, size) => setPreviewDoc({ url, name, size })}
+                      onImageClick={setLightboxImage}
+                      onDocumentClick={setPreviewDoc}
                     />
                     <div
                       className={`flex items-center gap-1.5 text-[10px] mt-1 ${isGif ? 'px-2 pb-1' : ''} ${
@@ -754,17 +749,14 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
       {/* Image Lightbox Modal */}
       <ImageLightboxModal
         isOpen={Boolean(lightboxImage)}
-        imageUrl={lightboxImage?.url || ''}
-        imageName={lightboxImage?.name}
+        attachment={lightboxImage}
         onClose={() => setLightboxImage(null)}
       />
 
       {/* Document Preview Modal */}
       <DocumentPreviewModal
         isOpen={Boolean(previewDoc)}
-        documentUrl={previewDoc?.url || ''}
-        documentName={previewDoc?.name}
-        documentSize={previewDoc?.size}
+        attachment={previewDoc}
         onClose={() => setPreviewDoc(null)}
       />
 

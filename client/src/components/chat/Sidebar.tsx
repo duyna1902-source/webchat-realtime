@@ -6,7 +6,7 @@ import { getAvatarColorClass } from '../../utils/avatarColor';
 import { readApiErrorMessage } from '../../utils/rateLimit';
 
 export function formatSidebarPreview(
-  lastMsg: { senderId: string; type?: string | MessageType; content: string; attachmentName?: string | null } | null,
+  lastMsg: { senderId: string; type?: string | MessageType; content: string; attachment?: { name: string } | null } | null,
   currentUserId: string
 ): string {
   if (!lastMsg) return 'No messages yet';
@@ -14,7 +14,7 @@ export function formatSidebarPreview(
   if (lastMsg.type === MessageType.EMOJI_GIF || lastMsg.type === 'EMOJI_GIF') return prefix + '✨ Sent a GIF';
   if (lastMsg.content && lastMsg.content.trim()) return prefix + lastMsg.content;
   if (lastMsg.type === MessageType.IMAGE || lastMsg.type === 'IMAGE') return prefix + '📷 Sent an image';
-  if (lastMsg.type === MessageType.DOCUMENT || lastMsg.type === 'DOCUMENT') return prefix + '📎 ' + (lastMsg.attachmentName || 'Document');
+  if (lastMsg.type === MessageType.DOCUMENT || lastMsg.type === 'DOCUMENT') return prefix + '📎 ' + (lastMsg.attachment?.name || 'Document');
   return prefix + (lastMsg.content || '');
 }
 

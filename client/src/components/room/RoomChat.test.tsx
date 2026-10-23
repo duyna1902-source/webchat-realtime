@@ -15,6 +15,7 @@ import {
   SOCKET_EVENTS,
   MESSAGE_LIMITS,
 } from '@webchat/shared';
+import { attachmentFixture } from '../../test/attachmentFixtures';
 
 const mockUser = {
   id: 'user-owner-id',
@@ -61,9 +62,7 @@ const mockRoom: RoomListItemDto = {
     sender: { id: 'user-admin-id', username: 'bob_admin' },
     content: 'Standup in 5 mins',
     type: MessageType.TEXT,
-    attachmentUrl: null,
-    attachmentName: null,
-    attachmentSize: null,
+    attachment: null,
     createdAt: new Date().toISOString(),
   },
   updatedAt: new Date().toISOString(),
@@ -171,9 +170,7 @@ describe('Room Chat Client Components', () => {
         sender: { id: 'user-admin-id', username: 'bob_admin' },
         content: 'Good morning everyone!',
         type: MessageType.TEXT,
-        attachmentUrl: null,
-        attachmentName: null,
-        attachmentSize: null,
+        attachment: null,
         createdAt: new Date().toISOString(),
       },
     ];
@@ -285,9 +282,7 @@ describe('Room Chat Client Components', () => {
       sender: { id: 'user-admin-id', username: 'bob_admin' },
       content: 'Here is the sprint roadmap image',
       type: MessageType.IMAGE,
-      attachmentUrl: '/uploads/roadmap.png',
-      attachmentName: 'roadmap.png',
-      attachmentSize: 1024 * 800,
+      attachment: attachmentFixture({ url: '/uploads/roadmap.png', name: 'roadmap.png', size: 1024 * 800 }),
       createdAt: new Date().toISOString(),
     };
 
@@ -298,9 +293,7 @@ describe('Room Chat Client Components', () => {
       sender: { id: 'user-owner-id', username: 'alice_owner' },
       content: 'Here is the sprint retro notes',
       type: MessageType.DOCUMENT,
-      attachmentUrl: '/uploads/retro.docx',
-      attachmentName: 'retro.docx',
-      attachmentSize: 1024 * 350,
+      attachment: attachmentFixture({ url: '/uploads/retro.docx', name: 'retro.docx', size: 1024 * 350 }),
       createdAt: new Date().toISOString(),
     };
 

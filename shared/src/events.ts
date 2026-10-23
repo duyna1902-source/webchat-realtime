@@ -71,7 +71,8 @@ export interface DirectReceiveMessagePayload {
   content: string;
   type: MessageType;
   status: MessageStatus;
-  attachment: AttachmentDto | null;
+  /** The message's Attachment with a freshly signed URL; null (or absent) when it has none. */
+  attachment?: AttachmentDto | null;
   createdAt: string; // ISO String
 }
 
@@ -119,7 +120,8 @@ export interface RoomReceiveMessagePayload {
   };
   content: string;
   type: MessageType;
-  attachment: AttachmentDto | null;
+  /** The message's Attachment with a freshly signed URL; null (or absent) when it has none. */
+  attachment?: AttachmentDto | null;
   createdAt: string; // ISO String
 }
 

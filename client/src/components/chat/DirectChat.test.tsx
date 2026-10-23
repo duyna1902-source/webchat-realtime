@@ -5,6 +5,7 @@ import { ChatArea } from './ChatArea';
 import { AuthContext } from '../../context/AuthContext';
 import { SocketContext } from '../../context/SocketContext';
 import { DirectChatListItemDto, DirectReceiveMessagePayload, MessageType, MessageStatus, MESSAGE_LIMITS } from '@webchat/shared';
+import { attachmentFixture } from '../../test/attachmentFixtures';
 
 const mockUser = {
   id: 'current-user-id',
@@ -37,9 +38,7 @@ const mockChat: DirectChatListItemDto = {
     content: 'Hey there!',
     type: MessageType.TEXT,
     status: MessageStatus.SENT,
-    attachmentUrl: null,
-    attachmentName: null,
-    attachmentSize: null,
+    attachment: null,
     createdAt: new Date().toISOString(),
   },
   unreadCount: 0,
@@ -104,9 +103,7 @@ describe('Direct Chat Client Components', () => {
         content: 'Hello from Bob',
         type: MessageType.TEXT,
         status: MessageStatus.SENT,
-        attachmentUrl: null,
-        attachmentName: null,
-        attachmentSize: null,
+        attachment: null,
         createdAt: new Date('2026-01-01T12:00:00Z').toISOString(),
       },
       {
@@ -117,9 +114,7 @@ describe('Direct Chat Client Components', () => {
         content: 'Hi Bob, how are you?',
         type: MessageType.TEXT,
         status: MessageStatus.SENT,
-        attachmentUrl: null,
-        attachmentName: null,
-        attachmentSize: null,
+        attachment: null,
         createdAt: new Date('2026-01-01T12:01:00Z').toISOString(),
       },
     ];
@@ -411,9 +406,7 @@ describe('Direct Chat Client Components', () => {
         content: '',
         type: MessageType.IMAGE,
         status: MessageStatus.DELIVERED,
-        attachmentUrl: 'https://example.com/photo.png',
-        attachmentName: 'photo.png',
-        attachmentSize: 1024,
+        attachment: attachmentFixture({ url: 'https://example.com/photo.png', name: 'photo.png', size: 1024 }),
         createdAt: new Date().toISOString(),
       },
     };
@@ -429,9 +422,7 @@ describe('Direct Chat Client Components', () => {
         content: '',
         type: MessageType.DOCUMENT,
         status: MessageStatus.DELIVERED,
-        attachmentUrl: 'https://example.com/spec.pdf',
-        attachmentName: 'Project_Spec.pdf',
-        attachmentSize: 2048,
+        attachment: attachmentFixture({ url: 'https://example.com/spec.pdf', name: 'Project_Spec.pdf', size: 2048 }),
         createdAt: new Date().toISOString(),
       },
     };
@@ -447,9 +438,7 @@ describe('Direct Chat Client Components', () => {
         content: 'https://media.giphy.com/media/test.gif',
         type: MessageType.EMOJI_GIF,
         status: MessageStatus.DELIVERED,
-        attachmentUrl: null,
-        attachmentName: null,
-        attachmentSize: null,
+        attachment: null,
         createdAt: new Date().toISOString(),
       },
     };
