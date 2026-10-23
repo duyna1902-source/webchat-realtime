@@ -1,6 +1,7 @@
 import type { RateLimitRule, RateLimitsConfig } from '../config.js';
 import { RateLimitedError } from './errors.js';
 import type { Logger } from './logger.js';
+import { logSecurityEvent } from './security-events.js';
 
 // ==========================================
 // RATE LIMITING (SEC-07)
@@ -14,7 +15,7 @@ export type RateLimitName = keyof RateLimitsConfig;
 
 /** One log line per rejected request or event, so abuse shows up in the logs. */
 export function logRateLimitHit(log: Logger, limit: RateLimitName, retryAfterMs: number): void {
-  log.warn({ event: 'ratelimit.hit', limit, retryAfterMs }, 'Rate limit exceeded');
+  logSecurityEvent(log, 'ratelimit.hit', { limit, retryAfterMs });
 }
 
 export type TakeResult = { allowed: true } | { allowed: false; retryAfterMs: number };

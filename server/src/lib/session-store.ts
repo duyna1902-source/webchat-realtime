@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import type { PrismaClient } from '@prisma/client';
+import type { Logger } from './logger.js';
+import { logSecurityEvent } from './security-events.js';
 
 // ==========================================
 // SESSION STORE (ADR 0010)
@@ -12,6 +14,7 @@ import type { PrismaClient } from '@prisma/client';
 // Every revocation is announced as a `SessionRevocation` event so the socket layer can cut off the
 // sockets of the revoked Sessions at once (Q45). Events are in-process only: a revocation made by
 // another process (the operator CLI) is picked up by `findActive`, which the socket layer polls.
+// Each revocation is also logged as a `session.revoked` security event (without the Session id).
 
 /** 32 bytes from the CSPRNG. */
 const TOKEN_BYTES = 32;
@@ -47,7 +50,7 @@ export interface ResolvedSession {
 
 /** What a revocation covered: one Session, every Session of one User, or every Session. */
 export type SessionRevocation =
-  | { scope: 'session'; sessionId: string }
+  | { scope: 'session'; sessionId: string; userId: string }
   | { scope: 'user'; userId: string }
   | { scope: 'all' };
 
@@ -80,6 +83,8 @@ export interface SessionStoreOptions {
   touchIntervalMs: number;
   /** Clock, overridable for tests. */
   now?: () => number;
+  /** Where `session.revoked` events go; revocations are not logged without it. */
+  logger?: Logger;
 }
 
 /** Longest `User-Agent` kept; the header is client-controlled. */
@@ -96,7 +101,12 @@ export function createSessionStore(options: SessionStoreOptions): SessionStore {
   const REVOKED = 'revoked';
 
   function announce(count: number, revocation: SessionRevocation): number {
-    if (count > 0) events.emit(REVOKED, revocation);
+    if (count === 0) return count;
+    if (options.logger) {
+      const userId = revocation.scope === 'all' ? undefined : revocation.userId;
+      logSecurityEvent(options.logger, 'session.revoked', { scope: revocation.scope, userId, count });
+    }
+    events.emit(REVOKED, revocation);
     return count;
   }
 
@@ -155,8 +165,10 @@ export function createSessionStore(options: SessionStoreOptions): SessionStore {
     },
 
     async revoke(sessionId) {
+      const row = await prisma.session.findUnique({ where: { id: sessionId }, select: { userId: true } });
+      if (!row) return;
       const { count } = await prisma.session.deleteMany({ where: { id: sessionId } });
-      announce(count, { scope: 'session', sessionId });
+      announce(count, { scope: 'session', sessionId, userId: row.userId });
     },
 
     async revokeAllForUser(userId) {

@@ -21,6 +21,7 @@ import { attachmentSigner, getServerContext } from '../context.js';
 import { syncUserSocketsRoomMembership } from '../socket/room.handler.js';
 import { parsePaginationParams, fetchPaginatedMessages } from '../lib/pagination.js';
 import { attachmentOf, signAttachments, SignedAttachments } from '../lib/attachments.js';
+import { logSecurityEvent } from '../lib/security-events.js';
 
 /** `msg` must include `sender` and `attachment`; `attachments` holds its signed Attachment. */
 export function toRoomReceiveMessagePayload(msg: any, attachments: SignedAttachments): RoomReceiveMessagePayload {
@@ -381,6 +382,7 @@ export async function removeRoomMember(req: AuthenticatedRequest, res: Response)
       },
     },
   });
+  logSecurityEvent(req.log, 'room.member.kicked', { roomId: id, targetUserId, targetRole: targetMember.role });
 
   // Broadcast socket event
   const { io } = getServerContext(req);
@@ -455,6 +457,12 @@ export async function changeRoomMemberRole(req: AuthenticatedRequest, res: Respo
     data: { role },
     include: { user: true },
   });
+  logSecurityEvent(req.log, 'room.member.role_changed', {
+    roomId: id,
+    targetUserId,
+    fromRole: targetMember.role,
+    toRole: updatedMember.role,
+  });
 
   // Broadcast socket event
   const { io } = getServerContext(req);
@@ -516,6 +524,7 @@ export async function leaveRoom(req: AuthenticatedRequest, res: Response): Promi
       },
     },
   });
+  logSecurityEvent(req.log, 'room.left', { roomId: id, role: callerMember.role });
 
   // Broadcast socket event
   const { io } = getServerContext(req);
@@ -576,6 +585,7 @@ export async function deleteRoom(req: AuthenticatedRequest, res: Response): Prom
   await prisma.room.delete({
     where: { id },
   });
+  logSecurityEvent(req.log, 'room.deleted', { roomId: id });
 
   res.status(200).json({ success: true, message: 'Room deleted successfully' });
 }

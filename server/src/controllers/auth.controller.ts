@@ -7,6 +7,7 @@ import { clearSessionCookie, readSessionToken, setSessionCookie } from '../lib/s
 import { AuthResponseDto, SelfUserDto, ERROR_CODES, loginSchema, registerSchema, normalizeUsername } from '@webchat/shared';
 import { AppError } from '../lib/errors.js';
 import { parseInput } from '../lib/validation.js';
+import { logSecurityEvent } from '../lib/security-events.js';
 
 /** The signed-in User's own account; the only DTO that carries an email (SEC-13). */
 function toSelfUserDto(user: any): SelfUserDto {
@@ -28,13 +29,22 @@ async function startSession(req: Request, res: Response, userId: string): Promis
   setSessionCookie(res, token, config.timing.sessionAbsoluteTtlMs);
 }
 
+function isEmailLogin(emailOrUsername: string): boolean {
+  return emailOrUsername.includes('@');
+}
+
+/** The login identifier as it is matched (lowercased email or normalized username), for the log. */
+function normalizeLoginIdentifier(emailOrUsername: string): string {
+  return isEmailLogin(emailOrUsername) ? emailOrUsername.toLowerCase() : normalizeUsername(emailOrUsername);
+}
+
 /**
  * Exact match only: an email (stored lowercase) or a username compared case-insensitively
  * through its normalized key. Rows created before the key existed match on the exact username.
  */
 async function findUserByLogin(emailOrUsername: string) {
   const prisma = getPrisma();
-  if (emailOrUsername.includes('@')) {
+  if (isEmailLogin(emailOrUsername)) {
     return prisma.user.findUnique({ where: { email: emailOrUsername.toLowerCase() } });
   }
   return prisma.user.findFirst({
@@ -84,6 +94,7 @@ export async function register(req: Request, res: Response): Promise<void> {
   });
 
   await startSession(req, res, newUser.id);
+  logSecurityEvent(req.log, 'auth.register', { userId: newUser.id });
 
   const body: AuthResponseDto = { user: toSelfUserDto(newUser) };
   res.status(201).json(body);
@@ -92,19 +103,23 @@ export async function register(req: Request, res: Response): Promise<void> {
 export async function login(req: Request, res: Response): Promise<void> {
   const { emailOrUsername, password } = parseInput(loginSchema, req.body);
   const user = await findUserByLogin(emailOrUsername);
+  const identifier = normalizeLoginIdentifier(emailOrUsername);
 
   if (!user) {
+    logSecurityEvent(req.log, 'auth.login.failure', { identifier, reason: 'unknown_user' });
     res.status(401).json({ message: 'Invalid credentials' });
     return;
   }
 
   const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
   if (!isPasswordValid) {
+    logSecurityEvent(req.log, 'auth.login.failure', { identifier, reason: 'wrong_password', userId: user.id });
     res.status(401).json({ message: 'Invalid credentials' });
     return;
   }
 
   await startSession(req, res, user.id);
+  logSecurityEvent(req.log, 'auth.login.success', { userId: user.id });
 
   const body: AuthResponseDto = { user: toSelfUserDto(user) };
   res.status(200).json(body);
@@ -122,6 +137,7 @@ export async function logout(req: Request, res: Response): Promise<void> {
   const resolved = await sessions.resolve(readSessionToken(req.headers.cookie));
   if (resolved) {
     await sessions.revoke(resolved.session.id);
+    logSecurityEvent(req.log, 'auth.logout', { userId: resolved.user.id });
   }
   clearSessionCookie(res);
   res.status(204).end();
@@ -133,7 +149,8 @@ export async function logout(req: Request, res: Response): Promise<void> {
  */
 export async function logoutAll(req: AuthenticatedRequest, res: Response): Promise<void> {
   const { sessions } = getServerContext(req);
-  await sessions.revokeAllForUser(req.user!.userId);
+  const revoked = await sessions.revokeAllForUser(req.user!.userId);
+  logSecurityEvent(req.log, 'auth.logout_all', { userId: req.user!.userId, revoked });
   clearSessionCookie(res);
   res.status(204).end();
 }

@@ -99,7 +99,7 @@ describe('SPA fallback', () => {
     expect(res.text).toContain('spa-shell');
   });
 
-  it.each(['/api', '/api/unknown', '/health/ready', '/uploads/missing.png', '/socket.io/anything'])(
+  it.each(['/api', '/api/unknown', '/health/unknown', '/uploads/missing.png', '/socket.io/anything'])(
     'does not serve the SPA shell for GET %s',
     async (url) => {
       const res = await request(server.app).get(url);
