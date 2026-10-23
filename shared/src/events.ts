@@ -74,6 +74,8 @@ export interface DirectReceiveMessagePayload {
   status: MessageStatus;
   /** The message's Attachment with a freshly signed URL; null (or absent) when it has none. */
   attachment?: AttachmentDto | null;
+  /** True when the message lost its attachment or GIF: show "attachment no longer available". */
+  attachmentUnavailable?: boolean;
   createdAt: string; // ISO String
 }
 
@@ -120,6 +122,8 @@ export interface RoomReceiveMessagePayload {
   type: MessageType;
   /** The message's Attachment with a freshly signed URL; null (or absent) when it has none. */
   attachment?: AttachmentDto | null;
+  /** True when the message lost its attachment or GIF: show "attachment no longer available". */
+  attachmentUnavailable?: boolean;
   createdAt: string; // ISO String
 }
 

@@ -17,6 +17,13 @@ export interface StoredObject {
   storageKey: string;
 }
 
+/** One object found in storage by `list()`. */
+export interface StoredObjectInfo {
+  storageKey: string;
+  /** The content type recorded with the object, or null when its metadata has none. */
+  contentType: string | null;
+}
+
 /** A URL that grants read access to one stored object until `expiresAt` (ADR 0009). */
 export interface SignedUrl {
   url: string;
@@ -39,8 +46,8 @@ export interface StorageAdapter {
   createSignedUrls(storageKeys: readonly string[], ttlSeconds: number): Promise<Map<string, SignedUrl>>;
   /** Removes the object; removing a missing object is not an error. */
   delete(storageKey: string): Promise<void>;
-  /** Every stored object key, e.g. to find objects no Attachment references. */
-  list(): Promise<string[]>;
+  /** Every stored object (in nested folders too), e.g. to find objects no Attachment references. */
+  list(): Promise<StoredObjectInfo[]>;
   /**
    * Only for adapters whose files this server serves itself (local): the handler mounted
    * at `/uploads`.
@@ -115,12 +122,27 @@ export class LocalStorageAdapter implements StorageAdapter {
     await fs.promises.rm(path.join(this.dir, `${storageKey}.json`), { force: true });
   }
 
-  async list(): Promise<string[]> {
+  async list(): Promise<StoredObjectInfo[]> {
+    let names: string[];
     try {
-      return (await fs.promises.readdir(this.dir)).filter((name) => STORAGE_KEY_PATTERN.test(name));
+      names = (await fs.promises.readdir(this.dir)).filter((name) => STORAGE_KEY_PATTERN.test(name));
     } catch (err: any) {
       if (err?.code === 'ENOENT') return [];
       throw err;
+    }
+    const objects: StoredObjectInfo[] = [];
+    for (const storageKey of names) {
+      objects.push({ storageKey, contentType: await this.readContentType(storageKey) });
+    }
+    return objects;
+  }
+
+  private async readContentType(storageKey: string): Promise<string | null> {
+    try {
+      const meta = JSON.parse(await fs.promises.readFile(path.join(this.dir, `${storageKey}.json`), 'utf8'));
+      return typeof meta?.contentType === 'string' ? meta.contentType : null;
+    } catch {
+      return null;
     }
   }
 
@@ -174,7 +196,8 @@ const MEMORY_URL_PREFIX = 'memory://';
 
 export interface MemoryObject {
   data: Buffer;
-  contentType: string;
+  /** Missing for an object stored without a content type (as some legacy uploads were). */
+  contentType?: string;
 }
 
 export interface InMemoryStorageOptions {
@@ -211,8 +234,13 @@ export class InMemoryStorageAdapter implements StorageAdapter {
     this.objects.delete(storageKey);
   }
 
-  async list(): Promise<string[]> {
-    return [...this.objects.keys()];
+  async list(): Promise<StoredObjectInfo[]> {
+    return [...this.objects].map(([storageKey, { contentType }]) => ({ storageKey, contentType: contentType ?? null }));
+  }
+
+  /** Stores an object under a chosen key, e.g. one left in the bucket by the legacy uploader. */
+  putObject(storageKey: string, data: Buffer, contentType?: string): void {
+    this.objects.set(storageKey, { data, contentType });
   }
 
   /** The stored object, addressed by its key (bypasses signing). */
@@ -310,18 +338,31 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     await this.ensureOk(res, 'delete');
   }
 
-  async list(): Promise<string[]> {
-    const keys: string[] = [];
-    for (let offset = 0; ; offset += SUPABASE_LIST_PAGE_SIZE) {
-      const res = await this.request('POST', `/object/list/${this.bucket}`, {
-        json: { prefix: '', limit: SUPABASE_LIST_PAGE_SIZE, offset, sortBy: { column: 'name', order: 'asc' } },
-      });
-      await this.ensureOk(res, 'list');
-      const page = (await res.json()) as { name?: unknown; id?: unknown }[];
-      // Folders come back with a null id; objects at the bucket root have one.
-      keys.push(...page.filter((o) => typeof o.name === 'string' && o.id != null).map((o) => o.name as string));
-      if (page.length < SUPABASE_LIST_PAGE_SIZE) return keys;
+  async list(): Promise<StoredObjectInfo[]> {
+    const objects: StoredObjectInfo[] = [];
+    const folders = [''];
+    for (let folder = folders.shift(); folder !== undefined; folder = folders.shift()) {
+      for (let offset = 0; ; offset += SUPABASE_LIST_PAGE_SIZE) {
+        const res = await this.request('POST', `/object/list/${this.bucket}`, {
+          json: { prefix: folder, limit: SUPABASE_LIST_PAGE_SIZE, offset, sortBy: { column: 'name', order: 'asc' } },
+        });
+        await this.ensureOk(res, 'list');
+        const page = (await res.json()) as { name?: unknown; id?: unknown; metadata?: { mimetype?: unknown } | null }[];
+        for (const entry of Array.isArray(page) ? page : []) {
+          if (typeof entry.name !== 'string' || entry.name === '') continue;
+          const storageKey = folder ? `${folder}/${entry.name}` : entry.name;
+          // Folders come back with a null id: their objects are listed under the folder's prefix.
+          if (entry.id == null) {
+            folders.push(storageKey);
+            continue;
+          }
+          const mimetype = entry.metadata?.mimetype;
+          objects.push({ storageKey, contentType: typeof mimetype === 'string' && mimetype ? mimetype : null });
+        }
+        if (!Array.isArray(page) || page.length < SUPABASE_LIST_PAGE_SIZE) break;
+      }
     }
+    return objects;
   }
 
   private request(

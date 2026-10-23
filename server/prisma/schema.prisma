@@ -134,6 +134,8 @@ model DirectMessage {
   attachmentUrl  String?
   attachmentName String?
   attachmentSize Int?
+  /// Set by the data upgrade when it removed an unusable legacy attachment or GIF (ticket 14).
+  attachmentUnavailable Boolean @default(false)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -187,6 +189,8 @@ model RoomMessage {
   attachmentUrl  String?
   attachmentName String?
   attachmentSize Int?
+  /// Set by the data upgrade when it removed an unusable legacy attachment or GIF (ticket 14).
+  attachmentUnavailable Boolean @default(false)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 

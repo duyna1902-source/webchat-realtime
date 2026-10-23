@@ -313,6 +313,31 @@ describe('Sending a message with an Attachment', () => {
     }
   });
 
+  it('a message whose legacy attachment the data upgrade removed has attachment null and attachmentUnavailable true', async () => {
+    const prisma = getPrisma();
+    await prisma.directMessage.create({
+      data: { directChatId, senderId: alice.id, content: 'caption kept', type: 'IMAGE', attachmentUnavailable: true },
+    });
+    await prisma.roomMessage.create({
+      data: { roomId, senderId: bob.id, content: '', type: 'TEXT', attachmentUnavailable: true },
+    });
+    const sent = await emitWithAck(aliceClient, SOCKET_EVENTS.ROOM_SEND, { roomId, content: 'plain text' });
+    expect(sent.message).toMatchObject({ attachment: null, attachmentUnavailable: false });
+
+    const direct = await request(server.app).get(`/api/direct-chats/${directChatId}/messages`).set(bob.session).expect(200);
+    const room = await request(server.app).get(`/api/rooms/${roomId}/messages`).set(bob.session).expect(200);
+
+    expect(direct.body.messages).toEqual([
+      expect.objectContaining({ content: 'caption kept', type: 'IMAGE', attachment: null, attachmentUnavailable: true }),
+    ]);
+    expect(room.body.messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ content: '', type: 'TEXT', attachment: null, attachmentUnavailable: true }),
+        expect.objectContaining({ content: 'plain text', attachment: null, attachmentUnavailable: false }),
+      ])
+    );
+  });
+
   it('a signed URL stops working after the TTL', async () => {
     const { attachment } = (await upload(alice).expect(201)).body;
     expect(server.storage.read(attachment.url)).toBeDefined();
