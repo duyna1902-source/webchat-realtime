@@ -34,7 +34,7 @@ interface TestUser {
 
 async function createUser(username: string): Promise<TestUser> {
   const user = await getPrisma().user.create({
-    data: { username, email: `${username}@test.com`, passwordHash: 'hash' },
+    data: { username, usernameNormalized: username.toLowerCase(), email: `${username}@test.com`, passwordHash: 'hash' },
   });
   return { id: user.id, username, session: await loginAs(server.app, user) };
 }

@@ -6,7 +6,7 @@ import type { StorageConfig } from '../src/config.js';
 import { InMemoryStorageAdapter } from '../src/lib/storage.js';
 import { runUpgradeCommand, UpgradeReport } from '../src/upgrade/runner.js';
 import { upgradeSteps } from '../src/upgrade/steps.js';
-import { applyMigrations, createMigratedDatabase } from './helpers/migrations.js';
+import { LAST_EXPAND_MIGRATION, applyMigrations, createMigratedDatabase } from './helpers/migrations.js';
 
 // Seam 3: the legacy attachment steps of the data upgrade command (ticket 14, ADR 0009), run on
 // junk messages loaded the way production has them (before the expand migrations), with an
@@ -151,7 +151,7 @@ describe('Data upgrade: legacy attachments (seam 3)', () => {
   beforeEach(async () => {
     db = await createMigratedDatabase({ until: LAST_MIGRATION_BEFORE_EXPAND });
     await loadJunk(db);
-    await applyMigrations(db);
+    await applyMigrations(db, { until: LAST_EXPAND_MIGRATION });
     prisma = new PrismaClient({ adapter: new PrismaPGlite(db) });
     storage = loadBucket();
     output = [];
@@ -215,11 +215,14 @@ describe('Data upgrade: legacy attachments (seam 3)', () => {
         content,
         attachment: null,
         attachmentUnavailable: true,
-        attachmentUrl: null,
-        attachmentName: null,
-        attachmentSize: null,
       });
     }
+    // The legacy columns are no longer in the Prisma schema (the contract migration drops them).
+    const legacy = await db.query(
+      `SELECT "attachmentUrl", "attachmentName", "attachmentSize" FROM "DirectMessage" WHERE id = ANY($1)`,
+      [expected.map(([id]) => id)]
+    );
+    expect(legacy.rows).toEqual(expected.map(() => ({ attachmentUrl: null, attachmentName: null, attachmentSize: null })));
     for (const [id, content] of [
       [ids.rmLookalike, 'lookalike'],
       [ids.rmOtherBucket, 'other bucket'],
@@ -287,5 +290,14 @@ describe('Data upgrade: legacy attachments (seam 3)', () => {
     expect(second.totalChanged).toBe(0);
     expect(second.steps.flatMap((s) => s.details)).toEqual([]);
     expect(await snapshot()).toEqual(after);
+  });
+
+  it('leaves no legacy attachment URL behind, so the contract migration applies and keeps every Attachment', async () => {
+    await run();
+    const attachments = await prisma.attachment.findMany({ orderBy: { id: 'asc' } });
+
+    await expect(applyMigrations(db)).resolves.toContain('20261027000000_contract');
+    expect(await prisma.attachment.findMany({ orderBy: { id: 'asc' } })).toEqual(attachments);
+    expect(await directMessage(ids.dmJavascript)).toMatchObject({ content: 'caption kept', attachmentUnavailable: true });
   });
 });

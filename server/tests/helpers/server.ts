@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import type { Express } from 'express';
 import type { Prisma, User } from '@prisma/client';
+import { normalizeUsername } from '@webchat/shared';
 import { loadConfig, AppConfig, RateLimitsConfig, TimingConfig } from '../../src/config.js';
 import { createServer, WebchatServer } from '../../src/server.js';
 import { InMemoryStorageAdapter, StorageAdapter } from '../../src/lib/storage.js';
@@ -144,7 +145,12 @@ export async function createLoggedInUser(
   data: Pick<Prisma.UserCreateInput, 'username'> & Partial<Omit<Prisma.UserCreateInput, 'passwordHash'>>
 ): Promise<LoggedInUser> {
   const user = await getPrisma().user.create({
-    data: { email: `${data.username}@example.com`, ...data, passwordHash: TEST_PASSWORD_HASH },
+    data: {
+      email: `${data.username}@example.com`,
+      usernameNormalized: normalizeUsername(data.username),
+      ...data,
+      passwordHash: TEST_PASSWORD_HASH,
+    },
   });
   return { user, headers: await loginAs(target, user) };
 }

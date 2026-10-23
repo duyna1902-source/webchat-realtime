@@ -19,7 +19,7 @@ describe('Server factory', () => {
   it('returns an HTTP server with Express and Socket.IO attached', async () => {
     server = await createTestServer({ listen: true });
     const user = await getPrisma().user.create({
-      data: { username: 'factory_user', email: 'factory@test.com', passwordHash: 'hash' },
+      data: { username: 'factory_user', usernameNormalized: 'factory_user', email: 'factory@test.com', passwordHash: 'hash' },
     });
 
     const health = await fetch(`http://localhost:${server.port}/health`);
@@ -44,7 +44,7 @@ describe('Server factory', () => {
     const appOrigin = 'https://injected.example';
     server = await createTestServer({ config: { appOrigin, timing: { sessionAbsoluteTtlMs: 60_000 } } });
     const user = await getPrisma().user.create({
-      data: { username: 'config_user', email: 'config@test.com', passwordHash: 'hash' },
+      data: { username: 'config_user', usernameNormalized: 'config_user', email: 'config@test.com', passwordHash: 'hash' },
     });
     await loginAs(server.app, user).catch(() => undefined); // sets TEST_PASSWORD; fails on the default Origin
 
@@ -61,7 +61,7 @@ describe('Server factory', () => {
     const storage = new InMemoryStorageAdapter();
     server = await createTestServer({ storage });
     const user = await getPrisma().user.create({
-      data: { username: 'upload_user', email: 'upload@test.com', passwordHash: 'hash' },
+      data: { username: 'upload_user', usernameNormalized: 'upload_user', email: 'upload@test.com', passwordHash: 'hash' },
     });
     const session = await loginAs(server.app, user);
 

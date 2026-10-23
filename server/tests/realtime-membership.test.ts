@@ -82,9 +82,9 @@ describe('Realtime Room Membership (SEC-06)', () => {
 
   beforeEach(async () => {
     const prisma = getPrisma();
-    alice = await prisma.user.create({ data: { username: 'alice', email: 'alice@test.com', passwordHash: 'hash' } });
-    bob = await prisma.user.create({ data: { username: 'bob', email: 'bob@test.com', passwordHash: 'hash' } });
-    carol = await prisma.user.create({ data: { username: 'carol', email: 'carol@test.com', passwordHash: 'hash' } });
+    alice = await prisma.user.create({ data: { username: 'alice', usernameNormalized: 'alice', email: 'alice@test.com', passwordHash: 'hash' } });
+    bob = await prisma.user.create({ data: { username: 'bob', usernameNormalized: 'bob', email: 'bob@test.com', passwordHash: 'hash' } });
+    carol = await prisma.user.create({ data: { username: 'carol', usernameNormalized: 'carol', email: 'carol@test.com', passwordHash: 'hash' } });
     const room = await prisma.room.create({
       data: {
         name: 'Team',

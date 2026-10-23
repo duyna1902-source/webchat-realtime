@@ -90,6 +90,29 @@ describe('Registration rules (SEC-08)', () => {
     await expectRejected({ username: 'Alice', email: 'other@example.com', password: 'password123' }, 'username');
   });
 
+  it('two registrations racing for `carol` and `Carol`: the database lets one in, the other gets a validation error', async () => {
+    const results = await Promise.all([
+      register({ username: 'carol', email: 'carol1@example.com', password: 'password123' }),
+      register({ username: 'Carol', email: 'carol2@example.com', password: 'password123' }),
+    ]);
+
+    expect(results.map((res) => res.status).sort()).toEqual([201, 400]);
+    const refused = results.find((res) => res.status === 400)!;
+    expect(refused.body.code).toBe('VALIDATION_ERROR');
+    expect(refused.body.fields).toEqual([{ field: 'username', message: 'Username already taken' }]);
+  });
+
+  it('two registrations racing for the same email: one gets in, the other gets a validation error', async () => {
+    const results = await Promise.all([
+      register({ username: 'dave1', email: 'dave@example.com', password: 'password123' }),
+      register({ username: 'dave2', email: 'Dave@Example.com', password: 'password123' }),
+    ]);
+
+    expect(results.map((res) => res.status).sort()).toEqual([201, 400]);
+    const refused = results.find((res) => res.status === 400)!;
+    expect(refused.body.fields).toEqual([{ field: 'email', message: 'Email already registered' }]);
+  });
+
   it('keeps the username as typed', async () => {
     const res = await register({ ...valid, username: 'AliceW' }).expect(201);
     expect(res.body.user.username).toBe('AliceW');

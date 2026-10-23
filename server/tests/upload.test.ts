@@ -42,6 +42,7 @@ describe('File Upload REST API (POST /api/upload)', () => {
     testUser = await prisma.user.create({
       data: {
         username: 'uploaduser',
+        usernameNormalized: 'uploaduser',
         email: 'uploaduser@example.com',
         passwordHash: 'hash123',
       },

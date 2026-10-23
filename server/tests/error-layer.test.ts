@@ -17,7 +17,7 @@ describe('Error layer (SEC-05, SEC-09)', () => {
 
   beforeEach(async () => {
     const user = await getPrisma().user.create({
-      data: { username: 'err_user', email: 'err@test.com', passwordHash: 'hash' },
+      data: { username: 'err_user', usernameNormalized: 'err_user', email: 'err@test.com', passwordHash: 'hash' },
     });
     session = await loginAs(app, user);
   });
@@ -111,7 +111,7 @@ describe('Error logging', () => {
 
   beforeEach(async () => {
     const user = await getPrisma().user.create({
-      data: { username: 'log_user', email: 'log@test.com', passwordHash: 'hash' },
+      data: { username: 'log_user', usernameNormalized: 'log_user', email: 'log@test.com', passwordHash: 'hash' },
     });
     userId = user.id;
     session = await loginAs(server.app, user);

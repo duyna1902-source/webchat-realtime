@@ -28,6 +28,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     ownerUser = await prisma.user.create({
       data: {
         username: 'alice_owner',
+        usernameNormalized: 'alice_owner',
         email: 'alice@example.com',
         passwordHash: 'hash1',
       },
@@ -36,6 +37,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     adminUser = await prisma.user.create({
       data: {
         username: 'bob_admin',
+        usernameNormalized: 'bob_admin',
         email: 'bob@example.com',
         passwordHash: 'hash2',
       },
@@ -44,6 +46,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     memberUser = await prisma.user.create({
       data: {
         username: 'charlie_member',
+        usernameNormalized: 'charlie_member',
         email: 'charlie@example.com',
         passwordHash: 'hash3',
       },
@@ -52,6 +55,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     outsiderUser = await prisma.user.create({
       data: {
         username: 'david_outsider',
+        usernameNormalized: 'david_outsider',
         email: 'david@example.com',
         passwordHash: 'hash4',
       },

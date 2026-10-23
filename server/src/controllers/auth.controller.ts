@@ -6,6 +6,7 @@ import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
 import { clearSessionCookie, readSessionToken, setSessionCookie } from '../lib/session-cookie.js';
 import { AuthResponseDto, SelfUserDto, ERROR_CODES, loginSchema, registerSchema, normalizeUsername } from '@webchat/shared';
 import { AppError } from '../lib/errors.js';
+import { uniqueViolationTargets } from '../lib/prisma-errors.js';
 import { parseInput } from '../lib/validation.js';
 import { logSecurityEvent } from '../lib/security-events.js';
 
@@ -40,58 +41,54 @@ function normalizeLoginIdentifier(emailOrUsername: string): string {
 
 /**
  * Exact match only: an email (stored lowercase) or a username compared case-insensitively
- * through its normalized key. Rows created before the key existed match on the exact username.
+ * through its normalized key.
  */
 async function findUserByLogin(emailOrUsername: string) {
   const prisma = getPrisma();
   if (isEmailLogin(emailOrUsername)) {
     return prisma.user.findUnique({ where: { email: emailOrUsername.toLowerCase() } });
   }
-  return prisma.user.findFirst({
-    where: {
-      OR: [{ usernameNormalized: normalizeUsername(emailOrUsername) }, { username: emailOrUsername }],
-    },
-    orderBy: { createdAt: 'asc' },
-  });
+  return prisma.user.findUnique({ where: { usernameNormalized: normalizeUsername(emailOrUsername) } });
+}
+
+/**
+ * The validation error for a registration the database refused as a duplicate. The unique
+ * constraints on the normalized username and on the (lowercase) email are the only guard, so
+ * two registrations racing for the same name cannot both get in. Null for any other error.
+ */
+function duplicateAccountError(err: unknown): AppError | null {
+  const targets = uniqueViolationTargets(err);
+  if (!targets) return null;
+  if (targets.some((target) => /username/i.test(target))) {
+    return new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'Username already taken', [
+      { field: 'username', message: 'Username already taken' },
+    ]);
+  }
+  if (targets.some((target) => /email/i.test(target))) {
+    return new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'Email already registered', [
+      { field: 'email', message: 'Email already registered' },
+    ]);
+  }
+  return null;
 }
 
 export async function register(req: Request, res: Response): Promise<void> {
   const { username, email, password } = parseInput(registerSchema, req.body);
-  const usernameNormalized = normalizeUsername(username);
-
-  const prisma = getPrisma();
-
-  // Case-insensitive, also against rows the data upgrade has not given a normalized key yet.
-  // Until the contract migration adds the unique constraint, this check is the only guard.
-  const [existingUsername] = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT "id" FROM "User"
-     WHERE "usernameNormalized" = ${usernameNormalized} OR lower("username") = ${usernameNormalized}
-     LIMIT 1`;
-  if (existingUsername) {
-    throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'Username already taken', [
-      { field: 'username', message: 'Username already taken' },
-    ]);
-  }
-
-  const existingEmail = await prisma.user.findUnique({
-    where: { email },
-  });
-  if (existingEmail) {
-    throw new AppError(400, ERROR_CODES.VALIDATION_ERROR, 'Email already registered', [
-      { field: 'email', message: 'Email already registered' },
-    ]);
-  }
-
   const passwordHash = await bcrypt.hash(password, 10);
 
-  const newUser = await prisma.user.create({
-    data: {
-      username,
-      usernameNormalized,
-      email,
-      passwordHash,
-    },
-  });
+  let newUser;
+  try {
+    newUser = await getPrisma().user.create({
+      data: {
+        username,
+        usernameNormalized: normalizeUsername(username),
+        email,
+        passwordHash,
+      },
+    });
+  } catch (err) {
+    throw duplicateAccountError(err) ?? err;
+  }
 
   await startSession(req, res, newUser.id);
   logSecurityEvent(req.log, 'auth.register', { userId: newUser.id });

@@ -4,9 +4,10 @@ import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { PrismaClient } from '@prisma/client';
 import { InMemoryStorageAdapter } from '../src/lib/storage.js';
 import { runUpgradeCommand, UpgradeStep } from '../src/upgrade/runner.js';
-import { createMigratedDatabase } from './helpers/migrations.js';
+import { LAST_EXPAND_MIGRATION, createMigratedDatabase } from './helpers/migrations.js';
 
-// Seam 3: the data upgrade command, run against a database built from the real migrations.
+// Seam 3: the data upgrade command, run against a database built from the real migrations up to
+// the last expand migration: the command runs before the contract migration (ticket 20).
 
 /** A fake step in the style of the real ones: lowercase every email, report old → new. */
 const lowercaseEmails: UpgradeStep = {
@@ -36,14 +37,14 @@ describe('Data upgrade command (seam 3)', () => {
   const emails = async () => (await prisma.user.findMany({ orderBy: { username: 'asc' } })).map((u) => u.email);
 
   beforeEach(async () => {
-    db = await createMigratedDatabase();
+    db = await createMigratedDatabase({ until: LAST_EXPAND_MIGRATION });
     prisma = new PrismaClient({ adapter: new PrismaPGlite(db) });
     storage = new InMemoryStorageAdapter();
     output = [];
     await prisma.user.createMany({
       data: [
-        { username: 'bob', email: 'Bob@X.io', passwordHash: 'hash' },
-        { username: 'carol', email: 'carol@x.io', passwordHash: 'hash' },
+        { username: 'bob', usernameNormalized: 'bob', email: 'Bob@X.io', passwordHash: 'hash' },
+        { username: 'carol', usernameNormalized: 'carol', email: 'carol@x.io', passwordHash: 'hash' },
       ],
     });
   }, 30_000);
