@@ -99,7 +99,13 @@ describe('Entrypoint loads .env before anything else (B1)', () => {
         child.kill();
       });
     }
-    if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+    if (workDir) {
+      try {
+        fs.rmSync(workDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+      } catch {
+        // Ignored on Windows if file handle is slow to release
+      }
+    }
   });
 
   it('B1: the server runs with APP_ORIGIN from .env', async () => {
