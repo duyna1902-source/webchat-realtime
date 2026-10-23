@@ -34,6 +34,7 @@ import {
   Shield,
   User as UserIcon,
 } from 'lucide-react';
+import { apiFetch } from '../../utils/apiFetch';
 
 interface SidebarProps {
   chats: DirectChatListItemDto[];
@@ -67,7 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onTabChange,
   className = '',
 }) => {
-  const { token, currentUser } = useAuth();
+  const { currentUser } = useAuth();
 
   const [internalTab, setInternalTab] = useState<'direct' | 'room'>('direct');
   const activeTab = externalActiveTab ?? internalTab;
@@ -90,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Search users via /api/users for direct chats
   useEffect(() => {
-    if (!token || !searchQuery.trim() || activeTab !== 'direct') {
+    if (!currentUser || !searchQuery.trim() || activeTab !== 'direct') {
       setSearchResults([]);
       setSearchError(null);
       return;
@@ -100,9 +101,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       try {
         setIsSearchingUsers(true);
         setSearchError(null);
-        const res = await fetch(`/api/users?q=${encodeURIComponent(searchQuery.trim())}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await apiFetch(`/api/users?q=${encodeURIComponent(searchQuery.trim())}`);
         if (res.ok) {
           const data: UserDto[] = await res.json();
           setSearchResults(data);
@@ -118,7 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, token, activeTab]);
+  }, [searchQuery, currentUser, activeTab]);
 
   const handleSelectUser = async (targetUserId: string) => {
     try {

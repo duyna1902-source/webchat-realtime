@@ -1,117 +1,82 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { UserDto, AuthResponseDto, RegisterRequestDto, LoginRequestDto } from '@webchat/shared';
+import { apiFetch, setUnauthorizedHandler } from '../utils/apiFetch';
 
 interface AuthContextType {
   currentUser: UserDto | null;
-  token: string | null;
+  /** True until the startup `GET /api/auth/me` has answered (it can take a while on a cold start). */
   isLoading: boolean;
   login: (data: LoginRequestDto) => Promise<void>;
   register: (data: RegisterRequestDto) => Promise<void>;
-  logout: () => void;
+  /** Ends the Session on the server, then signs out locally. */
+  logout: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_KEY = 'webchat_token';
-const USER_KEY = 'webchat_user';
-
+// The Session lives only in the HttpOnly `__Host-session` cookie (ADR 0010): nothing about the
+// login is stored in the browser, and who is signed in is always asked of the server.
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<UserDto | null>(() => {
-    const saved = localStorage.getItem(USER_KEY);
-    if (!saved) return null;
-    try {
-      return JSON.parse(saved);
-    } catch {
-      return null;
-    }
-  });
-
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
+  const [currentUser, setCurrentUser] = useState<UserDto | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Any 401 from the API means the Session is gone: back to the sign-in screen.
+  useEffect(() => setUnauthorizedHandler(() => setCurrentUser(null)), []);
+
   useEffect(() => {
-    async function verifyExistingSession() {
-      const savedToken = localStorage.getItem(TOKEN_KEY);
-      if (!savedToken) {
-        setIsLoading(false);
-        return;
-      }
+    let cancelled = false;
 
+    async function loadCurrentSession() {
       try {
-        const res = await fetch('/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${savedToken}`,
-          },
-        });
-
-        if (res.ok) {
-          const user: UserDto = await res.json();
+        const res = await apiFetch('/api/auth/me');
+        if (!cancelled && res.ok) {
+          const { user }: AuthResponseDto = await res.json();
           setCurrentUser(user);
-          localStorage.setItem(USER_KEY, JSON.stringify(user));
-        } else {
-          // Token expired or invalid
-          localStorage.removeItem(TOKEN_KEY);
-          localStorage.removeItem(USER_KEY);
-          setToken(null);
-          setCurrentUser(null);
         }
       } catch (err) {
-        console.error('Session verification error:', err);
+        console.error('Session check failed:', err);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     }
 
-    verifyExistingSession();
+    loadCurrentSession();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const login = async (data: LoginRequestDto) => {
-    const res = await fetch('/api/auth/login', {
+  const authenticate = async (path: string, data: LoginRequestDto | RegisterRequestDto, fallbackMessage: string) => {
+    const res = await apiFetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: 'Login failed' }));
-      throw new Error(err.message || 'Login failed');
+      const err = await res.json().catch(() => ({ message: fallbackMessage }));
+      throw new Error(err.message || fallbackMessage);
     }
 
-    const authRes: AuthResponseDto = await res.json();
-    setToken(authRes.token);
-    setCurrentUser(authRes.user);
-    localStorage.setItem(TOKEN_KEY, authRes.token);
-    localStorage.setItem(USER_KEY, JSON.stringify(authRes.user));
+    const { user }: AuthResponseDto = await res.json();
+    setCurrentUser(user);
   };
 
-  const register = async (data: RegisterRequestDto) => {
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
+  const login = (data: LoginRequestDto) => authenticate('/api/auth/login', data, 'Login failed');
+  const register = (data: RegisterRequestDto) => authenticate('/api/auth/register', data, 'Registration failed');
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: 'Registration failed' }));
-      throw new Error(err.message || 'Registration failed');
+  const logout = useCallback(async () => {
+    try {
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Logout request failed:', err);
+    } finally {
+      setCurrentUser(null);
     }
-
-    const authRes: AuthResponseDto = await res.json();
-    setToken(authRes.token);
-    setCurrentUser(authRes.user);
-    localStorage.setItem(TOKEN_KEY, authRes.token);
-    localStorage.setItem(USER_KEY, JSON.stringify(authRes.user));
-  };
-
-  const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    setToken(null);
-    setCurrentUser(null);
-  };
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ currentUser, token, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ currentUser, isLoading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

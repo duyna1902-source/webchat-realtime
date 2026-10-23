@@ -182,8 +182,7 @@ describe('Reconnection & Catch-up Sync Client Features', () => {
       render(
         <AuthContext.Provider
           value={{
-            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
-            token: 'test-token',
+            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
             isLoading: false,
             login: vi.fn(),
             register: vi.fn(),
@@ -274,8 +273,7 @@ describe('Reconnection & Catch-up Sync Client Features', () => {
       render(
         <AuthContext.Provider
           value={{
-            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
-            token: 'test-token',
+            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
             isLoading: false,
             login: vi.fn(),
             register: vi.fn(),
@@ -361,8 +359,7 @@ describe('Reconnection & Catch-up Sync Client Features', () => {
       render(
         <AuthContext.Provider
           value={{
-            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
-            token: 'test-token',
+            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
             isLoading: false,
             login: vi.fn(),
             register: vi.fn(),
@@ -466,8 +463,7 @@ describe('Reconnection & Catch-up Sync Client Features', () => {
       render(
         <AuthContext.Provider
           value={{
-            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
-            token: 'test-token',
+            currentUser: { id: 'user-1', username: 'alice', email: 'alice@test.com' } as any,
             isLoading: false,
             login: vi.fn(),
             register: vi.fn(),

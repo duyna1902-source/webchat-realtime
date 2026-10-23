@@ -17,6 +17,7 @@ import {
   Loader2,
   Search,
 } from 'lucide-react';
+import { apiFetch } from '../../utils/apiFetch';
 
 interface RoomMembersModalProps {
   isOpen: boolean;
@@ -39,7 +40,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
   onLeaveRoom,
   onDeleteRoom,
 }) => {
-  const { currentUser, token } = useAuth();
+  const { currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserDto[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -49,7 +50,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token || !searchQuery.trim()) {
+    if (!currentUser || !searchQuery.trim()) {
       setSearchResults([]);
       setSearchError(null);
       return;
@@ -59,9 +60,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
       try {
         setIsSearching(true);
         setSearchError(null);
-        const res = await fetch(`/api/users?q=${encodeURIComponent(searchQuery.trim())}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await apiFetch(`/api/users?q=${encodeURIComponent(searchQuery.trim())}`);
         if (res.ok) {
           const data: UserDto[] = await res.json();
           // Filter out users already in room
@@ -79,7 +78,7 @@ export const RoomMembersModal: React.FC<RoomMembersModalProps> = ({
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, token, roomDetails]);
+  }, [searchQuery, currentUser, roomDetails]);
 
   if (!isOpen || !roomDetails) return null;
 

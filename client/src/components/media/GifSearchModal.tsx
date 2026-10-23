@@ -3,6 +3,7 @@ import { GifItemDto } from '@webchat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { readApiErrorMessage } from '../../utils/rateLimit';
 import { Search, X, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { apiFetch } from '../../utils/apiFetch';
 
 interface GifSearchModalProps {
   isOpen: boolean;
@@ -15,7 +16,7 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
   onClose,
   onSelectGif,
 }) => {
-  const { token } = useAuth();
+  const { currentUser } = useAuth();
   const [query, setQuery] = useState('');
   const [gifs, setGifs] = useState<GifItemDto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -25,7 +26,7 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
 
   // Fetch GIFs (either trending or search query)
   const fetchGifs = async (searchQuery: string) => {
-    if (!token) return;
+    if (!currentUser) return;
 
     try {
       setIsLoading(true);
@@ -35,11 +36,7 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
         ? `/api/gifs/search?q=${encodeURIComponent(searchQuery.trim())}`
         : '/api/gifs/trending';
 
-      const res = await fetch(endpoint, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await apiFetch(endpoint);
 
       if (!res.ok) {
         throw new Error(await readApiErrorMessage(res, 'Failed to load GIFs from server'));
@@ -64,7 +61,7 @@ export const GifSearchModal: React.FC<GifSearchModalProps> = ({
     } else {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     }
-  }, [isOpen, token]);
+  }, [isOpen, currentUser]);
 
   // Handle live search with debounce
   const handleQueryChange = (val: string) => {

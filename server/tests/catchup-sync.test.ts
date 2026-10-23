@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { createTestServer, generateToken, TestServer } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders, TestServer } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { normalizeDirectChatPair, SOCKET_EVENTS } from '@webchat/shared';
 
@@ -35,9 +35,9 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
   let user1: any;
   let user2: any;
   let user3: any;
-  let token1: string;
-  let token2: string;
-  let token3: string;
+  let session1: SessionHeaders;
+  let session2: SessionHeaders;
+  let session3: SessionHeaders;
   let directChat: any;
   let room: any;
 
@@ -68,9 +68,9 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
       },
     });
 
-    token1 = generateToken({ userId: user1.id, username: user1.username });
-    token2 = generateToken({ userId: user2.id, username: user2.username });
-    token3 = generateToken({ userId: user3.id, username: user3.username });
+    session1 = await loginAs(app, user1);
+    session2 = await loginAs(app, user2);
+    session3 = await loginAs(app, user3);
 
     const [u1, u2] = normalizeDirectChatPair(user1.id, user2.id);
     directChat = await prisma.directChat.create({
@@ -140,7 +140,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
       // Bob syncs messages created after msg2
       const res = await request(app)
         .get(`/api/direct-chats/${directChat.id}/messages?after=${msg2.id}`)
-        .set('Authorization', `Bearer ${token2}`)
+        .set(session2)
         .expect(200);
 
       expect(res.body).toHaveProperty('messages');
@@ -166,7 +166,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
 
       const res = await request(app)
         .get(`/api/direct-chats/${directChat.id}/messages?after=${msg.id}`)
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(200);
 
       expect(res.body.messages).toEqual([]);
@@ -176,7 +176,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
     it('returns empty array when after message ID does not exist', async () => {
       const res = await request(app)
         .get(`/api/direct-chats/${directChat.id}/messages?after=non-existent-id`)
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(200);
 
       expect(res.body.messages).toEqual([]);
@@ -185,7 +185,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
     it('returns 403 when user is not a participant in direct chat', async () => {
       await request(app)
         .get(`/api/direct-chats/${directChat.id}/messages?after=some-id`)
-        .set('Authorization', `Bearer ${token3}`)
+        .set(session3)
         .expect(403);
     });
   });
@@ -223,7 +223,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
 
       const res = await request(app)
         .get(`/api/rooms/${room.id}/messages?after=${rmsg1.id}`)
-        .set('Authorization', `Bearer ${token2}`)
+        .set(session2)
         .expect(200);
 
       expect(res.body).toHaveProperty('messages');
@@ -249,7 +249,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
 
       const res = await request(app)
         .get(`/api/rooms/${room.id}/messages?after=${rmsg.id}`)
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(200);
 
       expect(res.body.messages).toEqual([]);
@@ -259,7 +259,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
     it('returns empty array when after message ID does not exist in room', async () => {
       const res = await request(app)
         .get(`/api/rooms/${room.id}/messages?after=non-existent-room-msg`)
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(200);
 
       expect(res.body.messages).toEqual([]);
@@ -268,7 +268,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
     it('returns 403 when user is not a room member', async () => {
       await request(app)
         .get(`/api/rooms/${room.id}/messages?after=some-id`)
-        .set('Authorization', `Bearer ${token3}`)
+        .set(session3)
         .expect(403);
     });
   });
@@ -294,12 +294,12 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
 
     it('recovers missed direct and room messages after disconnection via catch-up sync without duplication', async () => {
       clientAlice = ClientSocket(`http://localhost:${serverPort}`, {
-        auth: { token: token1 },
+        extraHeaders: session1,
         transports: ['websocket'],
       });
 
       clientBob = ClientSocket(`http://localhost:${serverPort}`, {
-        auth: { token: token2 },
+        extraHeaders: session2,
         transports: ['websocket'],
       });
 
@@ -369,7 +369,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
 
       // 4. Bob reconnects (simulating new socket / unrecovered session)
       clientBob = ClientSocket(`http://localhost:${serverPort}`, {
-        auth: { token: token2 },
+        extraHeaders: session2,
         transports: ['websocket'],
         forceNew: true,
       });
@@ -379,7 +379,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
       const lastDirectId = bobDirectMessages[bobDirectMessages.length - 1].id;
       const directSyncRes = await request(app)
         .get(`/api/direct-chats/${directChat.id}/messages?after=${lastDirectId}`)
-        .set('Authorization', `Bearer ${token2}`)
+        .set(session2)
         .expect(200);
 
       expect(directSyncRes.body.messages).toHaveLength(2);
@@ -402,7 +402,7 @@ describe('Catch-up Sync & Reconnection Integration Tests', () => {
       const lastRoomId = bobRoomMessages[bobRoomMessages.length - 1].id;
       const roomSyncRes = await request(app)
         .get(`/api/rooms/${room.id}/messages?after=${lastRoomId}`)
-        .set('Authorization', `Bearer ${token2}`)
+        .set(session2)
         .expect(200);
 
       expect(roomSyncRes.body.messages).toHaveLength(2);

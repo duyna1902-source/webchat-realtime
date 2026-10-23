@@ -3,7 +3,7 @@ import request from 'supertest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createTestServer, TestServer } from './helpers/server.js';
+import { createTestServer, TestServer, TEST_APP_ORIGIN } from './helpers/server.js';
 
 const SUPABASE_ORIGIN = 'https://abcdefgh.supabase.co';
 
@@ -110,7 +110,7 @@ describe('SPA fallback', () => {
   );
 
   it('does not serve the SPA shell for non-GET requests', async () => {
-    const res = await request(server.app).post('/rooms/some-room');
+    const res = await request(server.app).post('/rooms/some-room').set('Origin', TEST_APP_ORIGIN);
 
     expect(res.status).toBe(404);
     expect(res.text).not.toContain('spa-shell');

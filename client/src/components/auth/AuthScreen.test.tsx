@@ -14,8 +14,7 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
 
   const renderAuthScreen = (authOverrides = {}) => {
     const authValue: any = {
-      currentUser: null,
-      token: null,
+      currentUser: null,
       isLoading: false,
       login: mockLogin,
       register: mockRegister,

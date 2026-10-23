@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
-import { createTestServer, generateToken } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders, TEST_APP_ORIGIN } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { RoomRole, MessageType } from '@webchat/shared';
 
@@ -17,10 +17,10 @@ describe('Room Chat REST APIs & Role Governance', () => {
   let memberUser: any;
   let outsiderUser: any;
 
-  let ownerToken: string;
-  let adminToken: string;
-  let memberToken: string;
-  let outsiderToken: string;
+  let ownerSession: SessionHeaders;
+  let adminSession: SessionHeaders;
+  let memberSession: SessionHeaders;
+  let outsiderSession: SessionHeaders;
 
   beforeEach(async () => {
     const prisma = getPrisma();
@@ -57,16 +57,17 @@ describe('Room Chat REST APIs & Role Governance', () => {
       },
     });
 
-    ownerToken = generateToken({ userId: ownerUser.id, username: ownerUser.username });
-    adminToken = generateToken({ userId: adminUser.id, username: adminUser.username });
-    memberToken = generateToken({ userId: memberUser.id, username: memberUser.username });
-    outsiderToken = generateToken({ userId: outsiderUser.id, username: outsiderUser.username });
+    ownerSession = await loginAs(app, ownerUser);
+    adminSession = await loginAs(app, adminUser);
+    memberSession = await loginAs(app, memberUser);
+    outsiderSession = await loginAs(app, outsiderUser);
   });
 
   describe('POST /api/rooms', () => {
     it('returns 401 when unauthenticated', async () => {
       await request(app)
         .post('/api/rooms')
+        .set('Origin', TEST_APP_ORIGIN)
         .send({ name: 'General' })
         .expect(401);
     });
@@ -74,7 +75,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('returns 400 if room name is missing or empty', async () => {
       const res = await request(app)
         .post('/api/rooms')
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .send({ name: '   ' })
         .expect(400);
 
@@ -85,7 +86,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('creates room and automatically adds creator as OWNER in RoomMember', async () => {
       const res = await request(app)
         .post('/api/rooms')
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .send({
           name: 'Engineers Lounge',
           description: 'Place to discuss code',
@@ -153,7 +154,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
 
       const res = await request(app)
         .get('/api/rooms')
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .expect(200);
 
       expect(Array.isArray(res.body)).toBe(true);
@@ -216,7 +217,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
       // Before reading: Alice should see 2 unread messages from Charlie (excluding her own msg 2)
       const resBefore = await request(app)
         .get('/api/rooms')
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .expect(200);
 
       const targetRoomBefore = resBefore.body.find((r: any) => r.id === room.id);
@@ -237,7 +238,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
 
       const resAfter1 = await request(app)
         .get('/api/rooms')
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .expect(200);
 
       const targetRoomAfter1 = resAfter1.body.find((r: any) => r.id === room.id);
@@ -258,7 +259,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
 
       const resAfter3 = await request(app)
         .get('/api/rooms')
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .expect(200);
 
       const targetRoomAfter3 = resAfter3.body.find((r: any) => r.id === room.id);
@@ -295,21 +296,21 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('returns 404 if room does not exist', async () => {
       await request(app)
         .get('/api/rooms/non-existent-room-id')
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .expect(404);
     });
 
     it('returns 403 if requester is not a member of the room', async () => {
       await request(app)
         .get(`/api/rooms/${roomId}`)
-        .set('Authorization', `Bearer ${outsiderToken}`)
+        .set(outsiderSession)
         .expect(403);
     });
 
     it('returns room details and member roster with roles for room members', async () => {
       const res = await request(app)
         .get(`/api/rooms/${roomId}`)
-        .set('Authorization', `Bearer ${memberToken}`)
+        .set(memberSession)
         .expect(200);
 
       expect(res.body.id).toBe(roomId);
@@ -355,7 +356,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('returns 403 when regular MEMBER tries to add a user', async () => {
       const res = await request(app)
         .post(`/api/rooms/${roomId}/members`)
-        .set('Authorization', `Bearer ${memberToken}`)
+        .set(memberSession)
         .send({ userId: outsiderUser.id })
         .expect(403);
 
@@ -365,7 +366,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('returns 400 if target user is already a member', async () => {
       const res = await request(app)
         .post(`/api/rooms/${roomId}/members`)
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .send({ userId: memberUser.id })
         .expect(400);
 
@@ -375,7 +376,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('allows OWNER to add a new member', async () => {
       const res = await request(app)
         .post(`/api/rooms/${roomId}/members`)
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .send({ userId: outsiderUser.id })
         .expect(201);
 
@@ -387,7 +388,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('allows ADMIN to add a new member', async () => {
       const res = await request(app)
         .post(`/api/rooms/${roomId}/members`)
-        .set('Authorization', `Bearer ${adminToken}`)
+        .set(adminSession)
         .send({ userId: outsiderUser.id })
         .expect(201);
 
@@ -421,14 +422,14 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('returns 403 when regular MEMBER tries to remove another member', async () => {
       await request(app)
         .delete(`/api/rooms/${roomId}/members/${outsiderUser.id}`)
-        .set('Authorization', `Bearer ${memberToken}`)
+        .set(memberSession)
         .expect(403);
     });
 
     it('returns 400 when attempting to remove the OWNER', async () => {
       const res = await request(app)
         .delete(`/api/rooms/${roomId}/members/${ownerUser.id}`)
-        .set('Authorization', `Bearer ${adminToken}`)
+        .set(adminSession)
         .expect(400);
 
       expect(res.body.message).toMatch(/cannot remove room owner/i);
@@ -444,7 +445,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
 
       const res = await request(app)
         .delete(`/api/rooms/${roomId}/members/${outsiderUser.id}`)
-        .set('Authorization', `Bearer ${adminToken}`)
+        .set(adminSession)
         .expect(403);
 
       expect(res.body.message).toMatch(/admins can only remove regular members/i);
@@ -453,7 +454,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('allows ADMIN to remove a regular MEMBER', async () => {
       await request(app)
         .delete(`/api/rooms/${roomId}/members/${memberUser.id}`)
-        .set('Authorization', `Bearer ${adminToken}`)
+        .set(adminSession)
         .expect(200);
 
       const prisma = getPrisma();
@@ -466,7 +467,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('allows OWNER to remove an ADMIN', async () => {
       await request(app)
         .delete(`/api/rooms/${roomId}/members/${adminUser.id}`)
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .expect(200);
 
       const prisma = getPrisma();
@@ -501,7 +502,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('returns 403 when non-owner (ADMIN or MEMBER) attempts to change roles', async () => {
       await request(app)
         .patch(`/api/rooms/${roomId}/members/${memberUser.id}/role`)
-        .set('Authorization', `Bearer ${adminToken}`)
+        .set(adminSession)
         .send({ role: RoomRole.ADMIN })
         .expect(403);
     });
@@ -509,7 +510,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('returns 400 when trying to change the OWNER role', async () => {
       const res = await request(app)
         .patch(`/api/rooms/${roomId}/members/${ownerUser.id}/role`)
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .send({ role: RoomRole.ADMIN })
         .expect(400);
 
@@ -519,7 +520,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('allows OWNER to promote MEMBER to ADMIN', async () => {
       const res = await request(app)
         .patch(`/api/rooms/${roomId}/members/${memberUser.id}/role`)
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .send({ role: RoomRole.ADMIN })
         .expect(200);
 
@@ -530,7 +531,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('allows OWNER to demote ADMIN to MEMBER', async () => {
       const res = await request(app)
         .patch(`/api/rooms/${roomId}/members/${adminUser.id}/role`)
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .send({ role: RoomRole.MEMBER })
         .expect(200);
 
@@ -562,7 +563,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('returns 400 when OWNER attempts to leave without transferring ownership', async () => {
       const res = await request(app)
         .post(`/api/rooms/${roomId}/leave`)
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .expect(400);
 
       expect(res.body.message).toMatch(/owner cannot leave/i);
@@ -571,7 +572,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('allows regular MEMBER to leave', async () => {
       await request(app)
         .post(`/api/rooms/${roomId}/leave`)
-        .set('Authorization', `Bearer ${memberToken}`)
+        .set(memberSession)
         .expect(200);
 
       const prisma = getPrisma();
@@ -584,7 +585,7 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('allows ADMIN to leave', async () => {
       await request(app)
         .post(`/api/rooms/${roomId}/leave`)
-        .set('Authorization', `Bearer ${adminToken}`)
+        .set(adminSession)
         .expect(200);
 
       const prisma = getPrisma();
@@ -618,14 +619,14 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('returns 403 when ADMIN or MEMBER tries to delete room', async () => {
       await request(app)
         .delete(`/api/rooms/${roomId}`)
-        .set('Authorization', `Bearer ${adminToken}`)
+        .set(adminSession)
         .expect(403);
     });
 
     it('allows OWNER to delete the room', async () => {
       await request(app)
         .delete(`/api/rooms/${roomId}`)
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set(ownerSession)
         .expect(200);
 
       const prisma = getPrisma();
@@ -683,14 +684,14 @@ describe('Room Chat REST APIs & Role Governance', () => {
     it('returns 403 when non-member requests messages', async () => {
       await request(app)
         .get(`/api/rooms/${roomId}/messages`)
-        .set('Authorization', `Bearer ${outsiderToken}`)
+        .set(outsiderSession)
         .expect(403);
     });
 
     it('returns messages in chronological order for room members', async () => {
       const res = await request(app)
         .get(`/api/rooms/${roomId}/messages`)
-        .set('Authorization', `Bearer ${memberToken}`)
+        .set(memberSession)
         .expect(200);
 
       expect(Array.isArray(res.body.messages)).toBe(true);

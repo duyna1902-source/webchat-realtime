@@ -79,7 +79,7 @@ function mockSocket(sendAck: unknown) {
 }
 
 function renderDashboard(socket: unknown) {
-  const authValue: any = { currentUser: alice, token: 'token-alice', isLoading: false, login: vi.fn(), register: vi.fn(), logout: vi.fn() };
+  const authValue: any = { currentUser: alice, isLoading: false, login: vi.fn(), register: vi.fn(), logout: vi.fn() };
   const socketValue: any = { socket, isConnected: true, isConnecting: false, connectionError: null };
   return render(
     <AuthContext.Provider value={authValue}>

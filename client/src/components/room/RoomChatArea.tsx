@@ -36,6 +36,7 @@ import {
   AlertCircle,
   X,
 } from 'lucide-react';
+import { apiFetch } from '../../utils/apiFetch';
 
 interface RoomChatAreaProps {
   activeRoom: RoomListItemDto | null;
@@ -71,7 +72,7 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
   onDeleteRoom,
   onBack,
 }) => {
-  const { currentUser, token } = useAuth();
+  const { currentUser } = useAuth();
   const { isConnected } = useSocket();
   const [inputText, setInputText] = useState('');
   const [showMembersModal, setShowMembersModal] = useState(false);
@@ -213,11 +214,8 @@ export const RoomChatArea: React.FC<RoomChatAreaProps> = ({
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch('/api/upload', {
+    const res = await apiFetch('/api/upload', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
       body: formData,
     });
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
-import { createTestServer, generateToken } from './helpers/server.js';
+import { createTestServer, loginAs, SessionHeaders, TEST_APP_ORIGIN } from './helpers/server.js';
 import { getPrisma } from '../src/lib/prisma.js';
 
 let app: Express;
@@ -14,8 +14,8 @@ describe('Direct Chat REST APIs', () => {
   let user1: any;
   let user2: any;
   let user3: any;
-  let token1: string;
-  let token2: string;
+  let session1: SessionHeaders;
+  let session2: SessionHeaders;
 
   beforeEach(async () => {
     const prisma = getPrisma();
@@ -44,8 +44,8 @@ describe('Direct Chat REST APIs', () => {
       },
     });
 
-    token1 = generateToken({ userId: user1.id, username: user1.username });
-    token2 = generateToken({ userId: user2.id, username: user2.username });
+    session1 = await loginAs(app, user1);
+    session2 = await loginAs(app, user2);
   });
 
   describe('GET /api/users', () => {
@@ -56,7 +56,7 @@ describe('Direct Chat REST APIs', () => {
     it('returns list of users excluding requesting user', async () => {
       const res = await request(app)
         .get('/api/users')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(200);
 
       expect(Array.isArray(res.body)).toBe(true);
@@ -72,7 +72,7 @@ describe('Direct Chat REST APIs', () => {
     it('filters users by search query parameter (?q= or ?search=)', async () => {
       const resQ = await request(app)
         .get('/api/users?q=bob')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(200);
 
       expect(resQ.body).toHaveLength(1);
@@ -80,7 +80,7 @@ describe('Direct Chat REST APIs', () => {
 
       const resSearch = await request(app)
         .get('/api/users?search=charlie')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(200);
 
       expect(resSearch.body).toHaveLength(1);
@@ -92,6 +92,7 @@ describe('Direct Chat REST APIs', () => {
     it('returns 401 when unauthenticated', async () => {
       await request(app)
         .post('/api/direct-chats')
+        .set('Origin', TEST_APP_ORIGIN)
         .send({ targetUserId: user2.id })
         .expect(401);
     });
@@ -99,13 +100,13 @@ describe('Direct Chat REST APIs', () => {
     it('returns 400 if targetUserId is missing or equals current user', async () => {
       await request(app)
         .post('/api/direct-chats')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .send({})
         .expect(400);
 
       await request(app)
         .post('/api/direct-chats')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .send({ targetUserId: user1.id })
         .expect(400);
     });
@@ -113,7 +114,7 @@ describe('Direct Chat REST APIs', () => {
     it('returns 404 if targetUserId does not exist', async () => {
       await request(app)
         .post('/api/direct-chats')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .send({ targetUserId: '00000000-0000-0000-0000-000000000000' })
         .expect(404);
     });
@@ -121,7 +122,7 @@ describe('Direct Chat REST APIs', () => {
     it('creates a new DirectChat with participants and returns 201', async () => {
       const res = await request(app)
         .post('/api/direct-chats')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .send({ targetUserId: user2.id })
         .expect(201);
 
@@ -145,14 +146,14 @@ describe('Direct Chat REST APIs', () => {
       // Alice creates chat with Bob
       const res1 = await request(app)
         .post('/api/direct-chats')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .send({ targetUserId: user2.id })
         .expect(201);
 
       // Bob creates chat with Alice (opposite order)
       const res2 = await request(app)
         .post('/api/direct-chats')
-        .set('Authorization', `Bearer ${token2}`)
+        .set(session2)
         .send({ targetUserId: user1.id })
         .expect(200);
 
@@ -165,7 +166,7 @@ describe('Direct Chat REST APIs', () => {
     it('returns empty array when user has no direct chats', async () => {
       const res = await request(app)
         .get('/api/direct-chats')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(200);
 
       expect(res.body).toEqual([]);
@@ -177,7 +178,7 @@ describe('Direct Chat REST APIs', () => {
       // Create direct chat between Alice and Bob
       const resCreate = await request(app)
         .post('/api/direct-chats')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .send({ targetUserId: user2.id })
         .expect(201);
 
@@ -194,7 +195,7 @@ describe('Direct Chat REST APIs', () => {
 
       const res = await request(app)
         .get('/api/direct-chats')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(200);
 
       expect(res.body).toHaveLength(1);
@@ -213,7 +214,7 @@ describe('Direct Chat REST APIs', () => {
       // Alice & Bob chat
       const resCreate = await request(app)
         .post('/api/direct-chats')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .send({ targetUserId: user2.id })
         .expect(201);
 
@@ -252,7 +253,7 @@ describe('Direct Chat REST APIs', () => {
       // Before reading: Alice has 2 unread messages from Bob (msg1 and msg3, not Alice's msg2)
       const resBeforeRead = await request(app)
         .get('/api/direct-chats')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(200);
 
       const chatAliceBefore = resBeforeRead.body.find((c: any) => c.id === chatId);
@@ -274,7 +275,7 @@ describe('Direct Chat REST APIs', () => {
       // After reading msg1: Alice has 1 unread message (msg3)
       const resAfterMsg1 = await request(app)
         .get('/api/direct-chats')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(200);
 
       const chatAliceAfter1 = resAfterMsg1.body.find((c: any) => c.id === chatId);
@@ -296,7 +297,7 @@ describe('Direct Chat REST APIs', () => {
       // After reading msg3: Alice has 0 unread messages
       const resAfterMsg3 = await request(app)
         .get('/api/direct-chats')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(200);
 
       const chatAliceAfter3 = resAfterMsg3.body.find((c: any) => c.id === chatId);
@@ -306,15 +307,15 @@ describe('Direct Chat REST APIs', () => {
 
   describe('GET /api/direct-chats/:id/messages', () => {
     let chatId: string;
-    let token3: string;
+    let session3: SessionHeaders;
 
     beforeEach(async () => {
-      token3 = generateToken({ userId: user3.id, username: user3.username });
+      session3 = await loginAs(app, user3);
 
       // Create chat between Alice and Bob
       const res = await request(app)
         .post('/api/direct-chats')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .send({ targetUserId: user2.id })
         .expect(201);
 
@@ -330,7 +331,7 @@ describe('Direct Chat REST APIs', () => {
     it('returns 404 when chat does not exist', async () => {
       await request(app)
         .get('/api/direct-chats/00000000-0000-0000-0000-000000000000/messages')
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(404);
     });
 
@@ -338,7 +339,7 @@ describe('Direct Chat REST APIs', () => {
       // Charlie tries to access Alice and Bob's chat
       await request(app)
         .get(`/api/direct-chats/${chatId}/messages`)
-        .set('Authorization', `Bearer ${token3}`)
+        .set(session3)
         .expect(403);
     });
 
@@ -375,7 +376,7 @@ describe('Direct Chat REST APIs', () => {
 
       const res = await request(app)
         .get(`/api/direct-chats/${chatId}/messages`)
-        .set('Authorization', `Bearer ${token1}`)
+        .set(session1)
         .expect(200);
 
       expect(res.body).toHaveProperty('messages');
@@ -403,7 +404,7 @@ describe('Direct Chat REST APIs', () => {
       // Query limit 5
       const res = await request(app)
         .get(`/api/direct-chats/${chatId}/messages?limit=5`)
-        .set('Authorization', `Bearer ${token2}`)
+        .set(session2)
         .expect(200);
 
       expect(res.body.messages).toHaveLength(5);

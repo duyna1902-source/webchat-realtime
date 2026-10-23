@@ -2,6 +2,7 @@ import type { Request } from 'express';
 import type { Server } from 'socket.io';
 import type { AppConfig } from './config.js';
 import type { StorageAdapter } from './lib/storage.js';
+import type { SessionStore } from './lib/session-store.js';
 import type { RestRateLimiters } from './middlewares/rate-limit.js';
 
 /**
@@ -12,6 +13,7 @@ export interface ServerContext {
   config: AppConfig;
   storage: StorageAdapter;
   io: Server;
+  sessions: SessionStore;
   /** This instance's REST rate limiters; use the `rateLimit(name)` route middleware. */
   rateLimiters: RestRateLimiters;
 }

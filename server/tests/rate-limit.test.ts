@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcryptjs';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
-import { createTestServer, generateToken, TestServer, TestConfigOverrides } from './helpers/server.js';
+import { createTestServer, loginAs, TestServer, TestConfigOverrides, TEST_APP_ORIGIN } from './helpers/server.js';
 import { createLogSink } from './helpers/log-sink.js';
 import { getPrisma } from '../src/lib/prisma.js';
 import { ERROR_CODES, SOCKET_EVENTS, RoomRole, normalizeDirectChatPair } from '@webchat/shared';
@@ -42,13 +42,13 @@ describe('Rate limiting: login (SEC-07)', () => {
 
     for (let attempt = 1; attempt <= 10; attempt++) {
       await request(app)
-        .post('/api/auth/login')
+        .post('/api/auth/login').set('Origin', TEST_APP_ORIGIN)
         .send({ emailOrUsername: 'alice', password: `wrong-${attempt}` })
         .expect(401);
     }
 
     const res = await request(app)
-      .post('/api/auth/login')
+      .post('/api/auth/login').set('Origin', TEST_APP_ORIGIN)
       .send({ emailOrUsername: 'alice', password: 'wrong-11' })
       .expect(429);
 
@@ -62,9 +62,9 @@ describe('Rate limiting: login (SEC-07)', () => {
     const { app } = await startServer({ rateLimits: { loginFailures: { max: 2, windowMs: 60_000 } } });
     await createUser('alice');
 
-    await request(app).post('/api/auth/login').send({ emailOrUsername: 'alice', password: 'wrong' }).expect(401);
-    await request(app).post('/api/auth/login').send({ emailOrUsername: 'ALICE', password: 'wrong' }).expect(401);
-    await request(app).post('/api/auth/login').send({ emailOrUsername: ' Alice ', password: 'Password123!' }).expect(429);
+    await request(app).post('/api/auth/login').set('Origin', TEST_APP_ORIGIN).send({ emailOrUsername: 'alice', password: 'wrong' }).expect(401);
+    await request(app).post('/api/auth/login').set('Origin', TEST_APP_ORIGIN).send({ emailOrUsername: 'ALICE', password: 'wrong' }).expect(401);
+    await request(app).post('/api/auth/login').set('Origin', TEST_APP_ORIGIN).send({ emailOrUsername: ' Alice ', password: 'Password123!' }).expect(429);
   });
 
   it('does not count successful logins', async () => {
@@ -72,23 +72,23 @@ describe('Rate limiting: login (SEC-07)', () => {
     await createUser('alice');
 
     for (let i = 0; i < 5; i++) {
-      await request(app).post('/api/auth/login').send({ emailOrUsername: 'alice', password: 'Password123!' }).expect(200);
+      await request(app).post('/api/auth/login').set('Origin', TEST_APP_ORIGIN).send({ emailOrUsername: 'alice', password: 'Password123!' }).expect(200);
     }
-    await request(app).post('/api/auth/login').send({ emailOrUsername: 'alice', password: 'wrong' }).expect(401);
+    await request(app).post('/api/auth/login').set('Origin', TEST_APP_ORIGIN).send({ emailOrUsername: 'alice', password: 'wrong' }).expect(401);
   });
 
   it('keys on the real client IP behind the proxy (trust proxy), not on the proxy address', async () => {
     const { app } = await startServer({ rateLimits: { loginFailures: { max: 2, windowMs: 60_000 } } });
     await createUser('alice');
     const fromAttacker = () =>
-      request(app).post('/api/auth/login').set('X-Forwarded-For', '203.0.113.7').send({ emailOrUsername: 'alice', password: 'wrong' });
+      request(app).post('/api/auth/login').set('Origin', TEST_APP_ORIGIN).set('X-Forwarded-For', '203.0.113.7').send({ emailOrUsername: 'alice', password: 'wrong' });
 
     await fromAttacker().expect(401);
     await fromAttacker().expect(401);
     await fromAttacker().expect(429);
 
     await request(app)
-      .post('/api/auth/login')
+      .post('/api/auth/login').set('Origin', TEST_APP_ORIGIN)
       .set('X-Forwarded-For', '198.51.100.20')
       .send({ emailOrUsername: 'alice', password: 'Password123!' })
       .expect(200);
@@ -102,7 +102,7 @@ describe('Rate limiting: logging (SEC-07)', () => {
     servers.push(server);
     const register = (n: number) =>
       request(server.app)
-        .post('/api/auth/register')
+        .post('/api/auth/register').set('Origin', TEST_APP_ORIGIN)
         .set('X-Forwarded-For', '203.0.113.7')
         .send({ username: `bot${n}`, email: `bot${n}@example.com`, password: 'Password123!' });
 
@@ -120,7 +120,7 @@ describe('Rate limiting: register (SEC-07)', () => {
     const { app } = await startServer();
     const register = (n: number) =>
       request(app)
-        .post('/api/auth/register')
+        .post('/api/auth/register').set('Origin', TEST_APP_ORIGIN)
         .send({ username: `bot${n}`, email: `bot${n}@example.com`, password: 'Password123!' });
 
     for (let n = 1; n <= 5; n++) {
@@ -135,10 +135,6 @@ describe('Rate limiting: register (SEC-07)', () => {
   });
 });
 
-function bearer(user: { id: string; username: string }): string {
-  return `Bearer ${generateToken({ userId: user.id, username: user.username })}`;
-}
-
 function expectRateLimited(res: request.Response): void {
   expect(res.status).toBe(429);
   expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
@@ -151,11 +147,11 @@ describe('Rate limiting: per-User REST endpoints (SEC-07)', () => {
 
   it('limits uploads per User', async () => {
     const { app } = await startServer({ rateLimits: { upload: tight } });
-    const alice = await createUser('alice');
+    const alice = await loginAs(app, await createUser('alice'));
     const upload = () =>
       request(app)
         .post('/api/upload')
-        .set('Authorization', bearer(alice))
+        .set(alice)
         .attach('file', Buffer.from('hello'), { filename: 'note.txt', contentType: 'text/plain' });
 
     await upload().expect(200);
@@ -165,9 +161,9 @@ describe('Rate limiting: per-User REST endpoints (SEC-07)', () => {
 
   it('limits GET /api/users per User, without affecting other Users', async () => {
     const { app } = await startServer({ rateLimits: { userSearch: tight } });
-    const alice = await createUser('alice');
-    const bob = await createUser('bob');
-    const search = (user: typeof alice) => request(app).get('/api/users?q=a').set('Authorization', bearer(user));
+    const alice = await loginAs(app, await createUser('alice'));
+    const bob = await loginAs(app, await createUser('bob'));
+    const search = (session: typeof alice) => request(app).get('/api/users?q=a').set(session);
 
     await search(alice).expect(200);
     await search(alice).expect(200);
@@ -177,28 +173,28 @@ describe('Rate limiting: per-User REST endpoints (SEC-07)', () => {
 
   it('limits /api/gifs/* per User, trending and search combined', async () => {
     const { app } = await startServer({ rateLimits: { gifs: tight } });
-    const alice = await createUser('alice');
+    const alice = await loginAs(app, await createUser('alice'));
 
-    await request(app).get('/api/gifs/trending').set('Authorization', bearer(alice)).expect(200);
-    await request(app).get('/api/gifs/search?q=cat').set('Authorization', bearer(alice)).expect(200);
-    expectRateLimited(await request(app).get('/api/gifs/trending').set('Authorization', bearer(alice)));
+    await request(app).get('/api/gifs/trending').set(alice).expect(200);
+    await request(app).get('/api/gifs/search?q=cat').set(alice).expect(200);
+    expectRateLimited(await request(app).get('/api/gifs/trending').set(alice));
   });
 
   it('limits POST /api/rooms per User, but not reading rooms', async () => {
     const { app } = await startServer({ rateLimits: { roomCreate: tight } });
-    const alice = await createUser('alice');
-    const createRoom = (name: string) => request(app).post('/api/rooms').set('Authorization', bearer(alice)).send({ name });
+    const alice = await loginAs(app, await createUser('alice'));
+    const createRoom = (name: string) => request(app).post('/api/rooms').set(alice).send({ name });
 
     await createRoom('one').expect(201);
     await createRoom('two').expect(201);
     expectRateLimited(await createRoom('three'));
-    await request(app).get('/api/rooms').set('Authorization', bearer(alice)).expect(200);
+    await request(app).get('/api/rooms').set(alice).expect(200);
   });
 });
 
-function connect(server: TestServer, user: { id: string; username: string }): Promise<ClientSocketType> {
+async function connect(server: TestServer, user: { id: string; username: string }): Promise<ClientSocketType> {
   const client = ClientSocket(`http://localhost:${server.port}`, {
-    auth: { token: generateToken({ userId: user.id, username: user.username }) },
+    extraHeaders: await loginAs(server.app, user),
     transports: ['websocket'],
   });
   clients.push(client);
@@ -271,7 +267,7 @@ describe('Rate limiting: sending messages over the socket (SEC-07)', () => {
 
     const res = await request(server.app)
       .get(`/api/direct-chats/${chat.id}/messages?limit=100`)
-      .set('Authorization', bearer(bob))
+      .set(await loginAs(server.app, bob))
       .expect(200);
     expect(res.body.messages).toHaveLength(10);
   });

@@ -76,8 +76,7 @@ const mockRoom: RoomListItemDto = {
 
 function renderWithProviders(ui: React.ReactElement) {
   const authValue: any = {
-    currentUser: mockCurrentUser,
-    token: 'test-token',
+    currentUser: mockCurrentUser,
     isLoading: false,
     login: vi.fn(),
     register: vi.fn(),
@@ -251,7 +250,7 @@ describe('Google Material Chat Experience & Mobile Navigation (Ticket 04)', () =
 
       // In ChatArea header:
       rerender(
-        <AuthContext.Provider value={{ currentUser: mockCurrentUser, token: 'test' } as any}>
+        <AuthContext.Provider value={{ currentUser: mockCurrentUser } as any}>
           <SocketContext.Provider value={{ socket: null, isConnected: true } as any}>
             <ChatArea
               activeChat={mockDirectChat}
@@ -278,7 +277,7 @@ describe('Google Material Chat Experience & Mobile Navigation (Ticket 04)', () =
       };
 
       rerender(
-        <AuthContext.Provider value={{ currentUser: mockCurrentUser, token: 'test' } as any}>
+        <AuthContext.Provider value={{ currentUser: mockCurrentUser } as any}>
           <SocketContext.Provider value={{ socket: null, isConnected: true } as any}>
             <RoomChatArea
               activeRoom={mockRoom}
@@ -324,7 +323,7 @@ describe('Google Material Chat Experience & Mobile Navigation (Ticket 04)', () =
 
       const onBackRoom = vi.fn();
       rerender(
-        <AuthContext.Provider value={{ currentUser: mockCurrentUser, token: 'test' } as any}>
+        <AuthContext.Provider value={{ currentUser: mockCurrentUser } as any}>
           <SocketContext.Provider value={{ socket: null, isConnected: true } as any}>
             <RoomChatArea
               activeRoom={mockRoom}

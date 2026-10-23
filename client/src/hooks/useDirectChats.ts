@@ -9,24 +9,21 @@ import {
 } from '@webchat/shared';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import { apiFetch } from '../utils/apiFetch';
 
 export function useDirectChats(activeChatId?: string | null) {
-  const { token, currentUser } = useAuth();
+  const { currentUser } = useAuth();
   const { socket } = useSocket();
   const [chats, setChats] = useState<DirectChatListItemDto[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchChats = useCallback(async () => {
-    if (!token) return;
+    if (!currentUser) return;
     try {
       setIsLoading(true);
       setError(null);
-      const res = await fetch('/api/direct-chats', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await apiFetch('/api/direct-chats');
 
       if (!res.ok) {
         throw new Error('Failed to fetch direct chats');
@@ -39,7 +36,7 @@ export function useDirectChats(activeChatId?: string | null) {
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, [currentUser]);
 
   useEffect(() => {
     fetchChats();
@@ -131,13 +128,12 @@ export function useDirectChats(activeChatId?: string | null) {
   }, [socket, activeChatId, currentUser?.id, fetchChats]);
 
   const createOrOpenChat = async (targetUserId: string): Promise<string> => {
-    if (!token) throw new Error('Not authenticated');
+    if (!currentUser) throw new Error('Not authenticated');
 
-    const res = await fetch('/api/direct-chats', {
+    const res = await apiFetch('/api/direct-chats', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ targetUserId }),
     });

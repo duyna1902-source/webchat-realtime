@@ -8,24 +8,21 @@ import {
 } from '@webchat/shared';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import { apiFetch } from '../utils/apiFetch';
 
 export function useRooms(activeRoomId?: string | null) {
-  const { token, currentUser } = useAuth();
+  const { currentUser } = useAuth();
   const { socket } = useSocket();
   const [rooms, setRooms] = useState<RoomListItemDto[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchRooms = useCallback(async () => {
-    if (!token) return;
+    if (!currentUser) return;
     try {
       setIsLoading(true);
       setError(null);
-      const res = await fetch('/api/rooms', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await apiFetch('/api/rooms');
 
       if (!res.ok) {
         throw new Error('Failed to fetch rooms');
@@ -38,7 +35,7 @@ export function useRooms(activeRoomId?: string | null) {
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, [currentUser]);
 
   useEffect(() => {
     fetchRooms();
@@ -118,13 +115,12 @@ export function useRooms(activeRoomId?: string | null) {
   }, [socket, activeRoomId, currentUser?.id, fetchRooms]);
 
   const createRoom = async (name: string, description?: string): Promise<string> => {
-    if (!token) throw new Error('Not authenticated');
+    if (!currentUser) throw new Error('Not authenticated');
 
-    const res = await fetch('/api/rooms', {
+    const res = await apiFetch('/api/rooms', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ name, description }),
     });

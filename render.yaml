@@ -19,9 +19,6 @@ services:
         value: https://webchat-realtime.onrender.com
       - key: DATABASE_URL
         sync: false
-      # Removed by ticket 10 when Session cookies replace JWT.
-      - key: JWT_SECRET
-        sync: false
       - key: STORAGE_PROVIDER
         value: supabase
       - key: SUPABASE_URL

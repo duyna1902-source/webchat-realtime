@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import type { SendMessageAck } from '../utils/rateLimit';
+import { apiFetch } from '../utils/apiFetch';
 
 export interface SendDirectMessageOptions {
   type?: MessageType;
@@ -21,7 +22,7 @@ export interface SendDirectMessageOptions {
 }
 
 export function useDirectMessages(activeChatId: string | null) {
-  const { token, currentUser } = useAuth();
+  const { currentUser } = useAuth();
   const { socket } = useSocket();
   const [messages, setMessages] = useState<DirectReceiveMessagePayload[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -36,7 +37,7 @@ export function useDirectMessages(activeChatId: string | null) {
   // Fetch initial message history
   useEffect(() => {
     lastReadEmittedIdRef.current = null;
-    if (!token || !activeChatId) {
+    if (!currentUser || !activeChatId) {
       setMessages([]);
       setHasMore(false);
       return;
@@ -46,11 +47,7 @@ export function useDirectMessages(activeChatId: string | null) {
     setIsLoading(true);
     setError(null);
 
-    fetch(`/api/direct-chats/${activeChatId}/messages?limit=50`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
+    apiFetch(`/api/direct-chats/${activeChatId}/messages?limit=50`)
       .then((res) => {
         if (!res.ok) {
           throw new Error('Failed to load message history');
@@ -74,11 +71,11 @@ export function useDirectMessages(activeChatId: string | null) {
     return () => {
       isMounted = false;
     };
-  }, [token, activeChatId]);
+  }, [currentUser, activeChatId]);
 
   // Load older messages for cursor pagination (?before=<oldestId>)
   const loadOlderMessages = useCallback(async () => {
-    if (!token || !activeChatId || isLoadingOlder || !hasMore || messages.length === 0) {
+    if (!currentUser || !activeChatId || isLoadingOlder || !hasMore || messages.length === 0) {
       return;
     }
 
@@ -86,11 +83,7 @@ export function useDirectMessages(activeChatId: string | null) {
     setIsLoadingOlder(true);
 
     try {
-      const res = await fetch(`/api/direct-chats/${activeChatId}/messages?limit=50&before=${oldestId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await apiFetch(`/api/direct-chats/${activeChatId}/messages?limit=50&before=${oldestId}`);
 
       if (res.ok) {
         const data: PaginatedMessagesDto<DirectReceiveMessagePayload> = await res.json();
@@ -108,11 +101,11 @@ export function useDirectMessages(activeChatId: string | null) {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [token, activeChatId, isLoadingOlder, hasMore, messages]);
+  }, [currentUser, activeChatId, isLoadingOlder, hasMore, messages]);
 
   // Catch-up Sync: fetches messages strictly newer than latest local message, or initial batch if empty
   const syncCatchup = useCallback(async () => {
-    if (!token || !activeChatId) return;
+    if (!currentUser || !activeChatId) return;
     const currentMsgs = messagesRef.current;
     const url =
       currentMsgs.length > 0
@@ -120,11 +113,7 @@ export function useDirectMessages(activeChatId: string | null) {
         : `/api/direct-chats/${activeChatId}/messages?limit=50`;
 
     try {
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await apiFetch(url);
 
       if (res.ok) {
         const data: PaginatedMessagesDto<DirectReceiveMessagePayload> = await res.json();
@@ -145,7 +134,7 @@ export function useDirectMessages(activeChatId: string | null) {
     } catch (err) {
       console.error('Failed to catch-up sync direct messages:', err);
     }
-  }, [token, activeChatId]);
+  }, [currentUser, activeChatId]);
 
   // Auto read receipt: when active chat has unread messages from partner, emit direct:read
   useEffect(() => {

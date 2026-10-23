@@ -50,7 +50,7 @@ const mockRoom = {
 describe('Mobile Input, Popovers & Modals Optimization (Ticket 04)', () => {
   const renderWithContext = (ui: React.ReactElement) => {
     return render(
-      <AuthContext.Provider value={{ currentUser: mockUser, token: 'fake-token' } as any}>
+      <AuthContext.Provider value={{ currentUser: mockUser } as any}>
         <SocketContext.Provider value={{ socket: null, isConnected: true } as any}>
           {ui}
         </SocketContext.Provider>
@@ -139,7 +139,7 @@ describe('Mobile Input, Popovers & Modals Optimization (Ticket 04)', () => {
     expect(createModalBox?.className).toMatch(/max-h-\[90dvh\]/);
 
     rerender(
-      <AuthContext.Provider value={{ currentUser: mockUser, token: 'fake-token' } as any}>
+      <AuthContext.Provider value={{ currentUser: mockUser } as any}>
         <SocketContext.Provider value={{ socket: null, isConnected: true } as any}>
           <RoomMembersModal
             isOpen={true}
@@ -209,7 +209,7 @@ describe('Mobile Input, Popovers & Modals Optimization (Ticket 04)', () => {
     expect(directTextarea.parentElement?.className).toMatch(/min-w-0/);
 
     rerender(
-      <AuthContext.Provider value={{ currentUser: mockUser, token: 'fake-token' } as any}>
+      <AuthContext.Provider value={{ currentUser: mockUser } as any}>
         <SocketContext.Provider value={{ socket: null, isConnected: true } as any}>
           <RoomChatArea
             activeRoom={mockRoom as any}

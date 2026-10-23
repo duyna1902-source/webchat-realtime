@@ -93,8 +93,7 @@ const mockRoomDetails: RoomDetailDto = {
 
 function renderWithProviders(ui: React.ReactElement, socketMock?: any) {
   const authValue: any = {
-    currentUser: mockCurrentUser,
-    token: 'jwt-alice-token',
+    currentUser: mockCurrentUser,
     isLoading: false,
     login: vi.fn(),
     register: vi.fn(),
@@ -248,8 +247,7 @@ describe('Read Receipts, Cursor Pagination & Web Notifications', () => {
       rerender(
         <AuthContext.Provider
           value={{
-            currentUser: mockCurrentUser,
-            token: 'jwt-alice-token',
+            currentUser: mockCurrentUser,
             isLoading: false,
             login: vi.fn(),
             register: vi.fn(),

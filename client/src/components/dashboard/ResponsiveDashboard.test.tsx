@@ -43,8 +43,7 @@ const defaultMockRooms = [
 
 const renderDashboard = () => {
   const authValue: any = {
-    currentUser: mockUser,
-    token: 'token-xyz',
+    currentUser: mockUser,
     isLoading: false,
     login: vi.fn(),
     register: vi.fn(),

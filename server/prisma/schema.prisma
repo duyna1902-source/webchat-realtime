@@ -59,8 +59,29 @@ model User {
   roomMemberships          RoomMember[]
   sentRoomMessages         RoomMessage[]           @relation("SentRoomMessages")
 
+  // Login Sessions (ADR 0010)
+  sessions                 Session[]
+
   @@index([username])
   @@index([isOnline])
+}
+
+// A logged-in browser. The cookie carries a random token; only its SHA-256 is stored here.
+// Revoking a Session deletes its row.
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  tokenHash    String   @unique
+  createdAt    DateTime @default(now())
+  lastActiveAt DateTime @default(now())
+  // Absolute expiry: createdAt + the absolute Session TTL
+  expiresAt    DateTime
+  ip           String?
+  userAgent    String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model DirectChat {

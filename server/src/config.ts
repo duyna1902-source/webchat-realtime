@@ -15,7 +15,6 @@ export const DEFAULT_CLIENT_DIST_PATH = path.resolve(__dirname, '../../client/di
 
 const NODE_ENVS = ['development', 'test', 'production'] as const;
 const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
-const MIN_JWT_SECRET_BYTES = 32;
 const DEFAULT_PORT = 4000;
 const MEMORY_DATABASE_URL = 'memory:';
 
@@ -48,6 +47,8 @@ export interface TimingConfig {
   signedUrlTtlSeconds: number;
   sessionIdleTtlMs: number;
   sessionAbsoluteTtlMs: number;
+  /** Minimum gap between two writes of a Session's `lastActiveAt`. */
+  sessionTouchIntervalMs: number;
 }
 
 export interface AppConfig {
@@ -57,8 +58,6 @@ export interface AppConfig {
   appOrigin: string;
   /** Postgres connection string, or `memory:` (PGlite) under `NODE_ENV=test`. */
   databaseUrl: string;
-  /** Temporary until Session cookies replace JWT (ticket 10). */
-  jwtSecret: string;
   logLevel: LogLevel;
   giphyApiKey: string | null;
   /** Built SPA directory to serve, or null when there is no build (dev/test only). */
@@ -89,6 +88,7 @@ export const DEFAULT_TIMING: TimingConfig = {
   signedUrlTtlSeconds: 3600,
   sessionIdleTtlMs: 7 * DAY,
   sessionAbsoluteTtlMs: 30 * DAY,
+  sessionTouchIntervalMs: 5 * MINUTE,
 };
 
 export interface ConfigIssue {
@@ -190,17 +190,6 @@ export function loadConfig(env: Env, options: LoadConfigOptions = {}): AppConfig
     fail('DATABASE_URL', 'must be a postgres:// or postgresql:// connection string');
   }
 
-  // JWT_SECRET (no default in any environment)
-  let jwtSecret = '';
-  const rawJwtSecret = read(env, 'JWT_SECRET');
-  if (!rawJwtSecret) {
-    fail('JWT_SECRET', 'is required');
-  } else if (Buffer.byteLength(rawJwtSecret, 'utf8') < MIN_JWT_SECRET_BYTES) {
-    fail('JWT_SECRET', `must be at least ${MIN_JWT_SECRET_BYTES} bytes long`);
-  } else {
-    jwtSecret = rawJwtSecret;
-  }
-
   // LOG_LEVEL
   let logLevel: LogLevel = 'info';
   const rawLogLevel = read(env, 'LOG_LEVEL');
@@ -245,7 +234,6 @@ export function loadConfig(env: Env, options: LoadConfigOptions = {}): AppConfig
     port,
     appOrigin,
     databaseUrl,
-    jwtSecret,
     logLevel,
     giphyApiKey: read(env, 'GIPHY_API_KEY') ?? null,
     clientDistPath: clientBuildExists ? clientDistPath : null,
