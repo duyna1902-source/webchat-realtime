@@ -6,7 +6,7 @@ This ticket also confirms the spec's first open assumption: the server starts an
 
 **Blocked by:** 01
 
-**Status:** ready-for-human
+**Status:** resolved
 
 - [x] A workflow runs on `push` to `main` and on `pull_request` against `main`, on Node 24.
 - [x] Steps, in order:
@@ -22,8 +22,8 @@ This ticket also confirms the spec's first open assumption: the server starts an
 - [x] Security: no `pull_request_target` trigger, and no `secrets.*` or other secret is referenced.
 - [x] Security: the checkout step sets `persist-credentials: false`.
 - [x] Security: every third-party action is pinned to a full commit SHA, with its version in a trailing comment.
-- [ ] Security: the throwaway environment values are clearly fake and contain nothing that looks like a credential, so the gitleaks pre-commit hook passes.
-  - Open: the values are fake and hold no credential. `DATABASE_URL` is `postgresql://127.0.0.1:1/ci_no_database`, with no user or password. The hook itself did not run, though. On the implementing machine gitleaks is not installed and `core.hooksPath` is not set, so the gitleaks scan is still unverified.
+- [x] Security: the throwaway environment values are clearly fake and contain nothing that looks like a credential, so the gitleaks pre-commit hook passes.
+  - The values are fake and hold no credential. `DATABASE_URL` is `postgresql://127.0.0.1:1/ci_no_database`, with no user or password. With gitleaks 8.30.1 installed and `core.hooksPath` set to `.githooks`, `gitleaks dir .github` and `gitleaks git .` (full history) both report no leaks. The commit that resolves this ticket went through the pre-commit hook.
 - [x] The workflow passes on a pull request from this branch. It is shown to fail by temporarily removing the condition from the boot step on a throwaway commit that is not merged.
   - Pass: the branch was merged straight into `main` rather than through a PR, so the passing run is the `push` run on `main` at `6e8b398` ([run 42812196113](https://github.com/duyna1902-source/webchat-realtime/actions/runs/42812196113)). Every step passed, including the boot step.
   - Fail: PR #5 from `throwaway/ci-drop-source-condition` (`2f7c219`, `--conditions=@webchat/source` removed from the boot step) ran the workflow on `pull_request` ([run 42819538360](https://github.com/duyna1902-source/webchat-realtime/actions/runs/42819538360)). Install, Test and the shared-output deletion passed, then the boot step failed with `The server exited before /health answered 200`. The PR was closed unmerged and the branch deleted.
@@ -41,3 +41,4 @@ Run on Windows 11, Node 24.19.0, npm 11.17.0, in Git Bash, on 2026-11-10. A thro
 
 - 2026-11-10: The workflow is merged on `fix/fresh-clone-dev`, and the local simulation of its steps passes (and fails as expected without the condition). Left for the maintainer (ready-for-human): push the branch, open a PR against `main`, confirm the workflow passes there, and show it fails on a throwaway commit with the condition removed from the boot step. The gitleaks criterion could not run because no gitleaks hook is installed in this checkout.
 - 2026-11-10: Ran on GitHub. The workflow passed on `main` (push) and failed as expected on throwaway PR #5 with the condition removed (see the criterion above). Only the gitleaks criterion is still open: it needs gitleaks installed and the hook enabled. The status stays ready-for-human until then.
+- 2026-11-10: Installed gitleaks 8.30.1 and enabled the hook. The workflow file and the full git history scan clean. The ticket is resolved.
