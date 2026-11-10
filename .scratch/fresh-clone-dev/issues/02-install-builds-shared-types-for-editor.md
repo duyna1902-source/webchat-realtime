@@ -20,6 +20,6 @@ The root install hook builds the shared package and then generates the Prisma cl
 
 - Fresh worktree with no `node_modules` and no `shared/dist`: `npm install` exited 0; `shared/dist` held `index.js` and seven `.d.ts` files, and the Prisma client was generated after the shared build.
 - `rm -rf shared/dist && npm install`: the hook ran `npm run build --workspace=shared && npm run db:generate --workspace=server`, exited 0, and recreated `shared/dist/index.js` and `shared/dist/index.d.ts`.
-- `npx tsc --noEmit` in `server/` (path mapping still points at `../shared/dist/index.d.ts`) exited 0, so the server's imports of `@webchat/shared` have types.
+- `npx tsc --noEmit` in `server/` (path mapping still points at `../shared/dist/index.d.ts`) exited 0, so the server's imports of `@webchat/shared` have types. (This run predates the removal of the `paths` mapping; see ticket 01. TypeScript now finds the types through the shared package's `types` export.)
 - With a temporary type error in `shared/src`, `npm run postinstall` exited 2 at the shared build and did not run `prisma generate`.
 - `npm run build` exited 0. The Render start command needs a database and was not run; it is unchanged.

@@ -1,41 +1,24 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { execFile, spawn, ChildProcess } from 'node:child_process';
-import { createRequire } from 'node:module';
+import { execFile } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { getFreePort, stopChild, strippedEnv, waitForHealth } from './helpers/child-process.js';
+import {
+  SERVER_ROOT,
+  envWithoutServerConfig,
+  getFreePort,
+  makeTempDir,
+  removeTempDir,
+  spawnServer,
+  stopChild,
+  waitForHealth,
+  type SpawnedServer,
+} from './helpers/child-process.js';
+import { nodeArgsFor, readTsxScripts } from './helpers/tsx-scripts.js';
 
-const require = createRequire(import.meta.url);
-const SERVER_ROOT = path.resolve(__dirname, '..');
 const SHARED_SRC = path.resolve(SERVER_ROOT, '../shared/src/index.ts');
 const PRINT_SHARED_ENTRY = path.join(SERVER_ROOT, 'tests', 'fixtures', 'print-shared-entry.ts');
-const TSX_CLI = require.resolve('tsx/cli');
-
-interface TsxScript {
-  name: string;
-  /** The tsx/Node options before the entry file, without the `watch` subcommand. */
-  options: string[];
-  /** The entry file, relative to the server workspace. */
-  entry: string;
-}
-
-/** Every server package script that runs `tsx`, read from the manifest so the tests follow it. */
-function readTsxScripts(): TsxScript[] {
-  const manifest = JSON.parse(fs.readFileSync(path.join(SERVER_ROOT, 'package.json'), 'utf8')) as {
-    scripts: Record<string, string>;
-  };
-  return Object.entries(manifest.scripts)
-    .filter(([, command]) => /^tsx(\s|$)/.test(command))
-    .map(([name, command]) => {
-      const tokens = command.split(/\s+/).slice(1).filter((token) => token !== 'watch');
-      const entryIndex = tokens.findIndex((token) => !token.startsWith('-'));
-      if (entryIndex === -1) throw new Error(`npm script "${name}" runs tsx without an entry file: ${command}`);
-      return { name, options: tokens.slice(0, entryIndex), entry: tokens[entryIndex] };
-    });
-}
 
 const TSX_SCRIPTS = readTsxScripts();
 
@@ -49,9 +32,9 @@ describe('Server tsx commands read the shared package from source', () => {
     async (name, script) => {
       let stdout: string;
       try {
-        ({ stdout } = await promisify(execFile)(process.execPath, [TSX_CLI, ...script.options, PRINT_SHARED_ENTRY], {
+        ({ stdout } = await promisify(execFile)(process.execPath, nodeArgsFor(script, PRINT_SHARED_ENTRY), {
           cwd: SERVER_ROOT,
-          env: strippedEnv(),
+          env: { ...envWithoutServerConfig(), ...script.env },
           timeout: 20000,
         }));
       } catch (err) {
@@ -67,54 +50,44 @@ describe('Server tsx commands read the shared package from source', () => {
 // Starts the real entrypoint the way `npm run dev` does (from the server workspace, with the dev
 // script's tsx options), minus watch mode. Nothing here depends on compiled shared output.
 describe('The dev entrypoint starts', () => {
-  let workDir: string;
-  let child: ChildProcess | undefined;
-  let baseUrl: string;
-  let logs = '';
+  let workDir: string | undefined;
+  let server: SpawnedServer | undefined;
 
   beforeAll(async () => {
     const dev = TSX_SCRIPTS.find((script) => script.name === 'dev');
     if (!dev) throw new Error('The server manifest has no tsx "dev" script');
 
     const port = await getFreePort();
-    baseUrl = `http://127.0.0.1:${port}`;
 
     // An empty `.env` stands in for the developer's own `server/.env`, which must not leak in.
-    workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'webchat-dev-'));
+    workDir = makeTempDir('webchat-dev-');
     const dotenvPath = path.join(workDir, '.env');
     fs.writeFileSync(dotenvPath, '');
 
-    child = spawn(process.execPath, [TSX_CLI, ...dev.options, path.join(SERVER_ROOT, dev.entry)], {
+    server = spawnServer({
+      port,
+      args: [...nodeArgsFor(dev, path.join(SERVER_ROOT, dev.entry)), ...dev.entryArgs],
       cwd: SERVER_ROOT,
       env: {
-        ...strippedEnv(),
+        ...envWithoutServerConfig(),
+        ...dev.env,
         DOTENV_CONFIG_PATH: dotenvPath,
         NODE_ENV: 'test',
         PORT: String(port),
         DATABASE_URL: 'memory:',
         APP_ORIGIN: 'http://localhost:5173',
       },
-      stdio: ['ignore', 'pipe', 'pipe'],
     });
-    child.stdout?.on('data', (chunk) => (logs += chunk.toString()));
-    child.stderr?.on('data', (chunk) => (logs += chunk.toString()));
-
-    await waitForHealth(baseUrl, child, () => logs);
+    await waitForHealth(server);
   }, 30000);
 
   afterAll(async () => {
-    await stopChild(child);
-    if (workDir) {
-      try {
-        fs.rmSync(workDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
-      } catch {
-        // Ignored on Windows if file handle is slow to release
-      }
-    }
+    await stopChild(server?.child);
+    removeTempDir(workDir);
   });
 
   it('answers /health with 200', async () => {
-    const res = await fetch(`${baseUrl}/health`);
+    const res = await fetch(`${server!.baseUrl}/health`);
     expect(res.status).toBe(200);
   });
 });
