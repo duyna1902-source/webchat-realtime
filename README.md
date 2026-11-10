@@ -126,7 +126,11 @@ npm install
 ```
 
 ### 3. Environment Configuration
-Copy `server/.env.example` to **`server/.env`** and fill it in. The server, the operator commands and Prisma all load `.env` from the `server/` directory (the root `.env.example` is the same file, kept for discoverability). `server/src/config.ts` is the only code that reads these variables. It refuses to start and lists **every** invalid variable, and it never falls back to a default secret.
+Copy `server/.env.example` to **`server/.env`** (the same command works in bash, zsh and PowerShell):
+```bash
+cp server/.env.example server/.env
+```
+Then fill it in. The defaults already work for local development with the PostgreSQL container from step 4. The server, the operator commands and Prisma all load `.env` from the `server/` directory (the root `.env.example` is the same file, kept for discoverability). `server/src/config.ts` is the only code that reads these variables. It refuses to start and lists **every** invalid variable, and it never falls back to a default secret.
 
 | Variable | Required | Meaning |
 |---|---|---|
@@ -143,7 +147,16 @@ Copy `server/.env.example` to **`server/.env`** and fill it in. The server, the 
 
 In production the server also refuses to start without the built client (`client/dist/index.html`). `JWT_SECRET`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `PUBLIC_URL`, the Cloudinary variables and `VITE_API_URL`/`VITE_SOCKET_URL` no longer exist: delete them wherever they are still set.
 
-### 4. Database Migrations
+### 4. Start a Local PostgreSQL
+If you do not already have a database, start one with Docker. This container matches the default `DATABASE_URL` in `server/.env.example` (`postgresql://postgres:postgres@localhost:5432/webchat?schema=public`): user `postgres`, password `postgres`, database `webchat`, port `5432`.
+```bash
+docker run --name webchat-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=webchat -p 127.0.0.1:5432:5432 -d postgres:16
+```
+The port is published on `127.0.0.1` only, so the database is reachable from your machine and not from your network. After a reboot, start it again with `docker start webchat-postgres`.
+
+> **These credentials are public.** `postgres`/`postgres` is in this repository for local development only. Never use them for a deployed or shared database, and never publish this container's port on all interfaces (`-p 5432:5432`).
+
+### 5. Database Migrations
 The schema is managed with versioned Prisma Migrate migrations in `server/prisma/migrations/` (`db push` is no longer used). Apply them to your database:
 ```bash
 npm run db:deploy --workspace=server
@@ -159,12 +172,25 @@ The migration workflow ([`docs/database-migrations.md`](docs/database-migrations
 
 Schema changes follow **expand → data upgrade → contract**. Every new table must enable Row Level Security; the test suite fails otherwise.
 
-### 5. Run in Development Mode
+### 6. Run in Development Mode
 Start both the backend server and frontend client concurrently:
 ```bash
 npm run dev
 ```
-Open **`http://localhost:5173`**. The Vite dev server proxies `/api`, `/socket.io` and `/uploads` to the backend on `http://localhost:4000`, so development is same-origin, with the same session cookie and `Origin` checks as production. Do not open the app on port 4000 directly: requests from there do not match `APP_ORIGIN`.
+No build step is needed first: in development the server reads the shared package (`@webchat/shared`) from its TypeScript source, so edits to `shared/src/` take effect on the server's next reload. Open **`http://localhost:5173`**. The Vite dev server proxies `/api`, `/socket.io` and `/uploads` to the backend on `http://localhost:4000`, so development is same-origin, with the same session cookie and `Origin` checks as production. Do not open the app on port 4000 directly: requests from there do not match `APP_ORIGIN`.
+
+---
+
+## Troubleshooting
+
+### `http proxy error: /api/...`
+The Vite dev server (`[CLIENT]` in the `npm run dev` output) prints this when it cannot reach the backend on port 4000. The message says nothing about the cause: the backend is not running. Scroll up to the `[SERVER]` log to see why. The usual causes:
+
+- **`server/.env` is missing or incomplete.** The server prints `Invalid server configuration:` with every variable it rejected, then exits. Create the file as in [step 3](#3-environment-configuration).
+- **PostgreSQL is not running**, or not reachable at the address in `DATABASE_URL`. Start it as in [step 4](#4-start-a-local-postgresql) and check that `DATABASE_URL` matches it. While the server is up, `curl http://localhost:4000/health/ready` answers `503` when the database is unreachable.
+- **The server failed to start** for another reason, such as another process already using port 4000 or a crash during startup. The `[SERVER]` log shows the error.
+
+Fix the cause and keep using `http://localhost:5173`. Do not work around the error by opening the app on port 4000 or by changing `APP_ORIGIN`: it must stay the origin your browser actually uses, or every write request and socket connection is refused.
 
 ---
 
@@ -183,6 +209,11 @@ npm run test:server
 # Frontend React UI & responsive behavior tests
 npm run test:client
 ```
+
+### Contributor note: server commands and the shared package
+The shared package's compiled output (`shared/dist/`) is gitignored and is not built before development, so development, tests and operator commands read `@webchat/shared` from its TypeScript source. The server opts in through the `@webchat/source` package export condition ([ADR 0005](docs/adr/0005-monorepo-structure-and-shared-contracts.md)). Only the production build and `npm run start --workspace=server` use the compiled output.
+
+Every server script that runs `tsx` must therefore pass `--conditions=@webchat/source`, for example `tsx --conditions=@webchat/source src/cli/your-command.ts`. Without it the command crashes on a fresh clone with `ERR_MODULE_NOT_FOUND`. `npm test` enforces this: it fails and names any `tsx` script in `server/package.json` that does not resolve the shared package to its source.
 
 ---
 
