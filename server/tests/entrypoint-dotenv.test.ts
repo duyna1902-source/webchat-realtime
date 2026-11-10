@@ -9,7 +9,6 @@ import { getFreePort, stopChild, strippedEnv, waitForHealth } from './helpers/ch
 const require = createRequire(import.meta.url);
 const SERVER_ROOT = path.resolve(__dirname, '..');
 const ENTRYPOINT = path.join(SERVER_ROOT, 'src', 'index.ts');
-const SHARED_SRC = path.resolve(SERVER_ROOT, '../shared/src/index.ts');
 const TSX_CLI = require.resolve('tsx/cli');
 
 // Not the origin the tests use elsewhere, so only the `.env` file can have put it in effect.
@@ -39,18 +38,12 @@ describe('Entrypoint loads .env before anything else (B1)', () => {
         '',
       ].join('\n')
     );
-    // Lets tsx resolve the shared workspace from source, without a prior build.
-    fs.writeFileSync(
-      path.join(workDir, 'tsconfig.json'),
-      JSON.stringify({
-        compilerOptions: { module: 'NodeNext', moduleResolution: 'NodeNext', paths: { '@webchat/shared': [SHARED_SRC] } },
-      })
-    );
 
     // The child must see only what the `.env` file provides.
     const env = strippedEnv();
 
-    child = spawn(process.execPath, [TSX_CLI, '--tsconfig', path.join(workDir, 'tsconfig.json'), ENTRYPOINT], {
+    // Reads the shared workspace from source, as the server's tsx scripts do, without a prior build.
+    child = spawn(process.execPath, [TSX_CLI, '--conditions=@webchat/source', ENTRYPOINT], {
       cwd: workDir,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],

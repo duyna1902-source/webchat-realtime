@@ -1,11 +1,12 @@
-import { describe, it, expect } from 'vitest';
-import { execFile } from 'node:child_process';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { execFile, spawn, ChildProcess } from 'node:child_process';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { strippedEnv } from './helpers/child-process.js';
+import { getFreePort, stopChild, strippedEnv, waitForHealth } from './helpers/child-process.js';
 
 const require = createRequire(import.meta.url);
 const SERVER_ROOT = path.resolve(__dirname, '..');
@@ -61,4 +62,59 @@ describe('Server tsx commands read the shared package from source', () => {
     },
     25000
   );
+});
+
+// Starts the real entrypoint the way `npm run dev` does (from the server workspace, with the dev
+// script's tsx options), minus watch mode. Nothing here depends on compiled shared output.
+describe('The dev entrypoint starts', () => {
+  let workDir: string;
+  let child: ChildProcess | undefined;
+  let baseUrl: string;
+  let logs = '';
+
+  beforeAll(async () => {
+    const dev = TSX_SCRIPTS.find((script) => script.name === 'dev');
+    if (!dev) throw new Error('The server manifest has no tsx "dev" script');
+
+    const port = await getFreePort();
+    baseUrl = `http://127.0.0.1:${port}`;
+
+    // An empty `.env` stands in for the developer's own `server/.env`, which must not leak in.
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'webchat-dev-'));
+    const dotenvPath = path.join(workDir, '.env');
+    fs.writeFileSync(dotenvPath, '');
+
+    child = spawn(process.execPath, [TSX_CLI, ...dev.options, path.join(SERVER_ROOT, dev.entry)], {
+      cwd: SERVER_ROOT,
+      env: {
+        ...strippedEnv(),
+        DOTENV_CONFIG_PATH: dotenvPath,
+        NODE_ENV: 'test',
+        PORT: String(port),
+        DATABASE_URL: 'memory:',
+        APP_ORIGIN: 'http://localhost:5173',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child.stdout?.on('data', (chunk) => (logs += chunk.toString()));
+    child.stderr?.on('data', (chunk) => (logs += chunk.toString()));
+
+    await waitForHealth(baseUrl, child, () => logs);
+  }, 30000);
+
+  afterAll(async () => {
+    await stopChild(child);
+    if (workDir) {
+      try {
+        fs.rmSync(workDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+      } catch {
+        // Ignored on Windows if file handle is slow to release
+      }
+    }
+  });
+
+  it('answers /health with 200', async () => {
+    const res = await fetch(`${baseUrl}/health`);
+    expect(res.status).toBe(200);
+  });
 });
