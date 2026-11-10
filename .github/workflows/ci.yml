@@ -57,7 +57,7 @@ jobs:
           fi
 
           log="$RUNNER_TEMP/server.log"
-          ../node_modules/.bin/tsx --conditions=@webchat/source src/index.ts >"$log" 2>&1 &
+          ../node_modules/.bin/tsx src/index.ts >"$log" 2>&1 &
           pid=$!
 
           stop_server() {
