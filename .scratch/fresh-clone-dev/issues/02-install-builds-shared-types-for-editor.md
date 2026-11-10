@@ -10,7 +10,7 @@ The root install hook builds the shared package and then generates the Prisma cl
 
 - [x] The root `postinstall` builds the shared package before generating the Prisma client, and fails if either step fails.
 - [x] With the compiled shared output deleted, `npm install` recreates it, declaration files included.
-- [x] The server's TypeScript path mapping is unchanged.
+- [x] The server's TypeScript path mapping is unchanged. (Superseded: ticket 01 later removed the mapping, because `tsx` preferred it to the source condition. TypeScript now finds the types through the shared package's `types` export.)
 - [x] No pre-dev build hook and no shared watcher process are added.
 - [x] The production build command (`npm run build`) and the Render build and start commands are unchanged and still succeed.
 - [x] Security: the install hook runs only the repository's own `tsc` and `prisma generate`, with no network access or downloads of its own. No new dependency is added, and the root `allowScripts` list is unchanged.

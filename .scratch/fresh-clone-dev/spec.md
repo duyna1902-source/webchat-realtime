@@ -68,7 +68,7 @@ A new GitHub Actions workflow runs the tests and then boots the server from a cl
 - **The shared contracts package exposes its source.** Its package exports gain a `@webchat/source` condition that maps to the TypeScript entry point. It comes before the existing `types`, `import` and `default` conditions, so it wins whenever a consumer opts in, and is ignored otherwise. Consumers that do not opt in, such as the production server and TypeScript's own resolution, keep using the compiled output.
 - **The condition name is namespaced on purpose.** A Node `--conditions` flag applies to every package in the process. A generic name such as `development` or `source` would also switch any third-party dependency that publishes a condition under that name.
 - **Every server command run through `tsx` opts in.** These are the dev server, the data upgrade command and the session revocation command. The production start command (plain `node` on the server's compiled output) does not opt in.
-- **The root install hook builds the shared package before generating the Prisma client.** It exists only for editor types: the server's TypeScript path mapping still points at the compiled declaration files and is deliberately left as it is. If the hook is skipped, the only effect is missing types in the editor.
+- **The root install hook builds the shared package before generating the Prisma client.** It exists only for editor types: TypeScript finds the server's types for `@webchat/shared` through the package's `types` export. If the hook is skipped, the only effect is missing types in the editor.
 - **No pre-dev build hook and no shared watcher process.** Reading from source makes both unnecessary.
 - **The client and the test runners keep their existing source aliases for the shared package.** Moving them to the export condition would unify the mechanism, but they already work and are outside this defect.
 - **Production is unchanged.** The root build still compiles the shared package, then the server, then the client. The Render build and start commands are unchanged.
@@ -136,13 +136,14 @@ A new GitHub Actions workflow runs the tests and then boots the server from a cl
 
 - **The 12 vulnerabilities reported by `npm audit`.** None of them causes or blocks this defect. They have their own spec in `.scratch/dependency-vulnerabilities/`, to be triaged later.
 - **Moving the client and the test runners from source aliases to the export condition.**
-- **Changing the server's TypeScript path mapping or the production build.**
+- **Changing the production build.**
 - **Running CI against PostgreSQL, a Node version matrix, or the client in CI.**
 - **Making the server start without `server/.env`, or without a database, in development.** These are now documented, not changed.
 
 ## Further Notes
 
-- **Verified during design:** with the condition added and the compiled shared output removed, `tsx --conditions=@webchat/source` resolved `@webchat/shared` and loaded the server's error module, which imports it. Without the flag, the same command failed with `Cannot find module`. The server's TypeScript path mapping did not interfere.
+- **Verified during design:** with the condition added and the compiled shared output removed, `tsx --conditions=@webchat/source` resolved `@webchat/shared` and loaded the server's error module, which imports it. Without the flag, the same command failed with `Cannot find module`. The server's TypeScript path mapping did not interfere, but only because that output was missing.
+- **Found during implementation (ticket 01):** when the compiled shared output exists, `tsx` applies the `paths` mapping in the server's `tsconfig.json` (`@webchat/shared` to `../shared/dist/index.d.ts`) ahead of the export condition, so the dev server ran the compiled output. That mapping is removed. TypeScript resolves the types through the package's `types` export instead, and `tsc --noEmit` and `npm run build` still pass.
 - **Assumptions to confirm during implementation; stop and report if either is false:**
   - The server starts and answers its liveness endpoint while the configured PostgreSQL is unreachable. The fresh-clone session observed it listening without a database.
   - `tsx` watch mode reloads when a shared source file that was resolved through the condition changes.
