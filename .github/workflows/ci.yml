@@ -1,0 +1,92 @@
+# Runs the tests, then boots the dev server from a clean install with no compiled shared output
+# and no database: the only check that runs under real fresh-clone conditions.
+# See .scratch/fresh-clone-dev/spec.md (CI, CI hardening).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least privilege: the token can only read the repository. No secrets are used anywhere.
+permissions:
+  contents: read
+
+jobs:
+  test-and-boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      # `npm ci` builds the shared package (root postinstall). Development must not depend on it.
+      - name: Delete the compiled shared output
+        run: rm -rf shared/dist
+
+      # Starts the server the way the `dev` script does, minus watch mode, then polls /health and
+      # stops it. Readiness (/health/ready) is not checked: no database is reachable.
+      - name: Boot the server from source with no database
+        working-directory: server
+        shell: bash
+        env:
+          # Throwaway values for this check only. Nothing listens on port 1; nothing here is a credential.
+          NODE_ENV: development
+          PORT: '4000'
+          DATABASE_URL: postgresql://127.0.0.1:1/ci_no_database
+          APP_ORIGIN: http://localhost:5173
+        run: |
+          health="http://127.0.0.1:$PORT/health"
+          if curl -s -o /dev/null "$health"; then
+            echo "::error::Something already answers on port $PORT, so the check would not test this server"
+            exit 1
+          fi
+
+          log="$RUNNER_TEMP/server.log"
+          ../node_modules/.bin/tsx --conditions=@webchat/source src/index.ts >"$log" 2>&1 &
+          pid=$!
+
+          stop_server() {
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+          }
+          fail() {
+            echo "::error::$1"
+            echo '--- server output ---'
+            cat "$log"
+            stop_server
+            exit 1
+          }
+
+          for _ in $(seq 1 60); do
+            if ! kill -0 "$pid" 2>/dev/null; then
+              fail 'The server exited before /health answered 200'
+            fi
+            status=$(curl -s -o /dev/null -w '%{http_code}' "$health" || true)
+            if [ "$status" = 200 ]; then
+              if grep -q ERR_MODULE_NOT_FOUND "$log"; then
+                fail 'The server logged ERR_MODULE_NOT_FOUND'
+              fi
+              echo '/health answered 200'
+              echo '--- server output ---'
+              cat "$log"
+              stop_server
+              exit 0
+            fi
+            sleep 1
+          done
+          fail 'Timed out after 60 s waiting for /health to answer 200'
