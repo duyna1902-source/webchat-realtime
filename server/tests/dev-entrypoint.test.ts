@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import {
   SERVER_ROOT,
-  TSX_CLI,
   envWithoutServerConfig,
   getFreePort,
   makeTempDir,
@@ -16,32 +15,10 @@ import {
   waitForHealth,
   type SpawnedServer,
 } from './helpers/child-process.js';
+import { nodeArgsFor, readTsxScripts } from './helpers/tsx-scripts.js';
 
 const SHARED_SRC = path.resolve(SERVER_ROOT, '../shared/src/index.ts');
 const PRINT_SHARED_ENTRY = path.join(SERVER_ROOT, 'tests', 'fixtures', 'print-shared-entry.ts');
-
-interface TsxScript {
-  name: string;
-  /** The tsx/Node options before the entry file, without the `watch` subcommand. */
-  options: string[];
-  /** The entry file, relative to the server workspace. */
-  entry: string;
-}
-
-/** Every server package script that runs `tsx`, read from the manifest so the tests follow it. */
-function readTsxScripts(): TsxScript[] {
-  const manifest = JSON.parse(fs.readFileSync(path.join(SERVER_ROOT, 'package.json'), 'utf8')) as {
-    scripts: Record<string, string>;
-  };
-  return Object.entries(manifest.scripts)
-    .filter(([, command]) => /^tsx(\s|$)/.test(command))
-    .map(([name, command]) => {
-      const tokens = command.split(/\s+/).slice(1).filter((token) => token !== 'watch');
-      const entryIndex = tokens.findIndex((token) => !token.startsWith('-'));
-      if (entryIndex === -1) throw new Error(`npm script "${name}" runs tsx without an entry file: ${command}`);
-      return { name, options: tokens.slice(0, entryIndex), entry: tokens[entryIndex] };
-    });
-}
 
 const TSX_SCRIPTS = readTsxScripts();
 
@@ -55,9 +32,9 @@ describe('Server tsx commands read the shared package from source', () => {
     async (name, script) => {
       let stdout: string;
       try {
-        ({ stdout } = await promisify(execFile)(process.execPath, [TSX_CLI, ...script.options, PRINT_SHARED_ENTRY], {
+        ({ stdout } = await promisify(execFile)(process.execPath, nodeArgsFor(script, PRINT_SHARED_ENTRY), {
           cwd: SERVER_ROOT,
-          env: envWithoutServerConfig(),
+          env: { ...envWithoutServerConfig(), ...script.env },
           timeout: 20000,
         }));
       } catch (err) {
@@ -89,10 +66,11 @@ describe('The dev entrypoint starts', () => {
 
     server = spawnServer({
       port,
-      args: [TSX_CLI, ...dev.options, path.join(SERVER_ROOT, dev.entry)],
+      args: [...nodeArgsFor(dev, path.join(SERVER_ROOT, dev.entry)), ...dev.entryArgs],
       cwd: SERVER_ROOT,
       env: {
         ...envWithoutServerConfig(),
+        ...dev.env,
         DOTENV_CONFIG_PATH: dotenvPath,
         NODE_ENV: 'test',
         PORT: String(port),
