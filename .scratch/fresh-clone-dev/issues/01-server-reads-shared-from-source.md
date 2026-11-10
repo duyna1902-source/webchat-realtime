@@ -8,7 +8,7 @@ Prefactor first: move the child-process helpers (free-port probe, health polling
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] The free-port and health-polling helpers live in the server test helpers, and the entrypoint `.env` test uses them, with its behavior unchanged.
 - [x] The shared package's exports have a `@webchat/source` condition pointing at its TypeScript entry point, ordered before `types`, `import` and `default`. Without the condition, resolution still gives the compiled output.
@@ -23,3 +23,7 @@ Prefactor first: move the child-process helpers (free-port probe, health polling
   - Open: the child server listens on all interfaces, because `server/src/index.ts` calls `listen` without a host argument. This limitation predates this ticket and is left for a follow-up ticket. Only the free-port probe binds `127.0.0.1`.
 - [x] With compiled shared output deleted by hand, `npm run dev:server` logs that the server is listening. Restore it afterwards with `npm run build:shared`.
 - [x] `npm test` passes, both with and without the compiled shared output.
+
+## Comments
+
+- 2026-11-10: Resolved on `fix/fresh-clone-dev`. The "listens only on `127.0.0.1`" criterion stays open by the maintainer's decision: `server/src/index.ts` calls `listen(port)` with no host. This predates the ticket and is left for a follow-up.

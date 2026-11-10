@@ -10,7 +10,7 @@ ADR 0005 records that development reads the shared package from source while onl
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Getting Started, environment step: gives the literal command that copies the example env file to `server/.env`.
 - [x] Getting Started, a PostgreSQL step: gives a `docker run` command for `postgres:16` whose user, password, database name and port match the default `DATABASE_URL` in the example env file.
@@ -25,3 +25,7 @@ ADR 0005 records that development reads the shared package from source while onl
   - It is written in the ADR's existing language (Vietnamese).
 - [x] The glossary is not changed.
 - [x] The existing documentation test still passes, and `npm test` passes.
+
+## Comments
+
+- 2026-11-10: Resolved on `fix/fresh-clone-dev`. After code review, the rejected build-before-dev alternative moved to ADR 0005's Considered Options.

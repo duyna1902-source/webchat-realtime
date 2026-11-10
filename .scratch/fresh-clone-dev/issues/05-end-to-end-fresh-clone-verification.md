@@ -6,7 +6,7 @@ This is a verification ticket. It changes no tracked files unless it finds a def
 
 **Blocked by:** 01, 02, 03, 04
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Clone the branch into a new, empty temporary directory outside the working repository, and follow only the README's Getting Started steps.
 - [x] After `npm install`, the compiled shared output exists. After deleting it, `npm run dev` still starts with no `ERR_MODULE_NOT_FOUND`, and the server logs that it is listening.
@@ -95,3 +95,5 @@ Clone: a new, empty scratch directory, then `git clone --branch fix/fresh-clone-
 - The `webchat-postgres` container was removed.
 - The clone directory was deleted.
 - HTTP probes on 127.0.0.1 and `[::1]` find nothing on 4000, 5173 or 5432.
+
+- 2026-11-10: Resolved. The second verification run passed every criterion.

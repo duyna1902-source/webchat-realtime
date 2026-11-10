@@ -1,6 +1,8 @@
 # Spec: A Fresh Clone Runs in Development Without Building the Shared Package
 
-Status: ready-for-agent
+Status: resolved
+
+> Implemented on `fix/fresh-clone-dev` (2026-11-10). Tickets 01, 02, 04 and 05 are resolved. Ticket 03 is `ready-for-human`: its workflow still has to run on a real GitHub PR.
 
 ## Problem Statement
 

@@ -6,7 +6,7 @@ The root install hook builds the shared package and then generates the Prisma cl
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] The root `postinstall` builds the shared package before generating the Prisma client, and fails if either step fails.
 - [x] With the compiled shared output deleted, `npm install` recreates it, declaration files included.
@@ -23,3 +23,7 @@ The root install hook builds the shared package and then generates the Prisma cl
 - `npx tsc --noEmit` in `server/` (path mapping still points at `../shared/dist/index.d.ts`) exited 0, so the server's imports of `@webchat/shared` have types. (This run predates the removal of the `paths` mapping; see ticket 01. TypeScript now finds the types through the shared package's `types` export.)
 - With a temporary type error in `shared/src`, `npm run postinstall` exited 2 at the shared build and did not run `prisma generate`.
 - `npm run build` exited 0. The Render start command needs a database and was not run; it is unchanged.
+
+## Comments
+
+- 2026-11-10: Resolved on `fix/fresh-clone-dev`.
