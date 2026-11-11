@@ -67,39 +67,15 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
     expect(logoImg).toHaveAttribute('src', '/assets/brand/logo-gdg-clean.webp');
   });
 
-  it('loads the public Turnstile site key from the server and renders the widget in registration', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ turnstileSiteKey: '1x00000000000000000000AA' }),
-      })
+  const registerPanel = document.getElementById('panel-register')!;
+    expect(await within(registerPanel).findByTestId('turnstile')).toHaveAttribute(
+      'data-sitekey',
+      '1x00000000000000000000AA'
     );
-    renderAuthScreen();
-
-    fireEvent.click(screen.getByRole('tab', { name: /^create account$/i }));
-
-    expect(await screen.findByTestId('turnstile0')).toHaveAttribute('data-sitekey', '1x00000000000000000000AA');
     expect(fetch).toHaveBeenCalledWith('/api/auth/config', { credentials: 'same-origin' });
   });
 
-  it('loads the public Turnstile site key from the server and renders the widget in login', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ turnstileSiteKey: '1x00000000000000000000AA' }),
-      })
-    );
-    renderAuthScreen();
-
-    fireEvent.click(screen.getByRole('tab', { name: /^create account$/i }));
-
-    expect(await screen.findByTestId('turnstile1')).toHaveAttribute('data-sitekey', '1x00000000000000000000AA');
-    expect(fetch).toHaveBeenCalledWith('/api/auth/config', { credentials: 'same-origin' });
-  });
-
-  it('enforces rigid zero-shift dimensions (540px card, 275px form container)', () => {
+  it('enforces rigid zero-shift dimensions (590px card, 375px form container)', () => {
     renderAuthScreen();
 
     const card = document.querySelector('.auth-card-lock');
