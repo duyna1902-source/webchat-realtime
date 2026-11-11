@@ -79,7 +79,23 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: /^create account$/i }));
 
-    expect(await screen.findByTestId('turnstile')).toHaveAttribute('data-sitekey', '1x00000000000000000000AA');
+    expect(await screen.findByTestId('turnstile0')).toHaveAttribute('data-sitekey', '1x00000000000000000000AA');
+    expect(fetch).toHaveBeenCalledWith('/api/auth/config', { credentials: 'same-origin' });
+  });
+
+  it('loads the public Turnstile site key from the server and renders the widget in login', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ turnstileSiteKey: '1x00000000000000000000AA' }),
+      })
+    );
+    renderAuthScreen();
+
+    fireEvent.click(screen.getByRole('tab', { name: /^create account$/i }));
+
+    expect(await screen.findByTestId('turnstile1')).toHaveAttribute('data-sitekey', '1x00000000000000000000AA');
     expect(fetch).toHaveBeenCalledWith('/api/auth/config', { credentials: 'same-origin' });
   });
 
@@ -88,10 +104,10 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
 
     const card = document.querySelector('.auth-card-lock');
     expect(card).toBeInTheDocument();
-    expect(card).toHaveStyle({ height: '540px', maxHeight: '90vh' });
+    expect(card).toHaveStyle({ height: '590px', maxHeight: '90vh' });
 
     const formContainer = screen.getByTestId('auth-form-container');
-    expect(formContainer).toHaveStyle({ height: '275px' });
+    expect(formContainer).toHaveStyle({ height: '375px' });
   });
 
   it('contains single rounded pill toggle and removes redundant bottom link', () => {
