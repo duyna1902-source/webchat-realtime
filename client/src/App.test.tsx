@@ -111,10 +111,10 @@ describe('GDG-HUST Auth Screen & Zero-Shift Authentication Flow', () => {
   it('renders rigid zero-shift layout with single pill toggle and no bottom toggle link', async () => {
     await renderSignedOut();
 
-    // Rigid card container locked to 540px (max 90vh)
+    // Rigid card container locked to 590px (max 90vh)
     const cardContainer = screen.getByRole('heading', { level: 1, name: /gdg-hust/i }).closest('.auth-card-lock');
     expect(cardContainer).toBeInTheDocument();
-    expect(cardContainer).toHaveStyle({ height: '540px', maxHeight: '90vh' });
+    expect(cardContainer).toHaveStyle({ height: '590px', maxHeight: '90vh' });
 
     // Single pill toggle at the top of the body
     const signInTab = screen.getByRole('tab', { name: /^sign in$/i });
