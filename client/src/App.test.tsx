@@ -111,10 +111,10 @@ describe('GDG-HUST Auth Screen & Zero-Shift Authentication Flow', () => {
   it('renders rigid zero-shift layout with single pill toggle and no bottom toggle link', async () => {
     await renderSignedOut();
 
-    // Rigid card container locked to 540px (max 90vh)
+    // Rigid card container locked to 590px (max 90vh)
     const cardContainer = screen.getByRole('heading', { level: 1, name: /gdg-hust/i }).closest('.auth-card-lock');
     expect(cardContainer).toBeInTheDocument();
-    expect(cardContainer).toHaveStyle({ height: '540px', maxHeight: '90vh' });
+    expect(cardContainer).toHaveStyle({ height: '590px', maxHeight: '90vh' });
 
     // Single pill toggle at the top of the body
     const signInTab = screen.getByRole('tab', { name: /^sign in$/i });
@@ -126,10 +126,10 @@ describe('GDG-HUST Auth Screen & Zero-Shift Authentication Flow', () => {
     expect(screen.queryByText(/already have an account\?/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/don't have an account\?/i)).not.toBeInTheDocument();
 
-    // Rigid form container locked to 275px
+    // Rigid form container locked to 375px
     const formContainer = screen.getByTestId('auth-form-container');
     expect(formContainer).toBeInTheDocument();
-    expect(formContainer).toHaveStyle({ height: '275px' });
+    expect(formContainer).toHaveStyle({ height: '375px' });
 
     // In Sign In mode: Sign In submit button is present
     const signInSubmitBtn = screen.getByRole('button', { name: /sign in to gdg-hust/i });
