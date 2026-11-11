@@ -8,10 +8,24 @@ let app: Express;
 beforeAll(async () => {
   // One server for the whole file registers far more than 5 users from one IP; the register
   // limit itself is covered in rate-limit.test.ts.
-  ({ app } = await createTestServer({ config: { rateLimits: { register: { max: 1000, windowMs: 60_000 } } } }));
-});
+  ({ app } = await createTestServer({
+      config: {
+        rateLimits: { register: { max: 1000, windowMs: 60_000 } },
+        turnstileSiteKey: '1x00000000000000000000AA',
+      },
+    }));
+  });
 
 describe('Auth REST API Endpoints', () => {
+  it('returns only public authentication config', async () => {
+   const res = await request(app)
+      .get('/api/auth/config')
+      .set('Origin', TEST_APP_ORIGIN)
+      .expect(200);
+  
+    expect(res.body).toEqual({ turnstileSiteKey: '1x00000000000000000000AA' });
+  });
+  
   describe('POST /api/auth/register', () => {
     it('registers a new user and returns the user (the Session goes in the cookie)', async () => {
       const res = await request(app)

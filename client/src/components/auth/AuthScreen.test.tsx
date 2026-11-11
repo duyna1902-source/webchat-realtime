@@ -1,7 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { AuthScreen } from './AuthScreen';
 import { AuthContext } from '../../context/AuthContext';
+
+vi.mock('@marsidev/react-turnstile', () => ({
+  Turnstile: ({ siteKey }: { siteKey: string }) => <div data-testid="turnstile" data-sitekey={siteKey} />,
+}));
 
 describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
   let mockLogin: ReturnType<typeof vi.fn>;
@@ -10,11 +14,23 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
   beforeEach(() => {
     mockLogin = vi.fn();
     mockRegister = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ turnstileSiteKey: null }),
+      })
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   const renderAuthScreen = (authOverrides = {}) => {
     const authValue: any = {
-      currentUser: null,
+      currentUser: null,
+
       isLoading: false,
       login: mockLogin,
       register: mockRegister,
@@ -49,6 +65,22 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
 
     const logoImg = screen.getByAltText('GDG Logo');
     expect(logoImg).toHaveAttribute('src', '/assets/brand/logo-gdg-clean.webp');
+  });
+
+  it('loads the public Turnstile site key from the server and renders the widget in registration', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ turnstileSiteKey: '1x00000000000000000000AA' }),
+      })
+    );
+    renderAuthScreen();
+
+    fireEvent.click(screen.getByRole('tab', { name: /^create account$/i }));
+
+    expect(await screen.findByTestId('turnstile')).toHaveAttribute('data-sitekey', '1x00000000000000000000AA');
+    expect(fetch).toHaveBeenCalledWith('/api/auth/config', { credentials: 'same-origin' });
   });
 
   it('enforces rigid zero-shift dimensions (540px card, 275px form container)', () => {

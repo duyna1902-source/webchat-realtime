@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Lock, Mail, User, AlertCircle, Info, Loader2, ArrowRight } from 'lucide-react';
 import { loginSchema, registerSchema, parseWithSchema, FieldError } from '@webchat/shared';
+import { Turnstile } from '@marsidev/react-turnstile'
+import { apiFetch } from '../../utils/apiFetch';
 
 type FieldErrors = Record<string, string>;
 
@@ -47,6 +49,27 @@ export const AuthScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [turnstileSiteKey, setTurnstileSiteKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAuthConfig() {
+      try {
+        const response = await apiFetch('/api/auth/config');
+        if (!response.ok) throw new Error(`Auth config request failed (${response.status})`);
+        const config: { turnstileSiteKey?: unknown } = await response.json();
+        if (!cancelled && typeof config.turnstileSiteKey === 'string') setTurnstileSiteKey(config.turnstileSiteKey);
+      } catch (err) {
+        console.error('Auth config could not be loaded:', err);
+      }
+    }
+
+    loadAuthConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const clearFieldError = (field: string) =>
     setFieldErrors((current) => {
@@ -109,7 +132,7 @@ export const AuthScreen: React.FC = () => {
       {/* Top-Anchored Card with Strict Fixed Height = 100% ZERO SHIFT */}
       <div
         className="auth-card-lock w-full max-w-[420px] bg-white rounded-3xl shadow-xl border border-google-grey200 overflow-hidden shrink-0 flex flex-col relative"
-        style={{ height: '540px', maxHeight: '90vh' }}
+        style={{ height: '590px', maxHeight: '90vh' }}
       >
         {/* Solid Google Blue Header Block (Fixed Height: 160px) */}
         <div
@@ -135,7 +158,7 @@ export const AuthScreen: React.FC = () => {
         {/* Form Body with EXACT SAME HEIGHT & FIXED BUTTON ANCHOR (Zero Pixel Movement) */}
         <div
           className="p-6 sm:p-7 flex-1 flex flex-col justify-between"
-          style={{ height: '380px' }}
+          style={{ height: '580px' }}
         >
           {/* Tabs: Sign In / Create Account (Height: 40px) */}
           <div
@@ -186,7 +209,7 @@ export const AuthScreen: React.FC = () => {
           {/* RIGID FORM CONTAINER: Holds panels at exact same coordinates */}
           <div
             className="relative flex-1"
-            style={{ height: '275px' }}
+            style={{ height: '375px' }}
             data-testid="auth-form-container"
           >
             {/* TAB 1: SIGN IN FORM (Pinned to exact coordinates) */}
@@ -270,6 +293,9 @@ export const AuthScreen: React.FC = () => {
                       />
                     </div>
                   </div>
+                  {turnstileSiteKey && (
+                    <Turnstile siteKey={turnstileSiteKey} />
+                  )}
                 </div>
 
                 {/* SUBMIT BUTTON PINNED AT THE EXACT SAME PIXEL POSITION */}
@@ -391,6 +417,9 @@ export const AuthScreen: React.FC = () => {
                       />
                     </div>
                   </div>
+                  {turnstileSiteKey && (
+                    <Turnstile siteKey={turnstileSiteKey} />
+                  )}
                 </div>
 
                 {/* SUBMIT BUTTON PINNED AT THE EXACT SAME PIXEL POSITION */}

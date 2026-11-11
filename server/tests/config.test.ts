@@ -44,13 +44,20 @@ describe('loadConfig', () => {
   });
 
   it('returns a typed config built only from the given environment object', () => {
-    const config = loadConfig({ ...devEnv, PORT: '4100', GIPHY_API_KEY: 'giphy-key', LOG_LEVEL: 'debug' }, { clientDistPath: missingClientDist });
+    const config = loadConfig({
+      ...devEnv,
+      PORT: '4100',
+      GIPHY_API_KEY: 'giphy-key',
+      TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+      LOG_LEVEL: 'debug',
+    }, { clientDistPath: missingClientDist });
 
     expect(config.nodeEnv).toBe('development');
     expect(config.port).toBe(4100);
     expect(config.appOrigin).toBe('http://localhost:5173');
     expect(config.databaseUrl).toBe(devEnv.DATABASE_URL);
     expect(config.giphyApiKey).toBe('giphy-key');
+    expect(config.turnstileSiteKey).toBe('1x00000000000000000000AA');
     expect(config.logLevel).toBe('debug');
     expect(config.storage).toEqual({ provider: 'local' });
     expect(config.clientDistPath).toBeNull();
@@ -62,6 +69,7 @@ describe('loadConfig', () => {
     expect(config.port).toBe(4000);
     expect(config.logLevel).toBe('info');
     expect(config.giphyApiKey).toBeNull();
+    expect(config.turnstileSiteKey).toBeNull();
     expect(config.timing.presenceGracePeriodMs).toBe(5000);
     expect(config.timing.connectionStateRecoveryMs).toBe(2 * 60 * 1000);
     expect(config.timing.signedUrlTtlSeconds).toBe(3600);
@@ -107,6 +115,14 @@ describe('loadConfig', () => {
       const err = configErrorOf(() => loadConfig({ ...devEnv, APP_ORIGIN: appOrigin }, { clientDistPath: missingClientDist }));
       expect(err.issues.map((issue) => issue.variable)).toEqual(['APP_ORIGIN']);
     }
+  });
+
+  it('rejects a malformed TURNSTILE_SITE_KEY', () => {
+    const err = configErrorOf(() =>
+      loadConfig({ ...devEnv, TURNSTILE_SITE_KEY: 'invalid site key' }, { clientDistPath: missingClientDist })
+    );
+  
+    expect(err.issues.map((issue) => issue.variable)).toEqual(['TURNSTILE_SITE_KEY']);
   });
 
   it('accepts DATABASE_URL=memory: only under NODE_ENV=test', () => {

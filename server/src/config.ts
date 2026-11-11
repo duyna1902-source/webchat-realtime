@@ -70,6 +70,7 @@ export interface AppConfig {
   databaseUrl: string;
   logLevel: LogLevel;
   giphyApiKey: string | null;
+  turnstileSiteKey: string | null;
   /** Built SPA directory to serve, or null when there is no build (dev/test only). */
   clientDistPath: string | null;
   storage: StorageConfig;
@@ -219,6 +220,17 @@ export function loadConfig(env: Env, options: LoadConfigOptions = {}): AppConfig
     }
   }
 
+  // Cloudflare Turnstile site keys are public identifiers; the secret key must stay server-side.
+  const rawTurnstileSiteKey = read(env, 'TURNSTILE_SITE_KEY');
+  let turnstileSiteKey: string | null = null;
+  if (rawTurnstileSiteKey !== undefined) {
+    if (/^[A-Za-z0-9_-]{1,128}$/.test(rawTurnstileSiteKey)) {
+      turnstileSiteKey = rawTurnstileSiteKey;
+    } else {
+      fail('TURNSTILE_SITE_KEY', 'must contain only letters, numbers, underscores or hyphens');
+    }
+  }
+
   // Storage
   let storage: StorageConfig = { provider: 'local' };
   const provider = (read(env, 'STORAGE_PROVIDER') ?? '').toLowerCase();
@@ -254,6 +266,7 @@ export function loadConfig(env: Env, options: LoadConfigOptions = {}): AppConfig
     databaseUrl,
     logLevel,
     giphyApiKey: read(env, 'GIPHY_API_KEY') ?? null,
+    turnstileSiteKey,
     clientDistPath: clientBuildExists ? clientDistPath : null,
     storage,
     rateLimits: structuredClone(DEFAULT_RATE_LIMITS),
