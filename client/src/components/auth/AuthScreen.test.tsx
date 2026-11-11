@@ -1,7 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { AuthScreen } from './AuthScreen';
 import { AuthContext } from '../../context/AuthContext';
+
+vi.mock('@marsidev/react-turnstile', () => ({
+  Turnstile: ({ siteKey }: { siteKey: string }) => <div data-testid="turnstile" data-sitekey={siteKey} />,
+}));
 
 describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
   let mockLogin: ReturnType<typeof vi.fn>;
@@ -10,11 +14,23 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
   beforeEach(() => {
     mockLogin = vi.fn();
     mockRegister = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ turnstileSiteKey: null }),
+      })
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   const renderAuthScreen = (authOverrides = {}) => {
     const authValue: any = {
-      currentUser: null,
+      currentUser: null,
+
       isLoading: false,
       login: mockLogin,
       register: mockRegister,
@@ -51,15 +67,35 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
     expect(logoImg).toHaveAttribute('src', '/assets/brand/logo-gdg-clean.webp');
   });
 
-  it('enforces rigid zero-shift dimensions (540px card, 275px form container)', () => {
+  it('loads the public Turnstile site key from the server and renders the widget in registration', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ turnstileSiteKey: '1x00000000000000000000AA' }),
+      })
+    );
+    renderAuthScreen();
+
+    fireEvent.click(screen.getByRole('tab', { name: /^create account$/i }));
+
+    const registerPanel = document.getElementById('panel-register')!;
+    expect(await within(registerPanel).findByTestId('turnstile')).toHaveAttribute(
+      'data-sitekey',
+      '1x00000000000000000000AA'
+    );
+    expect(fetch).toHaveBeenCalledWith('/api/auth/config', { credentials: 'same-origin' });
+  });
+
+  it('enforces rigid zero-shift dimensions (590px card, 375px form container)', () => {
     renderAuthScreen();
 
     const card = document.querySelector('.auth-card-lock');
     expect(card).toBeInTheDocument();
-    expect(card).toHaveStyle({ height: '540px', maxHeight: '90vh' });
+    expect(card).toHaveStyle({ height: '590px', maxHeight: '90vh' });
 
     const formContainer = screen.getByTestId('auth-form-container');
-    expect(formContainer).toHaveStyle({ height: '275px' });
+    expect(formContainer).toHaveStyle({ height: '375px' });
   });
 
   it('contains single rounded pill toggle and removes redundant bottom link', () => {
@@ -147,7 +183,7 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
 
     // No row was inserted above or between the fields, and the container keeps its height.
     expect(Array.from(fieldStack.children)).toEqual(rowsBefore);
-    expect(screen.getByTestId('auth-form-container')).toHaveStyle({ height: '275px' });
+    expect(screen.getByTestId('auth-form-container')).toHaveStyle({ height: '375px' });
 
     // Fixing the field clears its message.
     fireEvent.change(usernameInput, { target: { value: 'abc' } });

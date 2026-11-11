@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import type { AppConfig } from '../config.js';
 
 const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
+const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com';
 
 /**
  * Origins (besides our own) that serve stored files: the Supabase project in production.
@@ -22,12 +23,12 @@ function buildContentSecurityPolicy(config: AppConfig): Record<string, string[]>
   const storage = storageOrigins(config);
   return {
     'default-src': ["'self'"],
-    'script-src': ["'self'"],
+    'script-src': ["'self'", TURNSTILE_ORIGIN],
     'style-src': ["'self'"],
     'img-src': ["'self'", 'blob:', ...storage, 'https://*.giphy.com'],
     'connect-src': ["'self'", ...storage],
     // Document previews open storage files in an iframe; with local storage they are same-origin.
-    'frame-src': storage.length > 0 ? storage : ["'self'"],
+    'frame-src': [...(storage.length > 0 ? storage : ["'self'"]), TURNSTILE_ORIGIN],
     'object-src': ["'none'"],
     'base-uri': ["'none'"],
     'form-action': ["'self'"],

@@ -6,15 +6,16 @@ import path from 'node:path';
 import { createTestServer, TestServer, TEST_APP_ORIGIN } from './helpers/server.js';
 
 const SUPABASE_ORIGIN = 'https://abcdefgh.supabase.co';
+const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com';
 
 // The policy from the spec (SEC-12), written out by hand so the test is an independent source of truth.
 const EXPECTED_CSP: Record<string, string[]> = {
   'default-src': ["'self'"],
-  'script-src': ["'self'"],
+  'script-src': ["'self'", TURNSTILE_ORIGIN],
   'style-src': ["'self'"],
   'img-src': ["'self'", 'blob:', SUPABASE_ORIGIN, 'https://*.giphy.com'],
   'connect-src': ["'self'", SUPABASE_ORIGIN],
-  'frame-src': [SUPABASE_ORIGIN],
+  'frame-src': [SUPABASE_ORIGIN, TURNSTILE_ORIGIN],
   'object-src': ["'none'"],
   'base-uri': ["'none'"],
   'form-action': ["'self'"],

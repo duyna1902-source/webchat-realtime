@@ -39,6 +39,12 @@ function normalizeLoginIdentifier(emailOrUsername: string): string {
   return isEmailLogin(emailOrUsername) ? emailOrUsername.toLowerCase() : normalizeUsername(emailOrUsername);
 }
 
+/** Public browser configuration; contains no server-side secrets. */
+export function getAuthConfig(req: Request, res: Response): void {
+  const { config } = getServerContext(req);
+  res.json({ turnstileSiteKey: config.turnstileSiteKey });
+}
+
 /**
  * Exact match only: an email (stored lowercase) or a username compared case-insensitively
  * through its normalized key.
