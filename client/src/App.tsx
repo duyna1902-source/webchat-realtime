@@ -24,7 +24,8 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="min-h-[100dvh] flex flex-col relative">
-      <ConnectionStatusBanner />
+      {/* No socket exists before sign-in, so there is no connection to report. */}
+      {currentUser && <ConnectionStatusBanner />}
       {currentUser ? <Dashboard /> : <AuthScreen />}
     </div>
   );
