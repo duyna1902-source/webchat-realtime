@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues live as markdown files under `.scratch/`. See `docs/agents/issue-tracker.md`.
+Issues live as markdown files under `.scratch/`, which is git-ignored (local only, never pushed). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
