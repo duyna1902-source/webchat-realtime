@@ -11,3 +11,9 @@ coverage/
 Thumbs.db
 uploads/
 server/uploads/
+
+# Local AI-agent tooling and working notes (not part of the app)
+.agent/
+.agents/
+.claude/
+.scratch/

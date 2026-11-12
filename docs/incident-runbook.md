@@ -261,7 +261,7 @@ The Render free instance sleeps after 15 minutes without traffic, and the next v
 
 ## Example: SEC-01, secrets committed to the public repository
 
-SEC-01 of the [security audit](../.scratch/security-audit/spec.md) (2026-10-22): `render.yaml` in this **public** repository held the production `JWT_SECRET`, `SUPABASE_URL`, and the Supabase legacy `anon` and `service_role` keys as plain values, since commit `25121a1`. The `service_role` key bypasses Row Level Security, and the tables had no RLS and were exposed through the Data API, so anyone could read and write every table and every object in the bucket. The `JWT_SECRET` let anyone sign a token for any user. Here is how this runbook applies to it.
+SEC-01 of the security audit (2026-10-22; local notes in `.scratch/security-audit/spec.md`, not in the repository): `render.yaml` in this **public** repository held the production `JWT_SECRET`, `SUPABASE_URL`, and the Supabase legacy `anon` and `service_role` keys as plain values, since commit `25121a1`. The `service_role` key bypasses Row Level Security, and the tables had no RLS and were exposed through the Data API, so anyone could read and write every table and every object in the bucket. The `JWT_SECRET` let anyone sign a token for any user. Here is how this runbook applies to it.
 
 **1. Detect.** Found by the audit, not by the logs: there were no security logs yet (SEC-17). The audit did not use the keys. Today, `gitleaks` in the pre-commit hook and GitHub secret scanning would flag such a commit before or as it is pushed.
 
@@ -288,7 +288,7 @@ SEC-01 of the [security audit](../.scratch/security-audit/spec.md) (2026-10-22):
 
 ### Operator checklist
 
-The manual steps of the security upgrade, from the [spec](../.scratch/cyber-upgradation/spec.md). Steps 1–3, 5 and 6 belong to ticket 05; steps 4 and 7 to the production rollout (ticket 21).
+The manual steps of the security upgrade, from the spec (local notes in `.scratch/cyber-upgradation/spec.md`, not in the repository). Steps 1–3, 5 and 6 belong to ticket 05; steps 4 and 7 to the production rollout (ticket 21).
 
 1. Supabase: create a new secret key (`sb_secret_...`) and set it as `SUPABASE_SECRET_KEY` on Render.
 2. Supabase: disable the two legacy keys, `anon` and `service_role`.
