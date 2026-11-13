@@ -1,8 +1,8 @@
 # TÀI LIỆU THIẾT KẾ KIẾN TRÚC HỆ THỐNG
 # DỰ ÁN: WEB CHAT REAL-TIME
 
-> **Phiên bản**: 1.2.0  
-> **Ngày lập**: 19/10/2026 (cập nhật 23/10/2026 theo đợt nâng cấp bảo mật: [ADR 0009](./0009-private-attachments-via-records-and-signed-urls.md), [ADR 0010](./0010-single-host-render-with-session-cookie.md))  
+> **Phiên bản**: 1.3.0  
+> **Ngày lập**: 19/10/2026 (cập nhật 23/10/2026 theo đợt nâng cấp bảo mật: [ADR 0009](./0009-private-attachments-via-records-and-signed-urls.md), [ADR 0010](./0010-single-host-render-with-session-cookie.md); cập nhật 14/11/2026 cho khớp code: Cloudflare Turnstile, CI, kích thước giao diện, catch-up sync)  
 > **Trạng thái**: Hoàn thiện & Đã nghiệm thu  
 > **Mục đích**: Tài liệu tổng hợp toàn diện kiến trúc kỹ thuật, mô hình dữ liệu, giao thức thời gian thực, thiết kế giao diện đa thiết bị và chiến lược hạ tầng của dự án Web Chat Real-Time (GDG-HUST Realtime Chat).
 
@@ -64,7 +64,7 @@ Hệ thống được thiết kế và đáp ứng trọn vẹn 3 cấp độ:
 - **Cursor-based Pagination**: Cơ chế phân trang tải lịch sử tin nhắn sử dụng mốc con trỏ ID tin nhắn (mặc định 50 tin nhắn mới nhất và tải thêm khi cuộn lên).
 - **GDG Brand Identity & Google Palette Semantics**: Nhận diện chính thức của cộng đồng `GDG-HUST` kết hợp bảng màu chuẩn Google (`#4285F4` Blue, `#EA4335` Red, `#FBBC04` Yellow, `#34A853` Green, `#F1F3F4`/`#F8F9FA`/`#202124` Greys).
 - **Deterministic 4-Color Avatar**: Cơ chế gán màu đại diện tự động dựa trên hàm băm (hash) tên đăng nhập/ID theo 4 gam màu chủ đạo của Google khi người dùng chưa có ảnh đại diện.
-- **Zero-Shift Auth Architecture & Ultra-Compact Header**: Bố cục thẻ đăng nhập cố định chiều cao (`540px` card, `275px` form container) chống nhảy khung hình khi chuyển tab Đăng nhập/Đăng ký, và thanh tiêu đề gọn `42px` (`h-11`) tối ưu không gian chat.
+- **Zero-Shift Auth Architecture & Ultra-Compact Header**: Bố cục thẻ đăng nhập cố định chiều cao (`590px` card, tối đa `90vh`; `375px` form container) chống nhảy khung hình khi chuyển tab Đăng nhập/Đăng ký, và thanh tiêu đề gọn `44px` (`h-11`) tối ưu không gian chat.
 - **Master-Detail Navigation & Dynamic Viewport Height**: Điều hướng hiển thị luân phiên giữa danh sách hội thoại (Master) và khung chat (Detail) trên màn hình di động (`< 768px`) sử dụng đơn vị chiều cao động `100dvh`.
 - **Dual-Pane Desktop Layout & Persistent Detail View**: Bố cục 2 cột song song trên màn hình lớn (`>= 768px`) với Sidebar cố định `352px` (`md:w-88`) và cơ chế giữ nguyên cuộc trò chuyện đang mở ở cột phải khi duyệt chuyển tab danh mục ở cột trái.
 
@@ -144,6 +144,7 @@ flowchart TB
         Postgres[("PostgreSQL (Supabase, RLS bật; PGlite khi test)")]
         CloudFiles[("Supabase Storage: bucket private 'attachments'")]
         Giphy["Giphy Search API"]
+        Turnstile["Cloudflare Turnstile (widget)"]
     end
 
     Contexts -- "REST API cùng origin + cookie __Host-session" --> HTTPRouter
@@ -154,6 +155,7 @@ flowchart TB
     PrismaService --> Postgres
     StorageEngine --> CloudFiles
     HTTPRouter --> Giphy
+    UI -. "script + iframe challenges.cloudflare.com" .-> Turnstile
 ```
 
 Server được dựng bằng một **server factory** duy nhất (`createServer` trong [`server/src/server.ts`](../../server/src/server.ts)), nhận *cấu hình đã validate* từ [`server/src/config.ts`](../../server/src/config.ts) và *storage adapter*. Entrypoint production chỉ nạp `.env`, gọi `loadConfig`, dựng storage adapter thật rồi listen. Không module nào khác đọc thẳng `process.env`, và server từ chối khởi động khi thiếu cấu hình bắt buộc (liệt kê mọi biến sai, không bao giờ dùng secret mặc định).
@@ -188,7 +190,8 @@ sequenceDiagram
 - **Token và cookie:** token là 32 byte ngẫu nhiên, chỉ xuất hiện trong cookie `__Host-session`. JavaScript trên trang không đọc được cookie này, và DB chỉ lưu mã băm SHA-256 của token. `lastActiveAt` được cập nhật tối đa 5 phút một lần.
 - **Chống CSRF:** mọi `POST`, `PATCH`, `PUT`, `DELETE` phải có `Origin` bằng đúng `APP_ORIGIN` (hoặc `Sec-Fetch-Site: same-origin` khi không có `Origin`), nếu không thì nhận `403`. Handshake Socket.IO cũng bị kiểm tra `Origin` để chống Cross-Site WebSocket Hijacking.
 - **Thu hồi:** đăng xuất thu hồi Session hiện tại, "đăng xuất mọi thiết bị" thu hồi mọi Session của User, và người vận hành dùng lệnh `npm run sessions:revoke --workspace=server -- --user <username|id>` hoặc `-- --all` (xem [runbook xử lý sự cố](../incident-runbook.md#3-contain-revoke-sessions)). Thu hồi bên trong server ngắt socket ngay; thu hồi từ lệnh CLI được server phát hiện ở lần kiểm tra lại Session kế tiếp (mặc định 60 giây). Mỗi socket còn tự ngắt đúng lúc Session đạt hạn absolute.
-- **Lớp phòng thủ đi kèm:** `helmet` gắn CSP chặt, HSTS, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy` cho mọi response; mọi body REST và payload socket được parse bằng schema zod dùng chung; login, đăng ký, upload, tìm kiếm, GIF, tạo room và gửi tin đều bị giới hạn tần suất; lỗi chỉ trả `{ message, code, requestId }`; các sự kiện bảo mật được ghi log JSON có cấu trúc (`pino`).
+- **Lớp phòng thủ đi kèm:** `helmet` gắn CSP chặt, HSTS, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, kèm `Permissions-Policy` tắt camera, micro, định vị cho mọi response; mọi body REST và payload socket được parse bằng schema zod dùng chung; login, đăng ký, upload, tìm kiếm, GIF, tạo room, gửi tin và tín hiệu đang gõ đều bị giới hạn tần suất; lỗi chỉ trả `{ message, code, requestId }`; các sự kiện bảo mật được ghi log JSON có cấu trúc (`pino`).
+- **Cloudflare Turnstile (chưa xác minh phía server):** nếu đặt biến tùy chọn `TURNSTILE_SITE_KEY`, endpoint công khai `GET /api/auth/config` trả `{ turnstileSiteKey }` (site key là định danh công khai), và [`AuthScreen.tsx`](../../client/src/components/auth/AuthScreen.tsx) hiển thị widget Turnstile trên cả form Đăng nhập lẫn Đăng ký. CSP cho phép `https://challenges.cloudflare.com` trong `script-src` và `frame-src`. Hiện server **không** kiểm tra token Turnstile: không có secret key, và `register`/`login` không đọc token. Widget vì vậy chưa chặn được bot; lớp chống lạm dụng thực tế vẫn là rate limit.
 
 ---
 
@@ -201,10 +204,15 @@ webchat-realtime/
 ├── package.json                 # Monorepo root config (workspaces: shared, server, client)
 ├── tsconfig.base.json           # Cấu hình TypeScript chuẩn dùng chung
 ├── render.yaml                  # Blueprint Render (single-host, không chứa giá trị secret nào)
+├── .env.example                 # Bản sao của server/.env.example, để dễ tìm
 ├── SECURITY.md                  # Chính sách bảo mật: phạm vi, kênh báo lỗ hổng riêng tư, rủi ro đã chấp nhận
 ├── GLOSSARY.md                  # Danh mục thuật ngữ chuẩn hóa của hệ thống (GDG-HUST)
+├── LICENSE                      # Giấy phép MIT
+├── .github/workflows/ci.yml     # CI GitHub Actions: npm test, rồi boot server từ source trên bản cài sạch
 ├── .githooks/pre-commit         # Hook gitleaks chặn commit có secret
-├── image_gdg/                   # Bộ tài nguyên thương hiệu GDG-HUST (banner, logo)
+├── .gitleaks.toml               # Luật gitleaks (mặc định + allowlist fixture test)
+├── image_gdg/                   # Bộ tài nguyên thương hiệu GDG-HUST cho README (banner, logo)
+├── requirement/                 # Đề bài gốc: WEB CHAT REAL-TIME REQ1.md
 ├── docs/                        # Tài liệu hệ thống và các bản ADR
 │   ├── adr/                     # Architecture Decision Records (0001 - 0010) & SYSTEM_ARCHITECTURE.md
 │   ├── database-migrations.md   # Quy trình Prisma Migrate và lệnh nâng cấp dữ liệu
@@ -212,19 +220,25 @@ webchat-realtime/
 │   └── agents/                  # Tài liệu hướng dẫn quy trình dành cho AI Agents
 ├── shared/                      # Package dùng chung giữa Client và Server (@webchat/shared)
 │   └── src/
-│       ├── dtos.ts              # DTOs: SelfUserDto, PublicUserDto, DirectChat, Room, Pagination
-│       ├── enums.ts             # Enums: RoomRole, MessageType, MessageStatus
+│       ├── index.ts             # Điểm export duy nhất của package
+│       ├── constants.ts         # MESSAGE_LIMITS, đuôi tệp được phép upload (UPLOAD_ACCEPT)
+│       ├── dtos.ts              # DTOs: SelfUserDto, PublicUserDto, DirectChat, Room, Pagination, normalizeDirectChatPair
+│       ├── enums.ts             # Enums: RoomRole, MessageType, MessageStatus, AttachmentKind
 │       ├── errors.ts            # ERROR_CODES dùng chung cho lỗi REST và callback socket
 │       ├── validation.ts        # Schema zod dùng chung (tài khoản, room, tin nhắn, tìm kiếm)
 │       └── events.ts            # SOCKET_EVENTS, các interface payload, AttachmentDto
 ├── server/                      # Ứng dụng Backend API & WebSocket (@webchat/server)
+│   ├── prisma.config.ts         # Cấu hình Prisma CLI (nạp server/.env)
 │   ├── prisma/
 │   │   ├── schema.prisma        # Định nghĩa cấu trúc cơ sở dữ liệu Prisma
-│   │   ├── migrations/          # Migration có version (0_baseline, RLS, Session, expand...)
+│   │   ├── migrations/          # Migration có version (0_baseline, RLS, Session, expand..., contract)
+│   │   ├── check-constraints.sql # Các ràng buộc CHECK (username/email chữ thường, độ dài tên room...)
 │   │   └── schema.sql           # DDL sinh tự động cho PGlite trong test (npm run db:schema-sql)
+│   ├── scripts/                 # generate-schema-sql.mjs (sinh prisma/schema.sql)
 │   ├── src/
 │   │   ├── config.ts            # Module cấu hình: nơi duy nhất đọc biến môi trường
 │   │   ├── server.ts            # Server factory: dựng Express + Socket.IO trên một HTTP server
+│   │   ├── context.ts           # ServerContext (config, storage, io, session store, rate limiter) gắn vào Express app
 │   │   ├── app.ts               # Express: security header, Origin check, route API, /health, phục vụ SPA
 │   │   ├── index.ts             # Entrypoint: nạp .env, loadConfig, dựng storage adapter, listen
 │   │   ├── cli/                 # Lệnh vận hành: upgrade-data, revoke-sessions
@@ -232,18 +246,19 @@ webchat-realtime/
 │   │   ├── controllers/         # Xử lý logic REST API (Auth, User, Direct, Room, Upload, Attachment, Gif)
 │   │   ├── routes/              # Khai báo đường dẫn API Express
 │   │   ├── services/            # Dịch vụ tích hợp (gif.service.ts)
-│   │   ├── middlewares/         # Session auth, Origin check, rate limit, security header, upload, error handler
+│   │   ├── middlewares/         # Session auth, Origin check, rate limit, security header, upload, request id, error handler
 │   │   ├── socket/              # Xử lý sự kiện Socket (direct, room, presence)
-│   │   └── lib/                 # prisma, session store, storage adapter, logger, security events, rate limit
+│   │   └── lib/                 # prisma, session store/cookie, storage adapter, nhận diện loại tệp, phân trang, logger, security events, rate limit
 │   └── tests/                   # Bộ kiểm thử tích hợp Backend (Vitest + Supertest + socket.io-client)
 └── client/                      # Ứng dụng Frontend React SPA (@webchat/client)
+    ├── public/assets/brand/     # Logo GDG-HUST dùng trong ứng dụng
     └── src/
-        ├── components/          # Giao diện người dùng (auth, chat, common, dashboard, media, room)
+        ├── components/          # Giao diện người dùng (auth, chat, common, dashboard, media, room), test đặt cạnh component
         ├── context/             # AuthContext, SocketContext
         ├── hooks/               # Custom hooks quản lý tin nhắn, typing, presence, rooms, signed URL
-        ├── utils/               # apiFetch, safeUrl, avatarColor, format, HTML5 Web Notifications
+        ├── utils/               # apiFetch, safeUrl, avatarColor, format, rateLimit, unicode, uploadErrors, HTML5 Web Notifications
         ├── test/                # Cấu hình môi trường kiểm thử JSDOM và fixtures
-        └── *.test.tsx           # Bộ kiểm thử giao diện & hành vi phía Client (Vitest + RTL)
+        └── *.test.ts(x)         # Bộ kiểm thử cấp ứng dụng (App, BrandAssetsTokens); các bộ khác nằm cạnh mã nguồn (Vitest + RTL)
 ```
 
 ---
@@ -383,6 +398,8 @@ erDiagram
    - `DirectChat`: Index trên `user1Id`, `user2Id`, `updatedAt` (để sắp xếp hộp thư đến).
    - `DirectMessage`: Composite index `@@index([directChatId, createdAt])` phục vụ phân trang tức thì.
    - `RoomMessage`: Composite index `@@index([roomId, createdAt])`.
+   - `Room`: Index trên `ownerId`, `updatedAt`. `RoomMember`: unique `(roomId, userId)`, index trên `userId`, `roomId`.
+   - `Session`: Index trên `userId` (thu hồi mọi Session của một User). `Attachment`: index trên `uploaderId`.
 
 4. **Row Level Security**: mọi bảng (kể cả `_prisma_migrations`) bật RLS mà không có policy nào, nên Data API của Supabase không đọc được dữ liệu kể cả khi key bị lộ. Prisma kết nối bằng role sở hữu bảng nên không bị ảnh hưởng. Migration tạo bảng mới cũng phải bật RLS, và bộ test sẽ fail nếu thiếu.
 
@@ -487,11 +504,11 @@ flowchart TD
 
 ### 6.1. Phân trang Con trỏ (Cursor-based Pagination)
 Thay vì sử dụng phân trang theo `offset` và `page` (dễ bị lệch và trùng tin nhắn khi có tin nhắn mới đẩy vào), hệ thống sử dụng con trỏ:
-- Tham số gọi API:
-  - `limit=50`: Mặc định trả về 50 tin nhắn gần nhất.
-  - `before=<messageId>`: Tải 50 tin nhắn cũ hơn tin nhắn có ID này (dùng khi cuộn ngược lên).
-  - `after=<messageId>`: Tải toàn bộ tin nhắn mới hơn tin nhắn có ID này (dùng cho Catch-up Sync).
-- Luồng cuộn: Khi người dùng cuộn lên đỉnh màn hình chat (`scrollTop === 0`), client tự động gọi API `?before=...` và chèn ngược danh sách tin nhắn cũ vào đầu danh sách hiển thị mà không gây giật thanh cuộn.
+- Tham số gọi API (phản hồi luôn theo thứ tự cũ → mới, kèm `hasMore` và `nextCursor`):
+  - `limit`: Mặc định 50, tối đa 100 tin nhắn mỗi lần gọi.
+  - `before=<messageId>`: Tải tối đa `limit` tin nhắn cũ hơn tin nhắn có ID này (dùng khi cuộn ngược lên).
+  - `after=<messageId>`: Tải tối đa `limit` tin nhắn mới hơn tin nhắn có ID này, tính từ tin cũ nhất (dùng cho Catch-up Sync). Nếu còn nhiều hơn thì `hasMore = true`. Client hiện chỉ gọi một lần mỗi đợt đồng bộ (không lặp theo `nextCursor`), nên sau một gián đoạn dài có hơn 50 tin bị lỡ thì chỉ 50 tin đầu được ghép vào.
+- Luồng cuộn: Khi người dùng cuộn gần đỉnh màn hình chat (`scrollTop < 40px`), client tự động gọi API `?limit=50&before=...` và chèn ngược danh sách tin nhắn cũ vào đầu danh sách hiển thị, giữ nguyên vị trí cuộn để không bị giật.
 
 ---
 
@@ -505,7 +522,7 @@ classDiagram
     class StorageAdapter {
         <<interface>>
         +name: string
-        +put(data, contentType) Promise~storageKey~
+        +put(data, options: contentType) Promise~StoredObject: storageKey~
         +createSignedUrl(storageKey, ttlSeconds) Promise~url, expiresAt~
         +createSignedUrls(storageKeys, ttlSeconds) Promise~Map~
         +delete(storageKey) Promise~void~
@@ -599,10 +616,11 @@ Tách biệt triệt để logic xử lý dữ liệu và socket khỏi tầng g
 - `useDirectChats`: Lấy danh sách bạn chat, tính toán số tin nhắn chưa đọc của từng cuộc trò chuyện.
 - `useDirectMessages`: Quản lý danh sách tin nhắn 1-1, xử lý gửi/nhận socket, đồng bộ trạng thái `DELIVERED`/`READ`, phân trang con trỏ và catch-up sync.
 - `usePresence`: Lắng nghe sự kiện Online/Offline từ server và cập nhật danh bạ theo thời gian thực.
-- `useTyping`: Điều khiển gửi tín hiệu đang gõ có áp dụng debounce (ngừng gõ sau 1.5 giây thì tự tắt chỉ báo).
+- `useTyping`: Điều khiển gửi tín hiệu đang gõ có áp dụng debounce (ngừng gõ sau 2.5 giây thì tự tắt chỉ báo).
 - `useRooms`: Quản lý danh sách phòng, quyền sở hữu phòng và sự kiện tạo mới/rời phòng.
-- `useRoomMessages`: Quản lý luồng tin nhắn nhóm và phân trang nhóm.
-- `useRoomTyping`: Quản lý danh sách các thành viên đang gõ trong cùng một phòng chat.
+- `useRoomMessages`: Quản lý luồng tin nhắn nhóm, phân trang nhóm và catch-up sync.
+- `useRoomTyping`: Quản lý danh sách các thành viên đang gõ trong cùng một phòng chat (cùng debounce 2.5 giây).
+- `useAttachmentUrl`: Giữ signed URL của một Attachment (qua `safeUrl`) và gọi `GET /api/attachments/:id/url` để làm mới đúng một lần khi URL hết hạn hoặc tải lỗi.
 
 ### 8.3. Hệ thống Thông báo Trình duyệt (Web Notifications)
 - Sử dụng **HTML5 Web Notification API** ([`client/src/utils/notifications.ts`](../../client/src/utils/notifications.ts)) kết hợp hiệu ứng âm thanh nhẹ (`notification chime`).
@@ -611,8 +629,8 @@ Tách biệt triệt để logic xử lý dữ liệu và socket khỏi tầng g
 ### 8.4. Ngôn ngữ Thiết kế GDG-HUST & Bố cục Responsive Đa Thiết bị
 Ứng dụng tuân thủ chặt chẽ hệ thống nhận diện **GDG-HUST** và các quyết định kiến trúc giao diện ([ADR 0006](./0006-mobile-responsive-master-detail-layout.md), [ADR 0007](./0007-desktop-dual-pane-layout-and-persistent-detail-view.md), [ADR 0008](./0008-background-room-subscription-and-delivery-tracking.md)):
 - **GDG Brand Identity & Google Palette Semantics**: Sử dụng bảng màu chuẩn Google (`#4285F4` Blue, `#EA4335` Red, `#FBBC04` Yellow, `#34A853` Green, `#F1F3F4`/`#F8F9FA`/`#202124` Greys) cùng hàm băm [`avatarColor.ts`](../../client/src/utils/avatarColor.ts) tạo **Deterministic 4-Color Avatar** nhất quán cho từng người dùng.
-- **Zero-Shift Auth Architecture**: Màn hình [`AuthScreen.tsx`](../../client/src/components/auth/AuthScreen.tsx) cố định chiều cao thẻ đăng nhập (`540px`) và vùng form (`275px`), đảm bảo không bị giật/nhảy bố cục (`0px layout displacement`) khi chuyển đổi giữa Đăng nhập và Đăng ký.
-- **Ultra-Compact Header**: Thanh tiêu đề tại [`Dashboard.tsx`](../../client/src/components/dashboard/Dashboard.tsx) có chiều cao siêu gọn `42px` (`h-11`), giúp tối đa hóa diện tích vùng trò chuyện (>85% chiều cao màn hình di động).
+- **Zero-Shift Auth Architecture**: Màn hình [`AuthScreen.tsx`](../../client/src/components/auth/AuthScreen.tsx) cố định chiều cao thẻ đăng nhập (`590px`, tối đa `90vh`, gồm khối tiêu đề xanh `160px`) và vùng form (`375px`, đủ chỗ cho widget Turnstile khi được bật), đảm bảo không bị giật/nhảy bố cục (`0px layout displacement`) khi chuyển đổi giữa Đăng nhập và Đăng ký.
+- **Ultra-Compact Header**: Thanh tiêu đề tại [`Dashboard.tsx`](../../client/src/components/dashboard/Dashboard.tsx) có chiều cao siêu gọn `44px` (`h-11`, cùng chiều cao với header của `ChatArea` / `RoomChatArea`), giúp tối đa hóa diện tích vùng trò chuyện (>85% chiều cao màn hình di động).
 - **Master-Detail Navigation (Mobile `< 768px`) & Dual-Pane Persistent Detail View (Desktop `>= 768px`)**:
   - Trên điện thoại: Sử dụng đơn vị chiều cao động `100dvh`, hiển thị luân phiên giữa `Sidebar` (Master) và `ChatArea` / `RoomChatArea` (Detail) kèm nút [`MobileBackButton.tsx`](../../client/src/components/common/MobileBackButton.tsx) (`md:hidden`) mà không làm unmount kết nối thời gian thực.
   - Trên máy tính: Hiển thị song song 2 cột với `Sidebar` cố định `352px` (`md:w-88`) và khung chat bên phải. Khi người dùng chuyển tab `Direct Chats` / `Rooms` ở cột trái, cuộc trò chuyện đang mở ở cột phải vẫn được giữ nguyên (Persistent Detail View).
@@ -650,7 +668,9 @@ flowchart LR
 
 ### 9.1. Khắc phục Vấn đề Cold Start của Render Free Tier
 Máy chủ miễn phí trên Render sẽ chuyển sang trạng thái ngủ (Sleep) sau 15 phút không nhận được lưu lượng truy cập. Khi có người truy cập mới, máy chủ cần 30 đến 50 giây để khởi động lại. Vì SPA cũng do Render phục vụ, lần mở đầu tiên sau khi ngủ sẽ **trắng trang 30–50 giây**; đánh đổi này được chấp nhận trong [ADR 0010](./0010-single-host-render-with-session-cookie.md).
-- **Giải pháp Frontend**: Tích hợp component `ConnectionStatusBanner`. Khi socket phát hiện trạng thái `isConnecting` hoặc `isReconnecting`, một thông báo trực quan màu hổ phách/xanh dương xuất hiện trên đầu màn hình: *"Đang kết nối tới máy chủ (có thể mất 30-50s nếu máy chủ đang khởi động lại)..."*, loại bỏ cảm giác ứng dụng bị treo.
+- **Giải pháp Frontend**, hai lớp:
+  - Trước khi biết đã đăng nhập hay chưa, [`App.tsx`](../../client/src/App.tsx) hiển thị màn chờ *"Connecting to the server..."* kèm lời nhắn có thể mất tới một phút nếu máy chủ đang thức dậy, trong lúc chờ `GET /api/auth/me`.
+  - Sau khi đăng nhập, component [`ConnectionStatusBanner`](../../client/src/components/common/ConnectionStatusBanner.tsx) hiện trên đầu màn hình khi socket chưa kết nối: dải màu hổ phách khi đang kết nối (*"Connecting to server (Render free tier waking up, may take up to 45s)..."*) hoặc đang kết nối lại, dải màu đỏ khi kết nối lỗi. Banner không hiển thị ở màn đăng nhập, vì khi chưa đăng nhập thì chưa có socket nào.
 - **Healthcheck tự động**: Endpoint `/health` (liveness) được cấu hình trong `render.yaml` giúp Render giám sát dịch vụ. Endpoint `/health/ready` kiểm tra thêm kết nối DB (`SELECT 1`) và trả `503` khi DB không phản hồi, ví dụ khi Supabase free tạm dừng project.
 - **Tùy chọn**: một monitor miễn phí ping `/health` định kỳ để tránh cold start, mô tả trong [runbook xử lý sự cố](../incident-runbook.md#optional-uptime-monitor-against-cold-starts).
 
@@ -659,13 +679,18 @@ Production chỉ có **một** phương án triển khai: một Web Service trê
 1. **Build** (`render.yaml`): `npm install --include=dev && npm run build` đóng gói lần lượt `shared`, `server` và `client` (vào `client/dist`).
 2. **Start**: `npm run db:deploy --workspace=server && npm run start --workspace=server`. Lệnh `prisma migrate deploy` áp các migration còn thiếu trước khi server khởi động. Ở production, server từ chối khởi động nếu thiếu bản build của client, thiếu cấu hình Supabase hoặc dùng lưu trữ local.
 3. **Phục vụ SPA**: Express phục vụ tệp tĩnh trong `client/dist`. Fallback `index.html` chỉ áp cho request `GET` không thuộc `/api`, `/socket.io`, `/health` hay `/uploads`.
-4. **Biến môi trường**: `NODE_ENV`, `PORT`, `APP_ORIGIN`, `STORAGE_PROVIDER`, `SUPABASE_STORAGE_BUCKET` là giá trị thường trong `render.yaml`. Các secret (`DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GIPHY_API_KEY`) khai báo `sync: false` và chỉ được đặt trên dashboard Render. Danh sách đầy đủ có trong [README](../../README.md#3-environment-configuration).
+4. **Biến môi trường**: `NODE_ENV`, `PORT`, `APP_ORIGIN`, `STORAGE_PROVIDER`, `SUPABASE_STORAGE_BUCKET` là giá trị thường trong `render.yaml`. Các secret (`DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GIPHY_API_KEY`) khai báo `sync: false` và chỉ được đặt trên dashboard Render. `LOG_LEVEL` và `TURNSTILE_SITE_KEY` là tùy chọn, không có trong `render.yaml`; muốn dùng thì đặt tay trên dashboard. Danh sách đầy đủ có trong [README](../../README.md#3-environment-configuration).
 5. **Development** cũng chung origin: trình duyệt mở `http://localhost:5173`, và proxy Vite chuyển `/api`, `/socket.io`, `/uploads` sang server ở cổng `4000`.
 
 ### 9.3. Vận hành & Ứng phó Sự cố
 - [`SECURITY.md`](../../SECURITY.md): phạm vi, kênh báo lỗ hổng riêng tư qua GitHub Private Vulnerability Reporting, thời gian phản hồi mục tiêu và các rủi ro đã chấp nhận.
 - [Runbook xử lý sự cố](../incident-runbook.md): phát hiện qua log sự kiện bảo mật, xoay vòng key Supabase, thu hồi Session bằng lệnh CLI, đánh giá phạm vi, thông báo cho User, backup bằng `pg_dump`.
 - Secret không bao giờ nằm trong repo: hook pre-commit `gitleaks` chặn commit có secret (xem [README](../../README.md#secret-scanning)).
+
+### 9.4. Tích hợp Liên tục (CI)
+Workflow [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) chạy trên mỗi push và pull request vào `main`, với token chỉ có quyền đọc và không dùng secret nào:
+1. `npm ci` rồi `npm test` (bộ test server rồi client) trên Node 24.
+2. Xóa `shared/dist`, rồi boot server từ source (`tsx --conditions=@webchat/source src/index.ts`) mà không có database, và chờ `/health` trả lời. Bước này kiểm chứng rằng một bản clone mới chạy được chế độ development mà không cần build trước package `shared` ([ADR 0005](./0005-monorepo-structure-and-shared-contracts.md)).
 
 ---
 
@@ -690,12 +715,13 @@ Mỗi bộ dựng server qua server factory với cấu hình test, PGlite in-me
 13. [`attachment-message.test.ts`](../../server/tests/attachment-message.test.ts): Kiểm tra luồng gửi và nhận tin nhắn có đính kèm tệp (`IMAGE`, `DOCUMENT`) trong Direct Chat và Room Chat.
 14. [`gif-message.test.ts`](../../server/tests/gif-message.test.ts): Kiểm tra tìm kiếm GIF (`/api/gifs`) và gửi tin nhắn loại `EMOJI_GIF`.
 15. **Các bộ hồi quy bảo mật** (mỗi bộ tái hiện đúng bước tấn công trong audit, tên test ghi kèm mã bước như `A09`): [`config.test.ts`](../../server/tests/config.test.ts) (module cấu hình), [`session-auth.test.ts`](../../server/tests/session-auth.test.ts) và [`session-revocation.test.ts`](../../server/tests/session-revocation.test.ts) (Session, CSRF, thu hồi), [`security-headers.test.ts`](../../server/tests/security-headers.test.ts) (CSP, HSTS, không CORS), [`validation.test.ts`](../../server/tests/validation.test.ts) và [`socket-validation.test.ts`](../../server/tests/socket-validation.test.ts), [`error-layer.test.ts`](../../server/tests/error-layer.test.ts), [`upload-hardening.test.ts`](../../server/tests/upload-hardening.test.ts) và [`attachments.test.ts`](../../server/tests/attachments.test.ts) (Attachment riêng tư, signed URL), [`realtime-membership.test.ts`](../../server/tests/realtime-membership.test.ts) (rời room, bị kick, khôi phục kết nối), [`rate-limit.test.ts`](../../server/tests/rate-limit.test.ts), [`user-privacy.test.ts`](../../server/tests/user-privacy.test.ts), [`security-events.test.ts`](../../server/tests/security-events.test.ts) và [`health.test.ts`](../../server/tests/health.test.ts), [`migrations.test.ts`](../../server/tests/migrations.test.ts) (migration khớp schema, RLS bật trên mọi bảng), [`upgrade-data.test.ts`](../../server/tests/upgrade-data.test.ts) và [`upgrade-attachments.test.ts`](../../server/tests/upgrade-attachments.test.ts) (lệnh nâng cấp dữ liệu), [`docs.test.ts`](../../server/tests/docs.test.ts) (link nội bộ trong tài liệu mở được, `.env.example` khớp module cấu hình).
+16. **Các bộ kiểm thử hạ tầng & vận hành**: [`contract-migration.test.ts`](../../server/tests/contract-migration.test.ts) và [`upgrade-account-room.test.ts`](../../server/tests/upgrade-account-room.test.ts) (migration contract, chuẩn hóa tài khoản và room), [`server-factory.test.ts`](../../server/tests/server-factory.test.ts), [`logger.test.ts`](../../server/tests/logger.test.ts), [`socket-errors.test.ts`](../../server/tests/socket-errors.test.ts), [`dev-entrypoint.test.ts`](../../server/tests/dev-entrypoint.test.ts) (mọi script `tsx` của server đọc `shared` từ source với `--conditions=@webchat/source`, entrypoint dev khởi động được), [`entrypoint-dotenv.test.ts`](../../server/tests/entrypoint-dotenv.test.ts) (entrypoint nạp `.env` trước khi đọc cấu hình), [`tsx-scripts.test.ts`](../../server/tests/tsx-scripts.test.ts) và [`child-process.test.ts`](../../server/tests/child-process.test.ts) (helper phân tích lệnh `tsx` và dừng tiến trình con dùng trong các test trên).
 
 ### 10.2. Các Bộ Kiểm thử Giao diện & Hành vi Frontend (`client/src/`):
 Sử dụng `Vitest` kết hợp `@testing-library/react` và `jsdom`, với `fetch` được mock. Các bộ tiêu biểu:
 1. [`App.test.tsx`](../../client/src/App.test.tsx): Kiểm tra luồng khởi chạy ứng dụng (`GET /api/auth/me`), điều hướng xác thực, không ghi gì vào localStorage và không gửi header `Authorization`.
 2. [`BrandAssetsTokens.test.ts`](../../client/src/BrandAssetsTokens.test.ts): Kiểm chứng hệ thống token màu sắc Google Palette và tài nguyên nhận diện thương hiệu GDG-HUST.
-3. [`AuthScreen.test.tsx`](../../client/src/components/auth/AuthScreen.test.tsx): Kiểm tra giao diện đăng nhập/đăng ký và kiến trúc Zero-Shift Auth.
+3. [`AuthScreen.test.tsx`](../../client/src/components/auth/AuthScreen.test.tsx): Kiểm tra giao diện đăng nhập/đăng ký, kiến trúc Zero-Shift Auth (`590px` / `375px`) và việc hiển thị widget Turnstile khi server trả site key.
 4. [`DirectChat.test.tsx`](../../client/src/components/chat/DirectChat.test.tsx): Kiểm tra luồng hiển thị, gửi/nhận tin nhắn 1-1 và trạng thái chuyển phát.
 5. [`RoomChat.test.tsx`](../../client/src/components/room/RoomChat.test.tsx): Kiểm tra giao diện phòng chat nhóm, quản lý thành viên và thông báo nền.
 6. [`Attachment.test.tsx`](../../client/src/components/chat/Attachment.test.tsx): Kiểm tra đính kèm tệp, Image Lightbox và Document Preview Modal.
@@ -706,7 +732,8 @@ Sử dụng `Vitest` kết hợp `@testing-library/react` và `jsdom`, với `fe
 11. [`ResponsiveMobileInput.test.tsx`](../../client/src/components/chat/ResponsiveMobileInput.test.tsx): Kiểm tra thanh công cụ nhập liệu trên màn hình di động.
 12. [`GoogleChatExperience.test.tsx`](../../client/src/components/chat/GoogleChatExperience.test.tsx): Kiểm tra tổng thể trải nghiệm giao diện theo chuẩn Google Chat / GDG-HUST.
 13. [`avatarColor.test.ts`](../../client/src/utils/avatarColor.test.ts): Kiểm tra tính tất định của thuật toán gán 4 màu đại diện Google (`Deterministic 4-Color Avatar`).
-14. **Các bộ hồi quy bảo mật phía client**: [`safeUrl.test.ts`](../../client/src/utils/safeUrl.test.ts) (từ chối URL `javascript:`), [`AttachmentUrlRefresh.test.tsx`](../../client/src/components/chat/AttachmentUrlRefresh.test.tsx) (làm mới signed URL đúng một lần), [`UploadHardening.test.tsx`](../../client/src/components/chat/UploadHardening.test.tsx), [`RateLimit.test.tsx`](../../client/src/components/chat/RateLimit.test.tsx) và [`PublicProfile.test.tsx`](../../client/src/components/PublicProfile.test.tsx).
+14. [`AttachmentSend.test.tsx`](../../client/src/components/chat/AttachmentSend.test.tsx) (gửi tin kèm `attachmentId`), [`AccountInfoModal.test.tsx`](../../client/src/components/dashboard/AccountInfoModal.test.tsx) (hộp thông tin tài khoản, nơi duy nhất hiển thị email của chính mình) và [`unicode.test.ts`](../../client/src/utils/unicode.test.ts) (đếm và cắt ký tự Unicode).
+15. **Các bộ hồi quy bảo mật phía client**: [`safeUrl.test.ts`](../../client/src/utils/safeUrl.test.ts) (từ chối URL `javascript:`), [`AttachmentUrlRefresh.test.tsx`](../../client/src/components/chat/AttachmentUrlRefresh.test.tsx) (làm mới signed URL đúng một lần), [`UploadHardening.test.tsx`](../../client/src/components/chat/UploadHardening.test.tsx), [`RateLimit.test.tsx`](../../client/src/components/chat/RateLimit.test.tsx) và [`PublicProfile.test.tsx`](../../client/src/components/PublicProfile.test.tsx).
 
 ---
 

@@ -9,7 +9,7 @@ Tập hợp các yếu tố nhận diện chính thức của cộng đồng cô
 _Avoid_: Generic Chat Brand, Web Chat Real-Time
 
 **Zero-Shift Auth Architecture**:
-Kiến trúc bố cục giao diện xác thực không xê dịch, cố định chiều cao thẻ đăng nhập (rigid 540px card height), khung chứa biểu mẫu cố định (fixed 275px form container), và ghim nút hành động chính ở tọa độ cố định, đảm bảo 0px layout displacement (hoàn toàn không giật, nhảy khung hình) khi chuyển đổi qua lại giữa tab Đăng nhập và Đăng ký.
+Kiến trúc bố cục giao diện xác thực không xê dịch, cố định chiều cao thẻ đăng nhập (rigid 590px card height, tối đa 90vh), khung chứa biểu mẫu cố định (fixed 375px form container, đủ chỗ cho widget Cloudflare Turnstile khi được bật), và ghim nút hành động chính ở tọa độ cố định, đảm bảo 0px layout displacement (hoàn toàn không giật, nhảy khung hình) khi chuyển đổi qua lại giữa tab Đăng nhập và Đăng ký.
 _Avoid_: Bouncing form layout, Variable-height auth card, Dynamic auth jumping
 
 **Google Palette Semantics**:
@@ -21,7 +21,7 @@ Hệ thống gán màu đại diện người dùng tự động dựa trên hà
 _Avoid_: Monocolor avatar, Random avatar colors, Server-stored color flags
 
 **Ultra-Compact Header**:
-Thanh tiêu đề điều hướng tối giản với chiều cao cố định siêu gọn 42px (`h-11`), hiển thị biểu trưng và tên thương hiệu trên một dòng duy nhất (`whitespace-nowrap`), kết hợp chỉ báo kết nối chấm tròn xanh 8px và nút đăng xuất tinh gọn, giúp tối đa hóa không gian hiển thị nội dung trò chuyện (Maximal Chat Workspace) chiếm trên 85% chiều cao màn hình di động.
+Thanh tiêu đề điều hướng tối giản với chiều cao cố định siêu gọn 44px (`h-11`), hiển thị biểu trưng và tên thương hiệu trên một dòng duy nhất (`whitespace-nowrap`), kết hợp chỉ báo kết nối chấm tròn xanh 8px và nút đăng xuất tinh gọn, giúp tối đa hóa không gian hiển thị nội dung trò chuyện (Maximal Chat Workspace) chiếm trên 85% chiều cao màn hình di động.
 _Avoid_: Bloated multi-line header, Stacked navigation bar
 
 
@@ -95,7 +95,7 @@ Bản ghi liên kết giữa người dùng và một Direct Chat để quản l
 Cơ chế của Socket.io tự động khôi phục các sự kiện/gói tin bị gián đoạn trong thời gian mất mạng tạm thời ngắn. Cơ chế này chỉ khôi phục gói tin, không khôi phục quyền: danh tính và tư cách thành viên của người dùng vẫn được kiểm tra lại khi kết nối được khôi phục.
 
 **Catch-up Sync**:
-Quy trình client gọi REST API để kéo lại toàn bộ tin nhắn bị bỏ lỡ sau khi kết nối mạng phục hồi từ gián đoạn dài.
+Quy trình client gọi REST API (`?after=<id tin mới nhất ở client>`) để kéo lại các tin nhắn bị bỏ lỡ sau khi kết nối mạng phục hồi từ gián đoạn dài. Mỗi lần gọi trả tối đa `limit` tin (mặc định 50), kèm `hasMore` khi còn tin chưa lấy.
 
 **Cursor-based Pagination**:
 Cơ chế phân trang tải lịch sử tin nhắn sử dụng mốc con trỏ thời gian hoặc ID tin nhắn (mặc định 50 tin nhắn mới nhất và tải thêm khi cuộn lên).
