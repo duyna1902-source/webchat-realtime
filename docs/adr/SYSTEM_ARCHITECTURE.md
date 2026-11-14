@@ -174,7 +174,7 @@ sequenceDiagram
     Server->>Server: Kiểm tra Origin, rate limit, validate (zod), so khớp bcrypt
     Server->>Store: create(userId, { ip, userAgent })
     Store->>DB: INSERT Session (chỉ lưu SHA-256 của token)
-    Server-->>Browser: 200 { user } + Set-Cookie: __Host-session=<token>; HttpOnly; Secure; SameSite=Strict
+    Server-->>Browser: 200 { user } + Set-Cookie __Host-session (HttpOnly, Secure, SameSite=Strict)
     Browser->>Server: GET /api/auth/me (cookie tự gửi kèm)
     Server->>Store: resolve(token)
     Store->>DB: Tra Session theo tokenHash, kiểm tra hạn idle 7 ngày / absolute 30 ngày
