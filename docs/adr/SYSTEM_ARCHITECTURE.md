@@ -2,7 +2,7 @@
 # DỰ ÁN: WEB CHAT REAL-TIME
 
 > **Phiên bản**: 1.3.0  
-> **Ngày lập**: 19/10/2026 (cập nhật 23/10/2026 theo đợt nâng cấp bảo mật: [ADR 0009](./0009-private-attachments-via-records-and-signed-urls.md), [ADR 0010](./0010-single-host-render-with-session-cookie.md); cập nhật 14/11/2026 cho khớp code: Cloudflare Turnstile, CI, kích thước giao diện, catch-up sync)  
+> **Ngày lập**: 19/10/2026 (cập nhật 23/10/2026 theo đợt nâng cấp bảo mật: [ADR 0009](./0009-private-attachments-via-records-and-signed-urls.md), [ADR 0010](./0010-single-host-render-with-session-cookie.md); cập nhật 14/11/2026 cho khớp code: Cloudflare Turnstile, CI, kích thước giao diện, catch-up sync; cập nhật 15/11/2026: xác minh token Turnstile phía server)  
 > **Trạng thái**: Hoàn thiện & Đã nghiệm thu  
 > **Mục đích**: Tài liệu tổng hợp toàn diện kiến trúc kỹ thuật, mô hình dữ liệu, giao thức thời gian thực, thiết kế giao diện đa thiết bị và chiến lược hạ tầng của dự án Web Chat Real-Time (GDG-HUST Realtime Chat).
 
@@ -144,7 +144,7 @@ flowchart TB
         Postgres[("PostgreSQL (Supabase, RLS bật; PGlite khi test)")]
         CloudFiles[("Supabase Storage: bucket private 'attachments'")]
         Giphy["Giphy Search API"]
-        Turnstile["Cloudflare Turnstile (widget)"]
+        Turnstile["Cloudflare Turnstile (widget + siteverify)"]
     end
 
     Contexts -- "REST API cùng origin + cookie __Host-session" --> HTTPRouter
@@ -156,6 +156,7 @@ flowchart TB
     StorageEngine --> CloudFiles
     HTTPRouter --> Giphy
     UI -. "script + iframe challenges.cloudflare.com" .-> Turnstile
+    HTTPRouter -. "siteverify token (login, register)" .-> Turnstile
 ```
 
 Server được dựng bằng một **server factory** duy nhất (`createServer` trong [`server/src/server.ts`](../../server/src/server.ts)), nhận *cấu hình đã validate* từ [`server/src/config.ts`](../../server/src/config.ts) và *storage adapter*. Entrypoint production chỉ nạp `.env`, gọi `loadConfig`, dựng storage adapter thật rồi listen. Không module nào khác đọc thẳng `process.env`, và server từ chối khởi động khi thiếu cấu hình bắt buộc (liệt kê mọi biến sai, không bao giờ dùng secret mặc định).
@@ -191,7 +192,7 @@ sequenceDiagram
 - **Chống CSRF:** mọi `POST`, `PATCH`, `PUT`, `DELETE` phải có `Origin` bằng đúng `APP_ORIGIN` (hoặc `Sec-Fetch-Site: same-origin` khi không có `Origin`), nếu không thì nhận `403`. Handshake Socket.IO cũng bị kiểm tra `Origin` để chống Cross-Site WebSocket Hijacking.
 - **Thu hồi:** đăng xuất thu hồi Session hiện tại, "đăng xuất mọi thiết bị" thu hồi mọi Session của User, và người vận hành dùng lệnh `npm run sessions:revoke --workspace=server -- --user <username|id>` hoặc `-- --all` (xem [runbook xử lý sự cố](../incident-runbook.md#3-contain-revoke-sessions)). Thu hồi bên trong server ngắt socket ngay; thu hồi từ lệnh CLI được server phát hiện ở lần kiểm tra lại Session kế tiếp (mặc định 60 giây). Mỗi socket còn tự ngắt đúng lúc Session đạt hạn absolute.
 - **Lớp phòng thủ đi kèm:** `helmet` gắn CSP chặt, HSTS, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, kèm `Permissions-Policy` tắt camera, micro, định vị cho mọi response; mọi body REST và payload socket được parse bằng schema zod dùng chung; login, đăng ký, upload, tìm kiếm, GIF, tạo room, gửi tin và tín hiệu đang gõ đều bị giới hạn tần suất; lỗi chỉ trả `{ message, code, requestId }`; các sự kiện bảo mật được ghi log JSON có cấu trúc (`pino`).
-- **Cloudflare Turnstile (chưa xác minh phía server):** nếu đặt biến tùy chọn `TURNSTILE_SITE_KEY`, endpoint công khai `GET /api/auth/config` trả `{ turnstileSiteKey }` (site key là định danh công khai), và [`AuthScreen.tsx`](../../client/src/components/auth/AuthScreen.tsx) hiển thị widget Turnstile trên cả form Đăng nhập lẫn Đăng ký. CSP cho phép `https://challenges.cloudflare.com` trong `script-src` và `frame-src`. Hiện server **không** kiểm tra token Turnstile: không có secret key, và `register`/`login` không đọc token. Widget vì vậy chưa chặn được bot; lớp chống lạm dụng thực tế vẫn là rate limit.
+- **Cloudflare Turnstile (xác minh phía server):** bật khi đặt cùng lúc `TURNSTILE_SITE_KEY` và `TURNSTILE_SECRET_KEY` (thiếu một trong hai thì server không khởi động). Endpoint công khai `GET /api/auth/config` trả `{ turnstileSiteKey }` (site key là định danh công khai; secret key không bao giờ rời server). [`AuthScreen.tsx`](../../client/src/components/auth/AuthScreen.tsx) hiển thị widget trên cả form Đăng nhập lẫn Đăng ký với `action` là `login`/`register` và giao diện sáng (`theme: 'light'`); nút submit giữ nguyên, bấm khi chưa xong captcha thì chỉ báo "Please complete the captcha check first." và không gửi gì; khi có token thì gửi token trong trường `turnstileToken`, và reset widget sau mỗi lần bị từ chối (token chỉ dùng được một lần). [`turnstile.ts`](../../server/src/lib/turnstile.ts) gọi siteverify của Cloudflare (kèm IP người dùng, timeout 5 giây, kiểm tra `action`) **trước** khi tra tài khoản: token thiếu/sai/hết hạn trả `400 CAPTCHA_FAILED`, Cloudflare không phản hồi trả `503 CAPTCHA_UNAVAILABLE` (fail closed), mỗi lần từ chối ghi log `auth.captcha.failure`. CSP cho phép `https://challenges.cloudflare.com` trong `script-src` và `frame-src`; siteverify gọi từ server nên không cần thêm CSP. Rate limit vẫn giữ nguyên làm lớp bảo vệ thứ hai.
 
 ---
 
@@ -679,7 +680,7 @@ Production chỉ có **một** phương án triển khai: một Web Service trê
 1. **Build** (`render.yaml`): `npm install --include=dev && npm run build` đóng gói lần lượt `shared`, `server` và `client` (vào `client/dist`).
 2. **Start**: `npm run db:deploy --workspace=server && npm run start --workspace=server`. Lệnh `prisma migrate deploy` áp các migration còn thiếu trước khi server khởi động. Ở production, server từ chối khởi động nếu thiếu bản build của client, thiếu cấu hình Supabase hoặc dùng lưu trữ local.
 3. **Phục vụ SPA**: Express phục vụ tệp tĩnh trong `client/dist`. Fallback `index.html` chỉ áp cho request `GET` không thuộc `/api`, `/socket.io`, `/health` hay `/uploads`.
-4. **Biến môi trường**: `NODE_ENV`, `PORT`, `APP_ORIGIN`, `STORAGE_PROVIDER`, `SUPABASE_STORAGE_BUCKET` là giá trị thường trong `render.yaml`. Các secret (`DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GIPHY_API_KEY`) khai báo `sync: false` và chỉ được đặt trên dashboard Render. `LOG_LEVEL` và `TURNSTILE_SITE_KEY` là tùy chọn, không có trong `render.yaml`; muốn dùng thì đặt tay trên dashboard. Danh sách đầy đủ có trong [README](../../README.md#3-environment-configuration).
+4. **Biến môi trường**: `NODE_ENV`, `PORT`, `APP_ORIGIN`, `STORAGE_PROVIDER`, `SUPABASE_STORAGE_BUCKET` là giá trị thường trong `render.yaml`. Các secret (`DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GIPHY_API_KEY`) khai báo `sync: false` và chỉ được đặt trên dashboard Render. `LOG_LEVEL`, `TURNSTILE_SITE_KEY` và `TURNSTILE_SECRET_KEY` là tùy chọn (hai key Turnstile phải đặt cùng nhau), không có trong `render.yaml`; muốn dùng thì đặt tay trên dashboard. Danh sách đầy đủ có trong [README](../../README.md#3-environment-configuration).
 5. **Development** cũng chung origin: trình duyệt mở `http://localhost:5173`, và proxy Vite chuyển `/api`, `/socket.io`, `/uploads` sang server ở cổng `4000`.
 
 ### 9.3. Vận hành & Ứng phó Sự cố
@@ -721,7 +722,7 @@ Mỗi bộ dựng server qua server factory với cấu hình test, PGlite in-me
 Sử dụng `Vitest` kết hợp `@testing-library/react` và `jsdom`, với `fetch` được mock. Các bộ tiêu biểu:
 1. [`App.test.tsx`](../../client/src/App.test.tsx): Kiểm tra luồng khởi chạy ứng dụng (`GET /api/auth/me`), điều hướng xác thực, không ghi gì vào localStorage và không gửi header `Authorization`.
 2. [`BrandAssetsTokens.test.ts`](../../client/src/BrandAssetsTokens.test.ts): Kiểm chứng hệ thống token màu sắc Google Palette và tài nguyên nhận diện thương hiệu GDG-HUST.
-3. [`AuthScreen.test.tsx`](../../client/src/components/auth/AuthScreen.test.tsx): Kiểm tra giao diện đăng nhập/đăng ký, kiến trúc Zero-Shift Auth (`590px` / `375px`) và việc hiển thị widget Turnstile khi server trả site key.
+3. [`AuthScreen.test.tsx`](../../client/src/components/auth/AuthScreen.test.tsx): Kiểm tra giao diện đăng nhập/đăng ký, kiến trúc Zero-Shift Auth (`590px` / `375px`) và luồng Turnstile: hiển thị widget khi server trả site key, chặn submit tới khi có token, gửi token và reset widget sau lỗi. Phía server, [`turnstile.test.ts`](../../server/tests/turnstile.test.ts) và [`turnstile-auth.test.ts`](../../server/tests/turnstile-auth.test.ts) kiểm tra việc xác minh token với Cloudflare giả lập.
 4. [`DirectChat.test.tsx`](../../client/src/components/chat/DirectChat.test.tsx): Kiểm tra luồng hiển thị, gửi/nhận tin nhắn 1-1 và trạng thái chuyển phát.
 5. [`RoomChat.test.tsx`](../../client/src/components/room/RoomChat.test.tsx): Kiểm tra giao diện phòng chat nhóm, quản lý thành viên và thông báo nền.
 6. [`Attachment.test.tsx`](../../client/src/components/chat/Attachment.test.tsx): Kiểm tra đính kèm tệp, Image Lightbox và Document Preview Modal.

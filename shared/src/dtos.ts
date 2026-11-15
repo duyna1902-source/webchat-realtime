@@ -27,11 +27,15 @@ export interface RegisterRequestDto {
   username: string;
   email: string;
   password: string;
+  /** Required when the server has Turnstile configured (`turnstileSiteKey` in `GET /api/auth/config`). */
+  turnstileToken?: string;
 }
 
 export interface LoginRequestDto {
   emailOrUsername: string;
   password: string;
+  /** Required when the server has Turnstile configured (`turnstileSiteKey` in `GET /api/auth/config`). */
+  turnstileToken?: string;
 }
 
 /**

@@ -52,7 +52,7 @@ The system is engineered across three progressive technical tiers, enhanced with
 - **Frontend**: React 18, Vite, Tailwind CSS, Lucide Icons, TypeScript
 - **Database & ORM**: PostgreSQL (Supabase) + Prisma v7 Migrate & Driver Adapters (`@prisma/adapter-pg`, in-memory `@electric-sql/pglite` for tests)
 - **Storage**: Storage Adapter Pattern: Supabase Storage (private bucket, signed URLs) in production, local disk in development, in-memory in tests
-- **Security**: Server-side Sessions in a `__Host-session` cookie, `helmet` (CSP, HSTS...), `zod` schemas shared by client and server, `express-rate-limit`, structured `pino` logs, an optional Cloudflare Turnstile widget on the sign-in and registration forms (see [Security](#security))
+- **Security**: Server-side Sessions in a `__Host-session` cookie, `helmet` (CSP, HSTS...), `zod` schemas shared by client and server, `express-rate-limit`, structured `pino` logs, optional Cloudflare Turnstile on the sign-in and registration forms, verified by the server (see [Security](#security))
 - **CI**: GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs `npm test` on Node 24, then boots the server from source on a clean install
 - **Testing**: Vitest + Supertest (Backend) & Vitest + React Testing Library + JSDOM (Frontend)
 
@@ -156,7 +156,8 @@ Then fill it in. The defaults already work for local development with the Postgr
 | `SUPABASE_STORAGE_BUCKET` | With `supabase` storage | The private Attachment bucket, `attachments`. |
 | `LOG_LEVEL` | No (default `info`) | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. |
 | `GIPHY_API_KEY` | No | GIF search; without it the app uses built-in curated GIFs. |
-| `TURNSTILE_SITE_KEY` | No | Public Cloudflare Turnstile **site key** (letters, digits, `_` and `-` only). When set, the sign-in and registration forms show the Turnstile widget. It is not a secret: the browser gets it from `GET /api/auth/config`. |
+| `TURNSTILE_SITE_KEY` | No | Public Cloudflare Turnstile **site key** (letters, digits, `_` and `-` only). When set, the sign-in and registration forms show the Turnstile widget. It is not a secret: the browser gets it from `GET /api/auth/config`. Requires `TURNSTILE_SECRET_KEY`. |
+| `TURNSTILE_SECRET_KEY` | With `TURNSTILE_SITE_KEY` | Cloudflare Turnstile **secret key**, same format. The server sends it only to Cloudflare's siteverify endpoint to check each form's token. Set both keys or neither: one without the other stops the server at startup. For local testing use Cloudflare's test pair, site `1x00000000000000000000AA` with secret `1x0000000000000000000000000000000AA` (always passes) or `2x0000000000000000000000000000000AA` (always fails). |
 
 In production the server also refuses to start without the built client (`client/dist/index.html`). `JWT_SECRET`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `PUBLIC_URL`, the Cloudinary variables and `VITE_API_URL`/`VITE_SOCKET_URL` no longer exist: delete them wherever they are still set.
 
@@ -263,7 +264,7 @@ Production runs as **one Render web service** ([ADR 0010](docs/adr/0010-single-h
 - **Build**: `npm install --include=dev && npm run build` (shared → server → client).
 - **Start**: `npm run db:deploy --workspace=server && npm run start --workspace=server`. Pending migrations are applied before the server starts; if one fails, the server does not start.
 - **Health check**: `/health` (liveness). `/health/ready` also checks the database and answers `503` when it is unreachable.
-- **Environment**: `NODE_ENV=production`, `PORT=10000`, `APP_ORIGIN`, `STORAGE_PROVIDER=supabase` and `SUPABASE_STORAGE_BUCKET=attachments` are plain values. The secrets `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `GIPHY_API_KEY` are `sync: false`: the file holds no values. The optional `LOG_LEVEL` and `TURNSTILE_SITE_KEY` are not in the blueprint; set them by hand under **Environment** if you want them.
+- **Environment**: `NODE_ENV=production`, `PORT=10000`, `APP_ORIGIN`, `STORAGE_PROVIDER=supabase` and `SUPABASE_STORAGE_BUCKET=attachments` are plain values. The secrets `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `GIPHY_API_KEY` are `sync: false`: the file holds no values. The optional `LOG_LEVEL`, `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` are not in the blueprint; set them by hand under **Environment** if you want them.
 
 To deploy:
 1. Create the service from the blueprint (Render dashboard → **New** → **Blueprint**), or use the existing `webchat-realtime` service. Render asks for `sync: false` values **only when a blueprint is first created**. On an existing service, set or change them by hand under **Environment**, and delete variables that no longer exist (`JWT_SECRET`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
@@ -281,7 +282,7 @@ All endpoints are same-origin under `/api`. Authentication is the `__Host-sessio
 
 | Endpoint | Notes |
 |---|---|
-| `GET /api/auth/config` | Public browser configuration, no session needed: `200 { turnstileSiteKey }` (`null` when `TURNSTILE_SITE_KEY` is unset). |
+| `GET /api/auth/config` | Public browser configuration, no session needed: `200 { turnstileSiteKey }` (`null` when Turnstile is off). |
 | `POST /api/auth/register` | `201 { user }` and sets the session cookie. `user` is the caller's own profile (`SelfUserDto`, with email). |
 | `POST /api/auth/login` | Body `{ emailOrUsername, password }`. `200 { user }` and sets the cookie; wrong credentials are always `401` with the same message. |
 | `GET /api/auth/me` | `200 { user }` or `401`. |
@@ -303,7 +304,7 @@ Other users appear everywhere (member lists, Direct Chat partners, message sende
 ## Security
 
 - Report vulnerabilities privately as described in [`SECURITY.md`](SECURITY.md), which also lists the accepted risks.
-- **Cloudflare Turnstile is display-only for now.** With `TURNSTILE_SITE_KEY` set, the forms show the widget and the CSP allows `https://challenges.cloudflare.com`, but the server never verifies the Turnstile token (there is no secret key, and register and login do not read the token). It does not stop bots yet; the rate limits on login and registration are the actual protection.
+- **Cloudflare Turnstile** (when `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` are set): the sign-in and registration forms show the widget (light theme) and send its token as `turnstileToken`; submitting before the widget is done shows "Please complete the captcha check first." and sends nothing. `POST /api/auth/login` and `POST /api/auth/register` redeem the token with Cloudflare's siteverify endpoint (with the visitor's IP, a 5 s timeout, and a check that the token was issued for that form's `action`) before they look up the account. A missing, invalid, expired or reused token gets `400 CAPTCHA_FAILED`; when Cloudflare cannot be reached the request gets `503 CAPTCHA_UNAVAILABLE` (fail closed). Each refusal logs `auth.captcha.failure`. Tokens are single-use, so the form resets the widget after every refused attempt. In "Managed" mode Cloudflare often passes a visitor without showing a checkbox; that is expected.
 - Operators: the [incident runbook](docs/incident-runbook.md) covers the security log events, key rotation, Session revocation (`npm run sessions:revoke --workspace=server -- --user <username|id>` or `-- --all`), impact assessment and user notification.
 
 ---

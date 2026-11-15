@@ -49,6 +49,7 @@ describe('loadConfig', () => {
       PORT: '4100',
       GIPHY_API_KEY: 'giphy-key',
       TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+      TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA',
       LOG_LEVEL: 'debug',
     }, { clientDistPath: missingClientDist });
 
@@ -57,7 +58,10 @@ describe('loadConfig', () => {
     expect(config.appOrigin).toBe('http://localhost:5173');
     expect(config.databaseUrl).toBe(devEnv.DATABASE_URL);
     expect(config.giphyApiKey).toBe('giphy-key');
-    expect(config.turnstileSiteKey).toBe('1x00000000000000000000AA');
+    expect(config.turnstile).toEqual({
+      siteKey: '1x00000000000000000000AA',
+      secretKey: '1x0000000000000000000000000000000AA',
+    });
     expect(config.logLevel).toBe('debug');
     expect(config.storage).toEqual({ provider: 'local' });
     expect(config.clientDistPath).toBeNull();
@@ -69,7 +73,7 @@ describe('loadConfig', () => {
     expect(config.port).toBe(4000);
     expect(config.logLevel).toBe('info');
     expect(config.giphyApiKey).toBeNull();
-    expect(config.turnstileSiteKey).toBeNull();
+    expect(config.turnstile).toBeNull();
     expect(config.timing.presenceGracePeriodMs).toBe(5000);
     expect(config.timing.connectionStateRecoveryMs).toBe(2 * 60 * 1000);
     expect(config.timing.signedUrlTtlSeconds).toBe(3600);
@@ -117,12 +121,37 @@ describe('loadConfig', () => {
     }
   });
 
-  it('rejects a malformed TURNSTILE_SITE_KEY', () => {
+  it.each(['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY'])('rejects a malformed %s', (variable) => {
     const err = configErrorOf(() =>
-      loadConfig({ ...devEnv, TURNSTILE_SITE_KEY: 'invalid site key' }, { clientDistPath: missingClientDist })
+      loadConfig(
+        {
+          ...devEnv,
+          TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+          TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA',
+          [variable]: 'invalid key',
+        },
+        { clientDistPath: missingClientDist }
+      )
     );
-  
-    expect(err.issues.map((issue) => issue.variable)).toEqual(['TURNSTILE_SITE_KEY']);
+
+    expect(err.issues.map((issue) => issue.variable)).toEqual([variable]);
+    expect(err.message).not.toContain('invalid key');
+  });
+
+  it('requires the Turnstile site key and secret key together, so the widget is never shown unverified', () => {
+    const siteOnly = configErrorOf(() =>
+      loadConfig({ ...devEnv, TURNSTILE_SITE_KEY: '1x00000000000000000000AA' }, { clientDistPath: missingClientDist })
+    );
+    expect(siteOnly.issues.map((issue) => issue.variable)).toEqual(['TURNSTILE_SECRET_KEY']);
+
+    const secretOnly = configErrorOf(() =>
+      loadConfig(
+        { ...devEnv, TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA' },
+        { clientDistPath: missingClientDist }
+      )
+    );
+    expect(secretOnly.issues.map((issue) => issue.variable)).toEqual(['TURNSTILE_SITE_KEY']);
+    expect(secretOnly.message).not.toContain('1x0000000000000000000000000000000AA');
   });
 
   it('accepts DATABASE_URL=memory: only under NODE_ENV=test', () => {

@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Lock, Mail, User, AlertCircle, Info, Loader2, ArrowRight } from 'lucide-react';
 import { loginSchema, registerSchema, parseWithSchema, FieldError } from '@webchat/shared';
-import { Turnstile } from '@marsidev/react-turnstile'
+import { Turnstile, TurnstileInstance } from '@marsidev/react-turnstile';
 import { apiFetch } from '../../utils/apiFetch';
 
 type FieldErrors = Record<string, string>;
+
+/** Shown when a form is submitted before its Turnstile widget has produced a token. */
+const CAPTCHA_PENDING_MESSAGE = 'Please complete the captcha check first.';
 
 function toFieldErrors(fields: FieldError[]): FieldErrors {
   return Object.fromEntries(fields.map((f) => [f.field, f.message]));
@@ -50,6 +53,19 @@ export const AuthScreen: React.FC = () => {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState<string | null>(null);
+  // One Turnstile widget per form. The submit button looks the same with or without a token;
+  // submitting before the widget is done shows a message instead. A token is valid once, so after
+  // a refused submit the widget is reset; the server verifies the token (`CAPTCHA_FAILED` when bad).
+  const [loginToken, setLoginToken] = useState<string | null>(null);
+  const [registerToken, setRegisterToken] = useState<string | null>(null);
+  const loginTurnstile = useRef<TurnstileInstance | undefined>(undefined);
+  const registerTurnstile = useRef<TurnstileInstance | undefined>(undefined);
+  const captchaSolved = (setToken: (token: string) => void, token: string) => {
+    setToken(token);
+    setError((current) => (current === CAPTCHA_PENDING_MESSAGE ? null : current));
+  };
+  const loginCaptchaPending = turnstileSiteKey !== null && loginToken === null;
+  const registerCaptchaPending = turnstileSiteKey !== null && registerToken === null;
 
   useEffect(() => {
     let cancelled = false;
@@ -90,12 +106,20 @@ export const AuthScreen: React.FC = () => {
       return;
     }
     setFieldErrors({});
+    if (loginCaptchaPending) {
+      setError(CAPTCHA_PENDING_MESSAGE);
+      return;
+    }
     setIsSubmitting(true);
 
     try {
-      await login(credentials);
+      await login(loginToken ? { ...credentials, turnstileToken: loginToken } : credentials);
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
+      if (turnstileSiteKey) {
+        setLoginToken(null);
+        loginTurnstile.current?.reset();
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -113,12 +137,20 @@ export const AuthScreen: React.FC = () => {
       return;
     }
     setFieldErrors({});
+    if (registerCaptchaPending) {
+      setError(CAPTCHA_PENDING_MESSAGE);
+      return;
+    }
     setIsSubmitting(true);
 
     try {
-      await register(account);
+      await register(registerToken ? { ...account, turnstileToken: registerToken } : account);
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
+      if (turnstileSiteKey) {
+        setRegisterToken(null);
+        registerTurnstile.current?.reset();
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -294,7 +326,14 @@ export const AuthScreen: React.FC = () => {
                     </div>
                   </div>
                   {turnstileSiteKey && (
-                    <Turnstile siteKey={turnstileSiteKey} />
+                    <Turnstile
+                      ref={loginTurnstile}
+                      siteKey={turnstileSiteKey}
+                      options={{ action: 'login', theme: 'light' }}
+                      onSuccess={(token) => captchaSolved(setLoginToken, token)}
+                      onExpire={() => setLoginToken(null)}
+                      onError={() => setLoginToken(null)}
+                    />
                   )}
                 </div>
 
@@ -418,7 +457,14 @@ export const AuthScreen: React.FC = () => {
                     </div>
                   </div>
                   {turnstileSiteKey && (
-                    <Turnstile siteKey={turnstileSiteKey} />
+                    <Turnstile
+                      ref={registerTurnstile}
+                      siteKey={turnstileSiteKey}
+                      options={{ action: 'register', theme: 'light' }}
+                      onSuccess={(token) => captchaSolved(setRegisterToken, token)}
+                      onExpire={() => setRegisterToken(null)}
+                      onError={() => setRegisterToken(null)}
+                    />
                   )}
                 </div>
 

@@ -5,6 +5,7 @@ import type { StorageAdapter } from './lib/storage.js';
 import type { AttachmentSigner } from './lib/attachments.js';
 import type { SessionStore } from './lib/session-store.js';
 import type { RestRateLimiters } from './middlewares/rate-limit.js';
+import type { CaptchaVerifier } from './lib/turnstile.js';
 
 /**
  * Dependencies of one server instance, built by the server factory and attached to its
@@ -17,6 +18,8 @@ export interface ServerContext {
   sessions: SessionStore;
   /** This instance's REST rate limiters; use the `rateLimit(name)` route middleware. */
   rateLimiters: RestRateLimiters;
+  /** Verifies the Turnstile token of sign-in and registration (lets everything pass when Turnstile is off). */
+  captcha: CaptchaVerifier;
 }
 
 const CONTEXT_KEY = 'serverContext';

@@ -3,9 +3,35 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { AuthScreen } from './AuthScreen';
 import { AuthContext } from '../../context/AuthContext';
 
-vi.mock('@marsidev/react-turnstile', () => ({
-  Turnstile: ({ siteKey }: { siteKey: string }) => <div data-testid="turnstile" data-sitekey={siteKey} />,
-}));
+const turnstileReset = vi.hoisted(() => vi.fn());
+
+// The widget stands in for Cloudflare: "solve captcha" hands the form a token for its action.
+vi.mock('@marsidev/react-turnstile', async () => {
+  const React = await import('react');
+  const Turnstile = React.forwardRef<unknown, any>(({ siteKey, options, onSuccess }, ref) => {
+    React.useImperativeHandle(ref, () => ({ reset: turnstileReset }));
+    return (
+      <div data-testid="turnstile" data-sitekey={siteKey} data-action={options?.action} data-theme={options?.theme}>
+        <button type="button" onClick={() => onSuccess?.(`token-${options?.action}`)}>
+          solve captcha
+        </button>
+      </div>
+    );
+  });
+  return { Turnstile };
+});
+
+const SITE_KEY = '1x00000000000000000000AA';
+
+function serveSiteKey() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ turnstileSiteKey: SITE_KEY }),
+    })
+  );
+}
 
 describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
   let mockLogin: ReturnType<typeof vi.fn>;
@@ -14,6 +40,7 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
   beforeEach(() => {
     mockLogin = vi.fn();
     mockRegister = vi.fn();
+    turnstileReset.mockClear();
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -68,13 +95,7 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
   });
 
   it('loads the public Turnstile site key from the server and renders the widget in registration', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ turnstileSiteKey: '1x00000000000000000000AA' }),
-      })
-    );
+    serveSiteKey();
     renderAuthScreen();
 
     fireEvent.click(screen.getByRole('tab', { name: /^create account$/i }));
@@ -223,6 +244,90 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
       expect(screen.getByText('Username already taken')).toBeInTheDocument();
+    });
+  });
+
+  describe('with Turnstile on', () => {
+    const fillLogin = (panel: HTMLElement) => {
+      fireEvent.change(within(panel).getByLabelText(/email or username/i), { target: { value: 'tara' } });
+      fireEvent.change(within(panel).getByLabelText(/^password$/i), { target: { value: 'Password123!' } });
+    };
+
+    it('keeps the Sign In button unchanged, asks for the captcha until it is done, then sends the token', async () => {
+      serveSiteKey();
+      mockLogin.mockResolvedValue(undefined);
+      renderAuthScreen();
+      const signInPanel = document.getElementById('panel-signin')!;
+      const widget = await within(signInPanel).findByTestId('turnstile');
+      expect(widget).toHaveAttribute('data-action', 'login');
+      expect(widget).toHaveAttribute('data-theme', 'light');
+      fillLogin(signInPanel);
+
+      const submit = within(signInPanel).getByRole('button', { name: /sign in to gdg-hust/i });
+      expect(submit).toBeEnabled();
+      fireEvent.click(submit);
+      expect(await within(signInPanel).findByRole('alert')).toHaveTextContent('Please complete the captcha check first.');
+      expect(mockLogin).not.toHaveBeenCalled();
+
+      // Solving the captcha clears the reminder.
+      fireEvent.click(within(signInPanel).getByRole('button', { name: /solve captcha/i }));
+      expect(within(signInPanel).queryByRole('alert')).not.toBeInTheDocument();
+      fireEvent.click(submit);
+
+      await waitFor(() =>
+        expect(mockLogin).toHaveBeenCalledWith({
+          emailOrUsername: 'tara',
+          password: 'Password123!',
+          turnstileToken: 'token-login',
+        })
+      );
+    });
+
+    it('resets the widget after a refused sign-in, because a token works only once', async () => {
+      serveSiteKey();
+      mockLogin.mockRejectedValue(new Error('Invalid credentials'));
+      renderAuthScreen();
+      const signInPanel = document.getElementById('panel-signin')!;
+      await within(signInPanel).findByTestId('turnstile');
+      fillLogin(signInPanel);
+
+      fireEvent.click(within(signInPanel).getByRole('button', { name: /solve captcha/i }));
+      fireEvent.click(within(signInPanel).getByRole('button', { name: /sign in to gdg-hust/i }));
+
+      expect(await screen.findByText('Invalid credentials')).toBeInTheDocument();
+      expect(turnstileReset).toHaveBeenCalledTimes(1);
+
+      // The used token is gone: another attempt needs the captcha again.
+      mockLogin.mockClear();
+      fireEvent.click(within(signInPanel).getByRole('button', { name: /sign in to gdg-hust/i }));
+      expect(await within(signInPanel).findByText('Please complete the captcha check first.')).toBeInTheDocument();
+      expect(mockLogin).not.toHaveBeenCalled();
+    });
+
+    it('sends the registration widget token, issued for the register action', async () => {
+      serveSiteKey();
+      mockRegister.mockResolvedValue(undefined);
+      renderAuthScreen();
+      fireEvent.click(screen.getByRole('tab', { name: /^create account$/i }));
+      const registerPanel = document.getElementById('panel-register')!;
+      expect(await within(registerPanel).findByTestId('turnstile')).toHaveAttribute('data-action', 'register');
+
+      fireEvent.change(within(registerPanel).getByLabelText(/^username/i), { target: { value: 'new.user_1' } });
+      fireEvent.change(within(registerPanel).getByLabelText(/^email address/i), { target: { value: 'new@test.com' } });
+      fireEvent.change(within(registerPanel).getByLabelText(/^password/i), { target: { value: 'password123' } });
+      expect(within(registerPanel).getByRole('button', { name: /create gdg-hust account/i })).toBeEnabled();
+
+      fireEvent.click(within(registerPanel).getByRole('button', { name: /solve captcha/i }));
+      fireEvent.click(within(registerPanel).getByRole('button', { name: /create gdg-hust account/i }));
+
+      await waitFor(() =>
+        expect(mockRegister).toHaveBeenCalledWith({
+          username: 'new.user_1',
+          email: 'new@test.com',
+          password: 'password123',
+          turnstileToken: 'token-register',
+        })
+      );
     });
   });
 });
