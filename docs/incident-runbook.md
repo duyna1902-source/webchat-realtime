@@ -35,6 +35,7 @@ Security-relevant actions are logged with their name in the `event` field (`serv
 | `auth.login.success` | info | `userId` | Logins to one account from many IPs, or at odd hours. |
 | `auth.login.failure` | warn | `identifier` (normalized), `reason` (`unknown_user` or `wrong_password`), `userId` when the user exists | Many failures from one `ip` (password guessing) or against one `identifier` (targeted attack). |
 | `auth.register` | info | `userId` | Bursts of new accounts (bots). |
+| `auth.captcha.failure` | warn | `path` (register or login), `reason` (`missing_token` or `rejected`), `errorCodes` (Cloudflare's, when rejected) | Many from one `ip`: a bot posting without solving Turnstile. Bursts of `timeout-or-duplicate`: tokens being replayed. |
 | `auth.logout` | info | `userId` | |
 | `auth.logout_all` | info | `userId`, `revoked` | A user who signed out of all devices may think their account was compromised. |
 | `session.revoked` | info | `scope` (`session`, `user` or `all`), `userId`, `count` | Every revocation, by the server or by the `sessions:revoke` command. The Session id is never logged. |
@@ -97,6 +98,7 @@ If the connection string may have leaked (it contains the database password):
 ### Other keys
 
 - `GIPHY_API_KEY`: create a new key in the Giphy developer dashboard, set it on Render, delete the old one. Without a key the app falls back to built-in GIFs, so you can also just delete the variable.
+- `TURNSTILE_SECRET_KEY`: rotate the secret of the widget in the Cloudflare dashboard (Turnstile, then the widget's settings), set the new value on Render and redeploy. To switch Turnstile off instead, delete **both** `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`.
 - `JWT_SECRET`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`: the app no longer reads them. If any of them is still set on Render, delete it, and treat its value as compromised.
 
 ### Render environment checklist
@@ -104,6 +106,7 @@ If the connection string may have leaked (it contains the database password):
 `render.yaml` declares the secrets with `sync: false`. Render asks for those values only when a blueprint is first created, so on the **existing** service every change below is made by hand in **Environment**:
 
 - [ ] `SUPABASE_SECRET_KEY`, `SUPABASE_URL`, `DATABASE_URL` and `GIPHY_API_KEY` have values.
+- [ ] `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` are both set, or both absent.
 - [ ] `APP_ORIGIN` is `https://webchat-realtime.onrender.com` (no trailing slash). The server refuses to start without it, and checks every write and socket handshake against it.
 - [ ] `NODE_ENV=production`, `STORAGE_PROVIDER=supabase`, `SUPABASE_STORAGE_BUCKET=attachments`, `PORT=10000`.
 - [ ] `JWT_SECRET`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are deleted.
