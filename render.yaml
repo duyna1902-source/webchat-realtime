@@ -29,3 +29,8 @@ services:
         value: attachments
       - key: GIPHY_API_KEY
         sync: false
+      # Optional, but set both or neither: the server refuses to start with only one.
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
