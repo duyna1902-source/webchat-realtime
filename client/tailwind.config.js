@@ -1,5 +1,61 @@
+const v = (name) => `rgb(var(--c-${name}) / <alpha-value>)`;
+
+const grays = Object.fromEntries(
+  [50, 100, 200, 300, 400, 500, 600, 700, 800, 900].map((n) => [n, v(`gray-${n}`)])
+);
+
+/** Neutral and tinted shades shared by every colour utility. */
+const themedNeutrals = {
+  gray: grays,
+  google: {
+    'blue-subtle': v('blue-subtle'),
+    'red-subtle': v('red-subtle'),
+    'yellow-subtle': v('yellow-subtle'),
+    'green-subtle': v('green-subtle'),
+    grey50: v('grey50'),
+    grey100: v('grey100'),
+    grey200: v('grey200'),
+    grey300: v('grey300'),
+    grey700: v('grey700'),
+    grey900: v('grey900'),
+  },
+  'google-blue-subtle': v('blue-subtle'),
+  'google-red-subtle': v('red-subtle'),
+  'google-yellow-subtle': v('yellow-subtle'),
+  'google-green-subtle': v('green-subtle'),
+  'google-grey50': v('grey50'),
+  'google-grey100': v('grey100'),
+  'google-grey200': v('grey200'),
+  'google-grey300': v('grey300'),
+  'google-grey700': v('grey700'),
+  'google-grey900': v('grey900'),
+  blue: { 50: v('blue-50') },
+  amber: { 50: v('amber-50') },
+  rose: { 50: v('rose-50'), 200: v('rose-200'), 700: v('rose-700') },
+};
+
+/** Surface-like uses of "white" (card backgrounds, avatar rings, gradient stops). */
+const surfaceWhite = { white: v('surface') };
+
+/** Brand colours used as text get lighter tints on dark surfaces for contrast. */
+const themedBrandText = {
+  google: {
+    blue: v('text-blue'),
+    'blue-hover': v('text-blue-hover'),
+    red: v('text-red'),
+    yellow: v('text-yellow'),
+    green: v('text-green'),
+  },
+  'google-blue': v('text-blue'),
+  'google-blue-hover': v('text-blue-hover'),
+  'google-red': v('text-red'),
+  'google-yellow': v('text-yellow'),
+  'google-green': v('text-green'),
+};
+
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -9,7 +65,20 @@ export default {
       spacing: {
         '88': '22rem',
       },
+      backgroundColor: { ...themedNeutrals, ...surfaceWhite },
+      textColor: {
+        ...themedNeutrals,
+        ...themedBrandText,
+        google: { ...themedNeutrals.google, ...themedBrandText.google },
+      },
+      borderColor: { ...themedNeutrals, ...surfaceWhite },
+      divideColor: themedNeutrals,
+      ringColor: { ...themedNeutrals, ...surfaceWhite },
+      ringOffsetColor: { ...themedNeutrals, ...surfaceWhite },
+      placeholderColor: themedNeutrals,
+      gradientColorStops: { ...themedNeutrals, ...surfaceWhite },
       colors: {
+        'brand-white': '#FFFFFF',
         google: {
           blue: '#4285F4',
           'blue-hover': '#3367D6',
