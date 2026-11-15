@@ -3,6 +3,8 @@ import { useAuth } from '../../context/AuthContext';
 import { Lock, Mail, User, AlertCircle, Info, Loader2, ArrowRight } from 'lucide-react';
 import { loginSchema, registerSchema, parseWithSchema, FieldError } from '@webchat/shared';
 import { Turnstile, TurnstileInstance } from '@marsidev/react-turnstile';
+import { ThemeToggle } from '../common/ThemeToggle';
+import { useTheme } from '../../hooks/useTheme';
 import { apiFetch } from '../../utils/apiFetch';
 
 type FieldErrors = Record<string, string>;
@@ -53,6 +55,8 @@ export const AuthScreen: React.FC = () => {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState<string | null>(null);
+  // Cloudflare Turnstile ships its own light/dark skins; match the app theme.
+  const { theme: turnstileTheme } = useTheme();
   // One Turnstile widget per form. The submit button looks the same with or without a token;
   // submitting before the widget is done shows a message instead. A token is valid once, so after
   // a refused submit the widget is reset; the server verifies the token (`CAPTCHA_FAILED` when bad).
@@ -159,8 +163,13 @@ export const AuthScreen: React.FC = () => {
   return (
     <div
       id="screen-auth"
-      className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50/60 via-white to-amber-50/40 overflow-y-auto"
+      className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50/60 via-white to-amber-50/40 overflow-y-auto relative"
     >
+      {/* Dark / Light Mode Toggle */}
+      <div className="absolute top-3 right-3 bg-white/80 rounded-xl shadow-xs border border-google-grey200">
+        <ThemeToggle className="p-2" />
+      </div>
+
       {/* Top-Anchored Card with Strict Fixed Height = 100% ZERO SHIFT */}
       <div
         className="auth-card-lock w-full max-w-[420px] bg-white rounded-3xl shadow-xl border border-google-grey200 overflow-hidden shrink-0 flex flex-col relative"
@@ -172,7 +181,7 @@ export const AuthScreen: React.FC = () => {
           style={{ height: '160px' }}
         >
           {/* White Rounded Badge with Large, Sharp GDG Brackets Logo */}
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white p-2 shadow-md mb-2">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-white p-2 shadow-md mb-2">
             <img
               src="/assets/brand/logo-gdg-clean.webp"
               alt="GDG Logo"
@@ -329,7 +338,7 @@ export const AuthScreen: React.FC = () => {
                     <Turnstile
                       ref={loginTurnstile}
                       siteKey={turnstileSiteKey}
-                      options={{ action: 'login', theme: 'light' }}
+                      options={{ action: 'login', theme: turnstileTheme }}
                       onSuccess={(token) => captchaSolved(setLoginToken, token)}
                       onExpire={() => setLoginToken(null)}
                       onError={() => setLoginToken(null)}
@@ -460,7 +469,7 @@ export const AuthScreen: React.FC = () => {
                     <Turnstile
                       ref={registerTurnstile}
                       siteKey={turnstileSiteKey}
-                      options={{ action: 'register', theme: 'light' }}
+                      options={{ action: 'register', theme: turnstileTheme }}
                       onSuccess={(token) => captchaSolved(setRegisterToken, token)}
                       onExpire={() => setRegisterToken(null)}
                       onError={() => setRegisterToken(null)}
