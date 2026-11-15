@@ -49,6 +49,7 @@ describe('loadConfig', () => {
       PORT: '4100',
       GIPHY_API_KEY: 'giphy-key',
       TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+      TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA',
       LOG_LEVEL: 'debug',
     }, { clientDistPath: missingClientDist });
 
@@ -58,6 +59,7 @@ describe('loadConfig', () => {
     expect(config.databaseUrl).toBe(devEnv.DATABASE_URL);
     expect(config.giphyApiKey).toBe('giphy-key');
     expect(config.turnstileSiteKey).toBe('1x00000000000000000000AA');
+    expect(config.turnstileSecretKey).toBe('1x0000000000000000000000000000000AA');
     expect(config.logLevel).toBe('debug');
     expect(config.storage).toEqual({ provider: 'local' });
     expect(config.clientDistPath).toBeNull();
@@ -70,6 +72,7 @@ describe('loadConfig', () => {
     expect(config.logLevel).toBe('info');
     expect(config.giphyApiKey).toBeNull();
     expect(config.turnstileSiteKey).toBeNull();
+    expect(config.turnstileSecretKey).toBeNull();
     expect(config.timing.presenceGracePeriodMs).toBe(5000);
     expect(config.timing.connectionStateRecoveryMs).toBe(2 * 60 * 1000);
     expect(config.timing.signedUrlTtlSeconds).toBe(3600);
@@ -119,10 +122,30 @@ describe('loadConfig', () => {
 
   it('rejects a malformed TURNSTILE_SITE_KEY', () => {
     const err = configErrorOf(() =>
-      loadConfig({ ...devEnv, TURNSTILE_SITE_KEY: 'invalid site key' }, { clientDistPath: missingClientDist })
+      loadConfig(
+        { ...devEnv, TURNSTILE_SITE_KEY: 'invalid site key', TURNSTILE_SECRET_KEY: 'secret' },
+        { clientDistPath: missingClientDist }
+      )
     );
   
     expect(err.issues.map((issue) => issue.variable)).toEqual(['TURNSTILE_SITE_KEY']);
+  });
+
+  it('refuses a Turnstile site key without its secret key: the widget would stop no bot', () => {
+    const err = configErrorOf(() =>
+      loadConfig({ ...devEnv, TURNSTILE_SITE_KEY: '1x00000000000000000000AA' }, { clientDistPath: missingClientDist })
+    );
+
+    expect(err.issues.map((issue) => issue.variable)).toEqual(['TURNSTILE_SECRET_KEY']);
+  });
+
+  it('refuses a Turnstile secret key without its site key: every register and login would fail', () => {
+    const err = configErrorOf(() =>
+      loadConfig({ ...devEnv, TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA' }, { clientDistPath: missingClientDist })
+    );
+
+    expect(err.issues.map((issue) => issue.variable)).toEqual(['TURNSTILE_SITE_KEY']);
+    expect(err.message).not.toContain('1x0000000000000000000000000000000AA');
   });
 
   it('accepts DATABASE_URL=memory: only under NODE_ENV=test', () => {
