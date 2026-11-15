@@ -10,6 +10,7 @@ import { attachServerContext } from './context.js';
 import { createLogger, Logger } from './lib/logger.js';
 import { createSessionStore, SessionStore } from './lib/session-store.js';
 import { createRestRateLimiters } from './middlewares/rate-limit.js';
+import { createTurnstileVerifier, TurnstileVerifier } from './lib/turnstile.js';
 
 export interface CreateServerOptions {
   /** Validated configuration from `loadConfig()`. */
@@ -19,6 +20,11 @@ export interface CreateServerOptions {
   logger?: Logger;
   /** Readiness probe for `/health/ready`; rejects when the database is unreachable. Defaults to `SELECT 1`. */
   checkDatabase?: () => Promise<unknown>;
+  /**
+   * Checks Turnstile tokens. Defaults to asking Cloudflare with `config.turnstileSecretKey`, or to
+   * none when Turnstile is not configured. Tests inject a fake so they never reach the network.
+   */
+  verifyTurnstile?: TurnstileVerifier;
 }
 
 export interface WebchatServer {
@@ -39,6 +45,7 @@ export async function createServer({
   storage,
   logger: injectedLogger,
   checkDatabase: injectedCheckDatabase,
+  verifyTurnstile,
 }: CreateServerOptions): Promise<WebchatServer> {
   const logger = injectedLogger ?? createLogger({ level: config.logLevel });
   const prisma = await initPrisma(config.databaseUrl);
@@ -55,7 +62,16 @@ export async function createServer({
   const httpServer = http.createServer(app);
   // Socket.IO must attach after Express so it can intercept `/socket.io` requests first.
   const io = setupSocketServer(httpServer, { config, logger, sessions, storage });
-  attachServerContext(app.locals, { config, storage, io, sessions, rateLimiters: createRestRateLimiters(config.rateLimits) });
+  const turnstile =
+    verifyTurnstile ?? (config.turnstileSecretKey ? createTurnstileVerifier(config.turnstileSecretKey) : null);
+  attachServerContext(app.locals, {
+    config,
+    storage,
+    io,
+    sessions,
+    rateLimiters: createRestRateLimiters(config.rateLimits),
+    turnstile,
+  });
 
   return { httpServer, app, io, logger, sessions };
 }
