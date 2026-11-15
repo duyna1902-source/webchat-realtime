@@ -156,7 +156,8 @@ Then fill it in. The defaults already work for local development with the Postgr
 | `SUPABASE_STORAGE_BUCKET` | With `supabase` storage | The private Attachment bucket, `attachments`. |
 | `LOG_LEVEL` | No (default `info`) | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. |
 | `GIPHY_API_KEY` | No | GIF search; without it the app uses built-in curated GIFs. |
-| `TURNSTILE_SITE_KEY` | No | Public Cloudflare Turnstile **site key** (letters, digits, `_` and `-` only). When set, the sign-in and registration forms show the Turnstile widget. It is not a secret: the browser gets it from `GET /api/auth/config`. |
+| `TURNSTILE_SITE_KEY` | With `TURNSTILE_SECRET_KEY` | Public Cloudflare Turnstile **site key** (letters, digits, `_` and `-` only). When set, the sign-in and registration forms show the Turnstile widget. It is not a secret: the browser gets it from `GET /api/auth/config`. |
+| `TURNSTILE_SECRET_KEY` | With `TURNSTILE_SITE_KEY` | Cloudflare Turnstile **secret key**. The server sends every register and login token to Cloudflare's Siteverify API with it. The two keys are set together or not at all; the server refuses to start with only one. |
 
 In production the server also refuses to start without the built client (`client/dist/index.html`). `JWT_SECRET`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `PUBLIC_URL`, the Cloudinary variables and `VITE_API_URL`/`VITE_SOCKET_URL` no longer exist: delete them wherever they are still set.
 
@@ -303,7 +304,7 @@ Other users appear everywhere (member lists, Direct Chat partners, message sende
 ## Security
 
 - Report vulnerabilities privately as described in [`SECURITY.md`](SECURITY.md), which also lists the accepted risks.
-- **Cloudflare Turnstile is display-only for now.** With `TURNSTILE_SITE_KEY` set, the forms show the widget and the CSP allows `https://challenges.cloudflare.com`, but the server never verifies the Turnstile token (there is no secret key, and register and login do not read the token). It does not stop bots yet; the rate limits on login and registration are the actual protection.
+- **Cloudflare Turnstile guards register and login when enabled.** With `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` set, both forms show the widget and the server checks the token with Cloudflare before it reads the credentials: no or a refused token answers `400 CAPTCHA_FAILED`, and if Cloudflare cannot be reached the request answers `503 CAPTCHA_UNAVAILABLE` (it fails closed). Tokens are single-use, so the form gets a new one after every attempt. The rate limits on login and registration still apply first.
 - Operators: the [incident runbook](docs/incident-runbook.md) covers the security log events, key rotation, Session revocation (`npm run sessions:revoke --workspace=server -- --user <username|id>` or `-- --all`), impact assessment and user notification.
 
 ---
