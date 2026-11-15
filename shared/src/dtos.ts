@@ -27,11 +27,15 @@ export interface RegisterRequestDto {
   username: string;
   email: string;
   password: string;
+  /** Cloudflare Turnstile token; required when the server has Turnstile enabled. */
+  turnstileToken?: string;
 }
 
 export interface LoginRequestDto {
   emailOrUsername: string;
   password: string;
+  /** Cloudflare Turnstile token; required when the server has Turnstile enabled. */
+  turnstileToken?: string;
 }
 
 /**
