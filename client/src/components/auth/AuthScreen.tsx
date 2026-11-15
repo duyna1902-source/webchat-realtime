@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Lock, Mail, User, AlertCircle, Info, Loader2, ArrowRight } from 'lucide-react';
 import { loginSchema, registerSchema, parseWithSchema, FieldError } from '@webchat/shared';
-import { Turnstile } from '@marsidev/react-turnstile'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { apiFetch } from '../../utils/apiFetch';
 
 type FieldErrors = Record<string, string>;
+
+/** Shown when Turnstile is on and the user submits before the check has given a token. */
+const TURNSTILE_PENDING_MESSAGE = 'Please complete the verification check first.';
 
 function toFieldErrors(fields: FieldError[]): FieldErrors {
   return Object.fromEntries(fields.map((f) => [f.field, f.message]));
@@ -50,6 +53,12 @@ export const AuthScreen: React.FC = () => {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState<string | null>(null);
+  // One widget per form, each with its own token. A token is single-use (the server spends it
+  // with Cloudflare on every attempt), so the widget is reset after each submission.
+  const [loginToken, setLoginToken] = useState<string | null>(null);
+  const [registerToken, setRegisterToken] = useState<string | null>(null);
+  const loginTurnstile = useRef<TurnstileInstance>(null);
+  const registerTurnstile = useRef<TurnstileInstance>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,14 +99,22 @@ export const AuthScreen: React.FC = () => {
       return;
     }
     setFieldErrors({});
+    if (turnstileSiteKey && !loginToken) {
+      setError(TURNSTILE_PENDING_MESSAGE);
+      return;
+    }
     setIsSubmitting(true);
 
     try {
-      await login(credentials);
+      await login(loginToken ? { ...credentials, turnstileToken: loginToken } : credentials);
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
     } finally {
       setIsSubmitting(false);
+      if (turnstileSiteKey) {
+        setLoginToken(null);
+        loginTurnstile.current?.reset();
+      }
     }
   };
 
@@ -113,14 +130,22 @@ export const AuthScreen: React.FC = () => {
       return;
     }
     setFieldErrors({});
+    if (turnstileSiteKey && !registerToken) {
+      setError(TURNSTILE_PENDING_MESSAGE);
+      return;
+    }
     setIsSubmitting(true);
 
     try {
-      await register(account);
+      await register(registerToken ? { ...account, turnstileToken: registerToken } : account);
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
     } finally {
       setIsSubmitting(false);
+      if (turnstileSiteKey) {
+        setRegisterToken(null);
+        registerTurnstile.current?.reset();
+      }
     }
   };
 
@@ -294,7 +319,13 @@ export const AuthScreen: React.FC = () => {
                     </div>
                   </div>
                   {turnstileSiteKey && (
-                    <Turnstile siteKey={turnstileSiteKey} />
+                    <Turnstile
+                      ref={loginTurnstile}
+                      siteKey={turnstileSiteKey}
+                      onSuccess={setLoginToken}
+                      onExpire={() => setLoginToken(null)}
+                      onError={() => setLoginToken(null)}
+                    />
                   )}
                 </div>
 
@@ -418,7 +449,13 @@ export const AuthScreen: React.FC = () => {
                     </div>
                   </div>
                   {turnstileSiteKey && (
-                    <Turnstile siteKey={turnstileSiteKey} />
+                    <Turnstile
+                      ref={registerTurnstile}
+                      siteKey={turnstileSiteKey}
+                      onSuccess={setRegisterToken}
+                      onExpire={() => setRegisterToken(null)}
+                      onError={() => setRegisterToken(null)}
+                    />
                   )}
                 </div>
 
