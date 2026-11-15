@@ -11,6 +11,7 @@ import { loadConfig, AppConfig, RateLimitsConfig, TimingConfig } from '../../src
 import { createServer, WebchatServer } from '../../src/server.js';
 import { InMemoryStorageAdapter, StorageAdapter } from '../../src/lib/storage.js';
 import type { Logger } from '../../src/lib/logger.js';
+import type { TurnstileVerifier } from '../../src/lib/turnstile.js';
 import { getPrisma } from '../../src/lib/prisma.js';
 import { SESSION_COOKIE_NAME } from '../../src/lib/session-cookie.js';
 
@@ -57,6 +58,8 @@ export interface CreateTestServerOptions<S extends StorageAdapter> {
   logger?: Logger;
   /** Replaces the database readiness probe of `/health/ready`, e.g. with a failing one. */
   checkDatabase?: () => Promise<unknown>;
+  /** Fake Turnstile check; with it, register and login require a `turnstileToken`. */
+  verifyTurnstile?: TurnstileVerifier;
   /** Listen on a random port (needed for socket.io-client). Supertest works without it. */
   listen?: boolean;
 }
@@ -67,7 +70,13 @@ export async function createTestServer<S extends StorageAdapter = InMemoryStorag
 ): Promise<TestServer<S>> {
   const config = createTestConfig(options.config);
   const storage = (options.storage ?? new InMemoryStorageAdapter()) as S;
-  const server = await createServer({ config, storage, logger: options.logger, checkDatabase: options.checkDatabase });
+  const server = await createServer({
+    config,
+    storage,
+    logger: options.logger,
+    checkDatabase: options.checkDatabase,
+    verifyTurnstile: options.verifyTurnstile,
+  });
 
   let port = 0;
   if (options.listen) {
