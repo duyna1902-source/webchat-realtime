@@ -1,3 +1,102 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+
+    --c-surface: 255 255 255;
+
+    --c-gray-50: 249 250 251;
+    --c-gray-100: 243 244 246;
+    --c-gray-200: 229 231 235;
+    --c-gray-300: 209 213 219;
+    --c-gray-400: 156 163 175;
+    --c-gray-500: 107 114 128;
+    --c-gray-600: 75 85 99;
+    --c-gray-700: 55 65 81;
+    --c-gray-800: 31 41 55;
+    --c-gray-900: 17 24 39;
+
+    --c-grey50: 248 249 250;
+    --c-grey100: 241 243 244;
+    --c-grey200: 232 234 237;
+    --c-grey300: 218 220 224;
+    --c-grey700: 95 99 104;
+    --c-grey900: 32 33 36;
+
+    --c-blue-subtle: 232 240 254;
+    --c-red-subtle: 252 232 230;
+    --c-yellow-subtle: 254 247 224;
+    --c-green-subtle: 230 244 234;
+
+    --c-blue-50: 239 246 255;
+    --c-amber-50: 255 251 235;
+    --c-rose-50: 255 241 242;
+    --c-rose-200: 254 205 211;
+    --c-rose-700: 190 18 60;
+
+    --c-text-blue: 66 133 244;
+    --c-text-blue-hover: 51 103 214;
+    --c-text-red: 234 67 53;
+    --c-text-yellow: 251 188 4;
+    --c-text-green: 52 168 83;
+  }
+
+  html.dark {
+    color-scheme: dark;
+
+    --c-surface: 41 42 45;
+
+    --c-gray-50: 32 33 36;
+    --c-gray-100: 50 51 55;
+    --c-gray-200: 60 64 67;
+    --c-gray-300: 77 81 86;
+    --c-gray-400: 154 160 166;
+    --c-gray-500: 154 160 166;
+    --c-gray-600: 189 193 198;
+    --c-gray-700: 202 205 209;
+    --c-gray-800: 222 225 229;
+    --c-gray-900: 232 234 237;
+
+    --c-grey50: 32 33 36;
+    --c-grey100: 53 54 58;
+    --c-grey200: 60 64 67;
+    --c-grey300: 77 81 86;
+    --c-grey700: 189 193 198;
+    --c-grey900: 232 234 237;
+
+    --c-blue-subtle: 39 54 82;
+    --c-red-subtle: 76 39 38;
+    --c-yellow-subtle: 70 59 22;
+    --c-green-subtle: 30 61 41;
+
+    --c-blue-50: 30 40 60;
+    --c-amber-50: 55 47 25;
+    --c-rose-50: 76 38 45;
+    --c-rose-200: 125 55 65;
+    --c-rose-700: 251 164 175;
+
+    --c-text-blue: 138 180 248;
+    --c-text-blue-hover: 174 203 250;
+    --c-text-red: 242 139 130;
+    --c-text-yellow: 253 214 99;
+    --c-text-green: 129 201 149;
+  }
+
+  /* Smooth the switch between themes without animating every page load. */
+  html.theme-transition,
+  html.theme-transition *,
+  html.theme-transition *::before,
+  html.theme-transition *::after {
+    transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease !important;
+  }
+}
+
+/* Text on a solid brand-yellow fill (yellow avatars) stays dark ink in both themes. */
+@layer utilities {
+  .bg-google-yellow.text-google-grey900 {
+    color: #202124;
+  }
+}
