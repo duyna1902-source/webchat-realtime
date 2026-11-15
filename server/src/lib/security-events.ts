@@ -13,6 +13,7 @@ import type { Logger } from './logger.js';
 export type SecurityEvent =
   | 'auth.login.success'
   | 'auth.login.failure'
+  | 'auth.captcha.failure'
   | 'auth.register'
   | 'auth.logout'
   | 'auth.logout_all'
@@ -31,6 +32,7 @@ export type SecurityEvent =
 /** Events that point at a refused or possibly abusive action; the rest record normal activity. */
 const WARNING_EVENTS: ReadonlySet<SecurityEvent> = new Set<SecurityEvent>([
   'auth.login.failure',
+  'auth.captcha.failure',
   'ratelimit.hit',
   'upload.rejected',
   'http.401',
