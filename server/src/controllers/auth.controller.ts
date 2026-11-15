@@ -9,6 +9,7 @@ import { AppError } from '../lib/errors.js';
 import { uniqueViolationTargets } from '../lib/prisma-errors.js';
 import { parseInput } from '../lib/validation.js';
 import { logSecurityEvent } from '../lib/security-events.js';
+import type { CaptchaAction } from '../lib/turnstile.js';
 
 /** The signed-in User's own account; the only DTO that carries an email (SEC-13). */
 function toSelfUserDto(user: any): SelfUserDto {
@@ -42,7 +43,23 @@ function normalizeLoginIdentifier(emailOrUsername: string): string {
 /** Public browser configuration; contains no server-side secrets. */
 export function getAuthConfig(req: Request, res: Response): void {
   const { config } = getServerContext(req);
-  res.json({ turnstileSiteKey: config.turnstileSiteKey });
+  res.json({ turnstileSiteKey: config.turnstile?.siteKey ?? null });
+}
+
+/**
+ * Redeems the form's Turnstile token with Cloudflare before anything else, so a request without
+ * a valid token never reaches the database or bcrypt. Fails closed when Cloudflare cannot answer.
+ */
+async function requireCaptcha(req: Request, action: CaptchaAction, token: string | undefined): Promise<void> {
+  const { captcha } = getServerContext(req);
+  const result = await captcha.verify(token, action, req.ip);
+  if (result.outcome === 'ok') return;
+
+  logSecurityEvent(req.log, 'auth.captcha.failure', { action, outcome: result.outcome, reason: result.reason });
+  if (result.outcome === 'unavailable') {
+    throw new AppError(503, ERROR_CODES.CAPTCHA_UNAVAILABLE, 'Captcha verification is unavailable. Please try again later.');
+  }
+  throw new AppError(400, ERROR_CODES.CAPTCHA_FAILED, 'Captcha verification failed. Please try again.');
 }
 
 /**
@@ -79,7 +96,8 @@ function duplicateAccountError(err: unknown): AppError | null {
 }
 
 export async function register(req: Request, res: Response): Promise<void> {
-  const { username, email, password } = parseInput(registerSchema, req.body);
+  const { username, email, password, turnstileToken } = parseInput(registerSchema, req.body);
+  await requireCaptcha(req, 'register', turnstileToken);
   const passwordHash = await bcrypt.hash(password, 10);
 
   let newUser;
@@ -104,7 +122,8 @@ export async function register(req: Request, res: Response): Promise<void> {
 }
 
 export async function login(req: Request, res: Response): Promise<void> {
-  const { emailOrUsername, password } = parseInput(loginSchema, req.body);
+  const { emailOrUsername, password, turnstileToken } = parseInput(loginSchema, req.body);
+  await requireCaptcha(req, 'login', turnstileToken);
   const user = await findUserByLogin(emailOrUsername);
   const identifier = normalizeLoginIdentifier(emailOrUsername);
 

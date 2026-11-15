@@ -11,8 +11,10 @@ beforeAll(async () => {
   ({ app } = await createTestServer({
       config: {
         rateLimits: { register: { max: 1000, windowMs: 60_000 } },
-        turnstileSiteKey: '1x00000000000000000000AA',
+        turnstile: { siteKey: '1x00000000000000000000AA', secretKey: 'test-secret' },
       },
+      // Every token passes here; the Turnstile checks themselves are in turnstile-auth.test.ts.
+      captcha: { verify: async () => ({ outcome: 'ok' }) },
     }));
   });
 

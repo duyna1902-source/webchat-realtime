@@ -34,6 +34,7 @@ Security-relevant actions are logged with their name in the `event` field (`serv
 |---|---|---|---|
 | `auth.login.success` | info | `userId` | Logins to one account from many IPs, or at odd hours. |
 | `auth.login.failure` | warn | `identifier` (normalized), `reason` (`unknown_user` or `wrong_password`), `userId` when the user exists | Many failures from one `ip` (password guessing) or against one `identifier` (targeted attack). |
+| `auth.captcha.failure` | warn | `action` (`login` or `register`), `outcome` (`invalid` or `unavailable`), `reason` (Cloudflare error code, `action_mismatch`, `timeout`, `network_error`, ...) | Bursts of `invalid` from one `ip` (a bot without a real token). Any `unavailable` means sign-in and registration are refused while Cloudflare cannot be reached: check [Cloudflare status](https://www.cloudflarestatus.com/) and the server's outbound network. |
 | `auth.register` | info | `userId` | Bursts of new accounts (bots). |
 | `auth.logout` | info | `userId` | |
 | `auth.logout_all` | info | `userId`, `revoked` | A user who signed out of all devices may think their account was compromised. |

@@ -59,6 +59,8 @@ export const ROOM_RULES = {
 const ID_MAX_LENGTH = 128;
 /** Upper bound for a login identifier or password; longer input is never a valid account. */
 const LOGIN_FIELD_MAX_LENGTH = 1024;
+/** Cloudflare documents Turnstile tokens as at most 2048 characters. */
+const TURNSTILE_TOKEN_MAX_LENGTH = 2048;
 
 const CONTROL_CHARACTER = /\p{Cc}/u;
 const CONTROL_CHARACTERS = /\p{Cc}/gu;
@@ -127,10 +129,17 @@ export const passwordSchema = z
     message: `Password must be at most ${ACCOUNT_RULES.PASSWORD_MAX_BYTES} bytes`,
   });
 
+/**
+ * The Cloudflare Turnstile token of the form. Optional in the schema: the server requires it only
+ * when Turnstile is configured, and verifies it with Cloudflare before anything else.
+ */
+export const turnstileTokenSchema = z.string().max(TURNSTILE_TOKEN_MAX_LENGTH, 'Invalid captcha token').optional();
+
 export const registerSchema = z.object({
   username: usernameSchema,
   email: emailSchema,
   password: passwordSchema,
+  turnstileToken: turnstileTokenSchema,
 });
 
 export const loginSchema = z.object({
@@ -141,6 +150,7 @@ export const loginSchema = z.object({
     .max(LOGIN_FIELD_MAX_LENGTH, 'Invalid credentials'),
   // No strength rule here: accounts created before the rules existed must still sign in.
   password: z.string().min(1, 'Enter your password').max(LOGIN_FIELD_MAX_LENGTH, 'Invalid credentials'),
+  turnstileToken: turnstileTokenSchema,
 });
 
 /** Most users one search returns, so a search cannot list the whole directory (SEC-13). */

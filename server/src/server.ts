@@ -10,6 +10,7 @@ import { attachServerContext } from './context.js';
 import { createLogger, Logger } from './lib/logger.js';
 import { createSessionStore, SessionStore } from './lib/session-store.js';
 import { createRestRateLimiters } from './middlewares/rate-limit.js';
+import { CaptchaVerifier, createTurnstileVerifier, disabledCaptchaVerifier } from './lib/turnstile.js';
 
 export interface CreateServerOptions {
   /** Validated configuration from `loadConfig()`. */
@@ -19,6 +20,11 @@ export interface CreateServerOptions {
   logger?: Logger;
   /** Readiness probe for `/health/ready`; rejects when the database is unreachable. Defaults to `SELECT 1`. */
   checkDatabase?: () => Promise<unknown>;
+  /**
+   * Verifies Turnstile tokens. Defaults to Cloudflare siteverify when `config.turnstile` is set,
+   * and to letting every request pass when it is not.
+   */
+  captcha?: CaptchaVerifier;
 }
 
 export interface WebchatServer {
@@ -39,6 +45,7 @@ export async function createServer({
   storage,
   logger: injectedLogger,
   checkDatabase: injectedCheckDatabase,
+  captcha: injectedCaptcha,
 }: CreateServerOptions): Promise<WebchatServer> {
   const logger = injectedLogger ?? createLogger({ level: config.logLevel });
   const prisma = await initPrisma(config.databaseUrl);
@@ -55,7 +62,16 @@ export async function createServer({
   const httpServer = http.createServer(app);
   // Socket.IO must attach after Express so it can intercept `/socket.io` requests first.
   const io = setupSocketServer(httpServer, { config, logger, sessions, storage });
-  attachServerContext(app.locals, { config, storage, io, sessions, rateLimiters: createRestRateLimiters(config.rateLimits) });
+  const captcha =
+    injectedCaptcha ?? (config.turnstile ? createTurnstileVerifier({ config: config.turnstile }) : disabledCaptchaVerifier);
+  attachServerContext(app.locals, {
+    config,
+    storage,
+    io,
+    sessions,
+    rateLimiters: createRestRateLimiters(config.rateLimits),
+    captcha,
+  });
 
   return { httpServer, app, io, logger, sessions };
 }
