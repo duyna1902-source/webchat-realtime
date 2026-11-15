@@ -9,6 +9,7 @@ import { Sidebar, formatSidebarPreview } from '../chat/Sidebar';
 import { ChatArea } from '../chat/ChatArea';
 import { RoomChatArea } from '../room/RoomChatArea';
 import { AccountInfoModal } from './AccountInfoModal';
+import { ThemeToggle } from '../common/ThemeToggle';
 import { LogOut, MonitorX, Bell, BellOff } from 'lucide-react';
 import {
   SOCKET_EVENTS,
@@ -221,7 +222,7 @@ export const Dashboard: React.FC = () => {
       <header className="bg-white border-b border-google-grey300 px-3 sm:px-4 h-11 flex items-center justify-between shrink-0 z-20">
         {/* GDG-HUST Brand Lockup (Guaranteed never to wrap on mobile down to 320px) */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-          <div className="w-7 h-7 rounded-lg bg-white border border-google-grey300 flex items-center justify-center p-0.5 shadow-xs shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-brand-white border border-google-grey300 flex items-center justify-center p-0.5 shadow-xs shrink-0">
             <img
               src="/assets/brand/logo-gdg-clean.webp"
               alt="GDG Logo"
@@ -238,6 +239,9 @@ export const Dashboard: React.FC = () => {
 
         {/* Right Navigation Controls */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Dark / Light Mode Toggle */}
+          <ThemeToggle />
+
           {/* Notification Toggle Button */}
           <button
             type="button"
