@@ -86,9 +86,9 @@ describe('AuthScreen Component - Variant B Zero-Shift Rebranding', () => {
     expect(header).toHaveClass('bg-google-blue');
     expect(header).toHaveStyle({ height: '160px' });
 
-    // 56x56 badge (w-14 h-14) with rounded-2xl
+    // 56x56 badge (w-14 h-14) with rounded-2xl; stays white in dark mode (bg-brand-white)
     const badge = screen.getByAltText('GDG Logo').closest('div');
-    expect(badge).toHaveClass('w-14', 'h-14', 'rounded-2xl', 'bg-white');
+    expect(badge).toHaveClass('w-14', 'h-14', 'rounded-2xl', 'bg-brand-white');
 
     const logoImg = screen.getByAltText('GDG Logo');
     expect(logoImg).toHaveAttribute('src', '/assets/brand/logo-gdg-clean.webp');

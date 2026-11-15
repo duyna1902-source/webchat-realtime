@@ -39,6 +39,7 @@ The system is engineered across three progressive technical tiers, enhanced with
 * **Delivery Tracking, Read Receipts & Unread Counters**: Real-time delivery state transitions (`SENT` $\rightarrow$ `DELIVERED` $\rightarrow$ `READ` with a moving `Seen [Mini-Avatar]` watermark) and live unread badges (`unreadCount`).
 * **Cursor-based Pagination**: Infinite scroll message history loading (`limit=50`, `before=<id>`, `after=<id>`) for smooth scroll performance.
 * **Browser Push Notifications**: HTML5 Web Notifications accompanied by an audio chime when the app runs in the background.
+* **Dark / Light Mode**: A sun/moon toggle in the top bar (and on the sign-in screen) switches themes. The first visit follows the OS setting; an explicit choice is saved in `localStorage` (`webchat_theme`) and synced across tabs. Neutral Tailwind colours read CSS variables (`client/src/index.css`) that `html.dark` swaps, so existing class names follow the theme without `dark:` variants. Use `bg-brand-white` for anything that must stay white in both themes.
 * **Adaptive Multi-Device Layout**:
   * **Mobile (`< 768px`)**: Master-Detail navigation with `100dvh` dynamic viewport height and a dedicated mobile back button without unmounting real-time socket state.
   * **Desktop (`>= 768px`)**: Dual-Pane layout featuring a fixed `352px` (`md:w-88`) sidebar and a **Persistent Detail View** when switching between Direct Chats and Rooms tabs.
